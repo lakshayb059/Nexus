@@ -285,6 +285,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, setIsCollapsed }) => {
           padding: 12px 16px;
           margin-top: auto;
           border-top: 1px solid var(--border);
+          background: rgba(220, 38, 38, 0.02);
         }
         .sidebar-logout-btn {
           width: 100%;
@@ -292,24 +293,42 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, setIsCollapsed }) => {
           align-items: center;
           justify-content: center;
           gap: 10px;
-          padding: 10px;
+          padding: 12px;
           border-radius: var(--r-md);
           background: var(--danger-light);
           color: var(--danger);
-          border: 1px solid transparent;
+          border: 1px solid var(--danger-light);
           font-family: var(--font);
           font-size: 0.875rem;
-          font-weight: 600;
+          font-weight: 700;
           cursor: pointer;
           transition: all var(--t-fast) var(--ease);
+          box-shadow: 0 2px 4px rgba(220, 38, 38, 0.05);
         }
         .sidebar-logout-btn:hover {
           background: var(--danger);
           color: #fff;
-          box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2);
+          border-color: var(--danger);
+          box-shadow: 0 8px 16px rgba(220, 38, 38, 0.2);
+          transform: translateY(-1px);
+        }
+        .sidebar-logout-btn:active {
+          transform: translateY(0);
+          box-shadow: 0 4px 8px rgba(220, 38, 38, 0.15);
         }
         .sidebar-logout-btn span {
           white-space: nowrap;
+        }
+
+        /* Responsive adjustments for Logout */
+        @media (max-width: 768px) {
+          .sidebar-logout-section {
+            padding: 16px;
+          }
+          .sidebar-logout-btn {
+            padding: 14px;
+            font-size: 0.95rem;
+          }
         }
 
         /* Mobile */
