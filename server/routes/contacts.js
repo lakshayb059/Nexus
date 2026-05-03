@@ -263,7 +263,8 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
     // Enhanced CallNotAnswered handling
     if (disposition === 'CallNotAnswered') {
       const maxOrderContact = await contactsCollection.find({ 
-        assignedTo: new ObjectId(req.user._id) 
+        assignedTo: new ObjectId(req.user._id),
+        queueOrder: { $lt: 999999 }
       }).sort({ queueOrder: -1 }).limit(1).toArray();
       
       const newOrder = maxOrderContact.length > 0 ? (maxOrderContact[0].queueOrder + 1) : 0;

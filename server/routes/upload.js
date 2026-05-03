@@ -67,7 +67,10 @@ router.post('/', verify, authorize(['admin', 'tl']), upload.single('file'), asyn
 
     // Get current max queueOrder for agent
     const contactsCollection = getCollection('contacts');
-    const existing = await contactsCollection.find({ assignedTo: new ObjectId(agentId) }).sort({ queueOrder: -1 }).toArray();
+    const existing = await contactsCollection.find({ 
+      assignedTo: new ObjectId(agentId),
+      queueOrder: { $lt: 999999 }
+    }).sort({ queueOrder: -1 }).limit(1).toArray();
     let queueStart = existing.length ? (existing[0].queueOrder + 1) : 0;
 
     const contacts = records.map((row, i) => ({

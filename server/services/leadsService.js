@@ -121,7 +121,8 @@ class LeadsService {
       // Handle CallNotAnswered
       if (disposition === 'CallNotAnswered') {
         const maxOrderContact = await contactsCollection.find({ 
-          assignedTo: new ObjectId(agentId) 
+          assignedTo: new ObjectId(agentId),
+          queueOrder: { $lt: 999999 }
         }).sort({ queueOrder: -1 }).limit(1).toArray();
         
         const newOrder = maxOrderContact.length > 0 ? (maxOrderContact[0].queueOrder + 1) : 0;
