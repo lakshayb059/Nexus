@@ -212,7 +212,8 @@ const MyLeads = () => {
                             defaultValue={lead.callBackDt ? new Date(lead.callBackDt).toISOString().slice(0, 16) : ''}
                             onChange={async (e) => {
                               try {
-                                await api.put(`/contacts/${lead._id}/status`, { status: 'Call Back', callBackDt: e.target.value });
+                                const dt = new Date(e.target.value).toISOString();
+                                await api.put(`/contacts/${lead._id}/status`, { status: 'Call Back', callBackDt: dt });
                                 fetchData();
                               } catch(err) {}
                             }}

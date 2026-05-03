@@ -96,7 +96,10 @@ const Contacts = ({ filterType }) => {
   const handleDispose = async (e) => {
     e.preventDefault();
     try {
-      await api.post(`/contacts/${selectedContact._id}/dispose`, dispForm);
+      const payload = { ...dispForm };
+      if (payload.appointmentDt) payload.appointmentDt = new Date(payload.appointmentDt).toISOString();
+      
+      await api.post(`/contacts/${selectedContact._id}/dispose`, payload);
       setSelectedContact(null);
       setDispForm({ disposition: '', remarks: '', appointmentDt: '', leadAmount: '' });
     } catch (err) {

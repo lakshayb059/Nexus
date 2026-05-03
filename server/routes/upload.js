@@ -41,7 +41,7 @@ function parseExcel(buffer) {
 }
 
 // POST /upload
-router.post('/', verify, authorize(['admin', 'tl']), upload.single('file'), async (req, res) => {
+router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     const { agentId, batchName } = req.body;

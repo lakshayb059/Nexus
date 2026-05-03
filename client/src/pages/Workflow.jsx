@@ -41,8 +41,16 @@ const Workflow = () => {
       const url = contactId ? `/contacts/queue?contactId=${contactId}` : '/contacts/queue';
       const res = await api.get(url);
       setData(res.data);
+      if (!res.data?.contact && !cid) {
+        console.log('Queue is empty');
+      }
     } catch (err) {
       console.error('Queue fetch failed', err);
+      // If 401, they will be redirected by axios interceptor
+      // If other error, show message
+      if (err.response?.status !== 401) {
+        alert('Could not load queue. Please check your connection or permissions.');
+      }
     } finally {
       setLoading(false);
     }
@@ -91,7 +99,12 @@ const Workflow = () => {
     }
     setSubmitting(true);
     try {
-      await api.post(`/contacts/${data.contact._id}/dispose`, dispForm);
+      const payload = { ...dispForm };
+      // Convert naive local datetime strings to ISO UTC
+      if (payload.appointmentDt) payload.appointmentDt = new Date(payload.appointmentDt).toISOString();
+      if (payload.callBackDt) payload.callBackDt = new Date(payload.callBackDt).toISOString();
+
+      await api.post(`/contacts/${data.contact._id}/dispose`, payload);
       setDispForm({ disposition: '', remarks: '', appointmentDt: '', leadAmount: '', callBackDt: '' });
       fetchNext();
     } catch (err) {
