@@ -43,6 +43,8 @@ function parseExcel(buffer) {
 // POST /upload
 router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('file'), async (req, res) => {
   try {
+    console.log('Upload request received:', { user: req.user, file: req.file?.originalname, body: req.body });
+    
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     const { agentId, batchName } = req.body;
     if (!agentId) return res.status(400).json({ error: 'Agent ID required' });

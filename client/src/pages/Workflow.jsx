@@ -49,7 +49,19 @@ const Workflow = () => {
       // If 401, they will be redirected by axios interceptor
       // If other error, show message
       if (err.response?.status !== 401) {
-        alert('Could not load queue. Please check your connection or permissions.');
+        // Retry once for network errors
+        if (err.code === 'NETWORK_ERROR' || !err.response) {
+          try {
+            console.log('Retrying queue fetch...');
+            const retryRes = await api.get(url);
+            setData(retryRes.data);
+          } catch (retryErr) {
+            console.error('Retry failed:', retryErr);
+            addToast('Could not load queue. Please refresh the page.', 'error');
+          }
+        } else {
+          addToast('Could not load queue. Please check your connection or permissions.', 'error');
+        }
       }
     } finally {
       setLoading(false);
@@ -70,7 +82,22 @@ const Workflow = () => {
     socket.on('contact_disposed',  refresh);
     socket.on('appointment_reminder', (d) => {
       addToast(`📅 Appointment: ${d.contactName} in ${d.minutesUntil} min`, 'appointment');
-      try { new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play(); } catch(e){}
+      // Enhanced sound notification with fallback
+      try {
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+        audio.volume = 0.5;
+        audio.play().catch(e => {
+          // Fallback to built-in notification sound if external fails
+          try {
+            const fallbackAudio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZURE');
+            fallbackAudio.play();
+          } catch(fallbackError) {
+            console.log('Audio notification failed:', fallbackError);
+          }
+        });
+      } catch(e) {
+        console.log('Audio notification failed:', e);
+      }
     });
     socket.on('callback_due', (d) => {
       addToast(`📞 Callback due: ${d.contactName}`, 'callback');
@@ -178,7 +205,7 @@ const Workflow = () => {
             {data.type === 'fresh' && <span className="badge badge-success">FRESH DATA</span>}
             {data.type === 'rechurn' && (
               <span className="badge" style={{ backgroundColor: '#f59e0b15', color: '#f59e0b', border: '1px solid #f59e0b40' }}>
-                RECHURN DATA {data.rechurnNum > 0 && `(Attempt ${data.rechurnNum})`}
+                RECHURN DATA (Attempt {data.rechurnNum || 1})
               </span>
             )}
           </div>

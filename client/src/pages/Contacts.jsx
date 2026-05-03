@@ -12,6 +12,7 @@ const DISPS = [
   { key: 'Lead',            label: 'Lead',              color: '#10b981' },
   { key: 'Appointment',     label: 'Appointment',       color: '#8b5cf6' },
   { key: 'CallNotAnswered', label: 'Call Not Answered', color: '#f59e0b' },
+  { key: 'HungUp',          label: 'Hung Up',           color: '#f43f5e' },
   { key: 'Invalid',         label: 'Invalid / Wrong No.', color: '#ef4444' },
   { key: 'DoNotCall',       label: 'Do Not Call',       color: '#64748b' },
   { key: 'CallBack',        label: 'Call Back',         color: '#06b6d4' },
@@ -319,11 +320,12 @@ const Contacts = ({ filterType }) => {
                       <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>Lead Status</div>
                       <select 
                         className="input-field" 
-                        style={{ marginBottom: 0, padding: '4px 10px', fontSize: '0.75rem', height: 32, width: '100%' }}
+                        style={{ marginBottom: 6, padding: '4px 10px', fontSize: '0.75rem', height: 32, width: '100%' }}
                         value={contact.status || ''}
                         onChange={async (e) => {
                           try {
-                            await api.put(`/contacts/${contact._id}/status`, { status: e.target.value });
+                            const newStatus = e.target.value;
+                            await api.put(`/contacts/${contact._id}/status`, { status: newStatus });
                             fetchContacts();
                           } catch(err) { alert('Failed to update status'); }
                         }}
@@ -335,6 +337,50 @@ const Contacts = ({ filterType }) => {
                         <option value="Call Back">Call Back</option>
                         <option value="Others">Others</option>
                       </select>
+                      
+                      {/* Show additional fields based on status selection */}
+                      {contact.status === 'Call Back' && (
+                        <div style={{ marginTop: 6 }}>
+                          <input 
+                            type="datetime-local" 
+                            className="input-field" 
+                            style={{ marginBottom: 0, padding: '4px 10px', fontSize: '0.75rem', height: 32, width: '100%' }}
+                            placeholder="Callback Date & Time"
+                            min={new Date(Date.now() + 3600000).toISOString().slice(0, 16)}
+                            onChange={async (e) => {
+                              try {
+                                await api.put(`/contacts/${contact._id}/status`, { 
+                                  status: contact.status,
+                                  callBackDt: e.target.value 
+                                });
+                                fetchContacts();
+                              } catch(err) { alert('Failed to update callback time'); }
+                            }}
+                          />
+                          <small style={{ color: 'var(--text-muted)', fontSize: '0.65rem', display: 'block', marginTop: 2 }}>
+                            Schedule at least 1 hour from now
+                          </small>
+                        </div>
+                      )}
+                      
+                      {contact.status === 'Others' && (
+                        <div style={{ marginTop: 6 }}>
+                          <textarea 
+                            className="input-field" 
+                            style={{ marginBottom: 0, padding: '6px 10px', fontSize: '0.75rem', width: '100%', minHeight: 60, resize: 'vertical' }}
+                            placeholder="Enter details for 'Others' status..."
+                            onChange={async (e) => {
+                              try {
+                                await api.put(`/contacts/${contact._id}/status`, { 
+                                  status: contact.status,
+                                  statusDetails: e.target.value 
+                                });
+                                fetchContacts();
+                              } catch(err) { alert('Failed to update status details'); }
+                            }}
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

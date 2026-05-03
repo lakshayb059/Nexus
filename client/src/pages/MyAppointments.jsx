@@ -154,24 +154,35 @@ const MyAppointments = () => {
       )}
 
       {/* Confirmation Modal */}
-      {showModal && (
+      {showModal && selectedApp && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 }}>
-          <div className="glass-panel animate-fade-up" style={{ maxWidth: 400, padding: '30px 24px', textAlign: 'center', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
+          <div className="glass-panel animate-fade-up" style={{ maxWidth: 450, padding: '30px 24px', textAlign: 'center', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
             <div style={{ width: 64, height: 64, borderRadius: '50%', backgroundColor: '#f59e0b20', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
               <AlertTriangle size={32} />
             </div>
-            <h3 style={{ marginBottom: 12 }}>Confirm Contact</h3>
+            <h3 style={{ marginBottom: 12, color: '#f59e0b' }}>Appointment Time Validation</h3>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: 24, lineHeight: 1.6 }}>
-              The appointment time for <strong>{selectedApp?.fields?.Name || 'this lead'}</strong> is scheduled for {selectedApp ? formatTime(selectedApp.appointmentDt) : ''}.
+              <strong style={{ color: 'var(--text-primary)' }}>{selectedApp?.fields?.Name || selectedApp?.fields?.name || 'This lead'}</strong> has an appointment scheduled for:
               <br/><br/>
-              Do you still want to make contact now?
+              <div style={{ backgroundColor: 'var(--bg-surface-2)', padding: '12px', borderRadius: '8px', margin: '12px 0', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--primary)' }}>
+                  {new Date(selectedApp.appointmentDt).toLocaleString('en-IN', { 
+                    weekday: 'short',
+                    day: 'numeric', 
+                    month: 'short', 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  })}
+                </div>
+              </div>
+              The appointment time is different from the current time. Do you still want to make contact with the customer now?
             </p>
             <div style={{ display: 'flex', gap: 12 }}>
               <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowModal(false)}>
-                <X size={16} /> No, Cancel
+                <X size={16} /> No, Leave it
               </button>
               <button className="btn btn-primary" style={{ flex: 1 }} onClick={confirmContactNow}>
-                <Check size={16} /> Yes, Contact
+                <Check size={16} /> Yes, Contact Now
               </button>
             </div>
           </div>

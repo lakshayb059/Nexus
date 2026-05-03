@@ -40,6 +40,7 @@ const corsOptions = {
       'https://crm-eight-sage.vercel.app',
       'https://crm-orcin-one.vercel.app',
       'https://your-crm-portal.vercel.app',
+      'https://crm-uf1s.onrender.com',
     ].filter(Boolean).map(o => o.toLowerCase().replace(/\/$/, ''));
     
     const isLocalhost = normalizedOrigin.startsWith('http://localhost') || 
