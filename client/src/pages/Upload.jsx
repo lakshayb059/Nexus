@@ -18,14 +18,15 @@ const Upload = () => {
   const [targetAgentId,  setTargetAgentId]  = useState('');
   const fileInputRef = useRef(null);
 
-  const fetchData = async () => {
+  const fetchData = React.useCallback(async () => {
+    if (!user) return;
     try {
-      if (user?.role === 'agent') {
+      if (user.role === 'agent') {
         setAgents([user]);
-        setSelectedAgent(user._id);
+        setSelectedAgent(prev => prev || user._id);
         setBatches([]);
       } else {
-        const endpoint = user?.role === 'admin' ? '/users' : '/users/my-agents';
+        const endpoint = user.role === 'admin' ? '/users' : '/users/my-agents';
         const [usersRes, batchesRes] = await Promise.all([api.get(endpoint), api.get('/upload/batches')]);
         setAgents(usersRes.data.filter(u => u.role === 'agent' && u.active));
         setBatches(batchesRes.data);
@@ -33,15 +34,15 @@ const Upload = () => {
     } catch (err) {
       console.error('Fetch data failed', err);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     fetchData();
     if (!socket) return;
-    const handler = () => fetchData();
-    ['batch_uploaded', 'users_updated', 'contacts_updated'].forEach(e => socket.on(e, handler));
-    return () => ['batch_uploaded', 'users_updated', 'contacts_updated'].forEach(e => socket.off(e, handler));
-  }, [socket, user]);
+    const events = ['batch_uploaded', 'users_updated', 'contacts_updated'];
+    events.forEach(e => socket.on(e, fetchData));
+    return () => events.forEach(e => socket.off(e, fetchData));
+  }, [socket, fetchData]);
 
   const validateFile = (f) => {
     if (!f) return false;
