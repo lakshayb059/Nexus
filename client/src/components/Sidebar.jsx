@@ -115,21 +115,28 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, setIsCollapsed }) => {
           })}
         </nav>
 
+        {/* Logout Section */}
+        <div className="sidebar-logout-section" style={isCollapsed ? { padding: '12px 0', justifyContent: 'center' } : {}}>
+          <button 
+            className="sidebar-logout-btn" 
+            onClick={handleLogout}
+            title="Logout from Spike CRM"
+          >
+            <LogOut size={18} />
+            {!isCollapsed && <span>Sign Out</span>}
+          </button>
+        </div>
+
         {/* User profile footer */}
         <div className="sidebar-footer" style={isCollapsed ? { padding: '16px 0', justifyContent: 'center' } : {}}>
           <div className="avatar avatar-md sidebar-avatar" style={{ background: `${roleColor}22`, color: roleColor, flexShrink: 0 }}>
             {getInitials(user?.name)}
           </div>
           {!isCollapsed && (
-            <>
-              <div className="sidebar-user-info">
-                <div className="sidebar-user-name">{user?.name}</div>
-                <div className="sidebar-user-handle">@{user?.username}</div>
-              </div>
-              <button className="btn btn-ghost btn-icon" onClick={handleLogout} title="Logout">
-                <LogOut size={16} />
-              </button>
-            </>
+            <div className="sidebar-user-info">
+              <div className="sidebar-user-name">{user?.name}</div>
+              <div className="sidebar-user-handle">@{user?.username}</div>
+            </div>
           )}
         </div>
       </aside>
@@ -271,6 +278,38 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, setIsCollapsed }) => {
         .sidebar-user-handle {
           font-size: 0.72rem; color: var(--text-muted);
           overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+
+        /* Logout Section */
+        .sidebar-logout-section {
+          padding: 12px 16px;
+          margin-top: auto;
+          border-top: 1px solid var(--border);
+        }
+        .sidebar-logout-btn {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          padding: 10px;
+          border-radius: var(--r-md);
+          background: var(--danger-light);
+          color: var(--danger);
+          border: 1px solid transparent;
+          font-family: var(--font);
+          font-size: 0.875rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all var(--t-fast) var(--ease);
+        }
+        .sidebar-logout-btn:hover {
+          background: var(--danger);
+          color: #fff;
+          box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2);
+        }
+        .sidebar-logout-btn span {
+          white-space: nowrap;
         }
 
         /* Mobile */
