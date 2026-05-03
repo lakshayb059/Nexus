@@ -20,10 +20,16 @@ const Upload = () => {
 
   const fetchData = async () => {
     try {
-      const endpoint = user?.role === 'admin' ? '/users' : '/users/my-agents';
-      const [usersRes, batchesRes] = await Promise.all([api.get(endpoint), api.get('/upload/batches')]);
-      setAgents(usersRes.data.filter(u => u.role === 'agent' && u.active));
-      setBatches(batchesRes.data);
+      if (user?.role === 'agent') {
+        setAgents([user]);
+        setSelectedAgent(user._id);
+        setBatches([]);
+      } else {
+        const endpoint = user?.role === 'admin' ? '/users' : '/users/my-agents';
+        const [usersRes, batchesRes] = await Promise.all([api.get(endpoint), api.get('/upload/batches')]);
+        setAgents(usersRes.data.filter(u => u.role === 'agent' && u.active));
+        setBatches(batchesRes.data);
+      }
     } catch (err) {
       console.error('Fetch data failed', err);
     }
