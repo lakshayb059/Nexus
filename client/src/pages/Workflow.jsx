@@ -27,6 +27,7 @@ const Workflow = () => {
   const [submitting, setSubmitting] = useState(false);
   const [dispForm,   setDispForm]   = useState({ disposition: '', remarks: '', appointmentDt: '', leadAmount: '', callBackDt: '' });
   const [toasts,     setToasts]     = useState([]);
+  const [emptyStateContacts, setEmptyStateContacts] = useState(null);
 
   const addToast = (msg, type) =>
     setToasts(p => [...p, { id: Date.now(), msg, type }]);
@@ -43,6 +44,14 @@ const Workflow = () => {
       setData(res.data);
       if (!res.data?.contact && !cid) {
         console.log('Queue is empty');
+        try {
+          const allRes = await api.get('/contacts');
+          setEmptyStateContacts(allRes.data);
+        } catch (e) {
+          console.error('Failed to fetch empty state contacts');
+        }
+      } else {
+        setEmptyStateContacts(null);
       }
     } catch (err) {
       console.error('Queue fetch failed', err);
@@ -153,18 +162,63 @@ const Workflow = () => {
 
   /* ── Empty ── */
   if (!data?.contact) {
+    const partitions = {
+      Appointment: [],
+      CallBack: [],
+      CallNotAnswered: [],
+      HungUp: []
+    };
+
+    if (emptyStateContacts) {
+      emptyStateContacts.forEach(c => {
+        if (partitions[c.disposition]) {
+          partitions[c.disposition].push(c);
+        }
+      });
+    }
+
     return (
       <div>
-        <div className="glass-panel" style={{ padding: '80px 40px', textAlign: 'center', maxWidth: 500, margin: '60px auto' }}>
+        <div className="glass-panel" style={{ padding: '40px', textAlign: 'center', maxWidth: 600, margin: '20px auto', marginBottom: 40 }}>
           <CheckCircle2 size={64} style={{ color: 'var(--success)', margin: '0 auto 20px', display: 'block', opacity: 0.7 }} />
           <h2 style={{ fontSize: '1.6rem', fontWeight: 800, marginBottom: 10 }}>Queue Complete!</h2>
           <p style={{ color: 'var(--text-secondary)', marginBottom: 28, lineHeight: 1.7 }}>
-            Great work! You've disposed all contacts in your queue.
+            Great work! You've disposed all fresh contacts in your primary queue.
           </p>
-          <button className="btn btn-primary" style={{ padding: '12px 28px' }} onClick={fetchNext}>
+          <button className="btn btn-primary" style={{ padding: '12px 28px' }} onClick={() => fetchNext()}>
             <RotateCw size={16} /> Refresh Queue
           </button>
         </div>
+
+        {emptyStateContacts && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
+            {Object.entries(partitions).map(([disp, list]) => {
+              if (list.length === 0) return null;
+              const dispConfig = DISPS.find(d => d.key === disp);
+              return (
+                <div key={disp} className="glass-panel" style={{ padding: '20px' }}>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: dispConfig?.color || 'var(--primary)', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    {dispConfig?.label || disp}
+                    <span className="badge" style={{ background: `${dispConfig?.color}20`, color: dispConfig?.color }}>{list.length}</span>
+                  </h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {list.map(c => (
+                      <div key={c._id} style={{ padding: '12px', background: 'var(--bg-surface-2)', borderRadius: 'var(--r-md)', border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ minWidth: 0, paddingRight: 10 }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.fields?.Name || c.fields?.name || 'Unknown'}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{c.fields?.Phone || c.fields?.phone || 'No phone'}</div>
+                        </div>
+                        <button className="btn btn-primary btn-icon" onClick={() => fetchNext(c._id)} title="Open in Workflow" style={{ flexShrink: 0 }}>
+                          <PhoneCall size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   }

@@ -26,14 +26,34 @@ const MyAppointments = () => {
 
   useEffect(() => { fetchAppointments(); }, []);
 
-  const handleContactNow = (app) => {
-    setSelectedApp(app);
-    setShowModal(true);
+  const handleContactNow = async (app) => {
+    const appTime = new Date(app.appointmentDt).getTime();
+    const now = new Date().getTime();
+
+    if (now >= appTime) {
+      // Time has passed -> auto requeue and navigate
+      try {
+        await api.post(`/contacts/${app._id}/requeue`);
+        navigate(`/workflow?contactId=${app._id}`);
+      } catch (err) {
+        alert('Failed to add to workflow queue');
+      }
+    } else {
+      // Time in the future -> show modal
+      setSelectedApp(app);
+      setShowModal(true);
+    }
   };
 
-  const confirmContactNow = () => {
+  const confirmContactNow = async () => {
     if (!selectedApp) return;
-    navigate(`/workflow?contactId=${selectedApp._id}`);
+    try {
+      await api.post(`/contacts/${selectedApp._id}/requeue`);
+      setShowModal(false);
+      navigate(`/workflow?contactId=${selectedApp._id}`);
+    } catch (err) {
+      alert('Failed to add to workflow queue');
+    }
   };
 
   const isToday = (dateStr) =>
@@ -175,14 +195,14 @@ const MyAppointments = () => {
                   })}
                 </div>
               </div>
-              The appointment time is different from the current time. Do you still want to make contact with the customer now?
+              The appointment time has not yet arrived. Do you want to add this contact back to your workflow queue anyway?
             </p>
             <div style={{ display: 'flex', gap: 12 }}>
               <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowModal(false)}>
-                <X size={16} /> No, Leave it
+                <X size={16} /> No, Cancel
               </button>
               <button className="btn btn-primary" style={{ flex: 1 }} onClick={confirmContactNow}>
-                <Check size={16} /> Yes, Contact Now
+                <Check size={16} /> Yes, Add to Workflow
               </button>
             </div>
           </div>

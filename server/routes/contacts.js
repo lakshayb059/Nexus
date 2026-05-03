@@ -519,4 +519,40 @@ router.put('/batch/:batchId/handover', verify, authorize(['tl']), async (req, re
   }
 });
 
+// POST /contacts/:id/requeue - move contact back to active workflow (Agent)
+router.post('/:id/requeue', verify, authorize(['agent']), async (req, res) => {
+  try {
+    const contactsCollection = getCollection('contacts');
+    const contact = await contactsCollection.findOne({ _id: new ObjectId(req.params.id), assignedTo: new ObjectId(req.user._id) });
+    
+    if (!contact) {
+      return res.status(404).json({ error: 'Contact not found or not assigned to you' });
+    }
+
+    const update = {
+      disposition: null,
+      appointmentDt: null,
+      appointmentStatus: null,
+      callBackDt: null,
+      queueOrder: 0, // Put it at the front of the queue
+      lastModified: new Date()
+    };
+
+    await contactsCollection.updateOne(
+      { _id: new ObjectId(req.params.id) },
+      { $set: update }
+    );
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('contacts_updated', { contactId: req.params.id, action: 'requeue' });
+    }
+
+    res.json({ success: true, message: 'Contact added back to workflow queue' });
+  } catch (err) {
+    console.error('Requeue Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

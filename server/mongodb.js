@@ -87,54 +87,26 @@ async function seed() {
     const usersCollection = getCollection('users');
     const bcrypt = require('bcryptjs');
     
-    // Delete existing users to ensure fresh seed with correct roles
-    await usersCollection.deleteMany({});
+    // Check if an admin exists
+    const adminExists = await usersCollection.findOne({ role: 'admin' });
+    if (adminExists) {
+      console.log('✅ Admin already exists. Skipping database seed.');
+      return;
+    }
     
     const hashedPassword = await bcrypt.hash('admin123', 10);
     
-    // First insert TL
-    const tlResult = await usersCollection.insertOne({
-      username: 'tl_rohit',
-      password: await bcrypt.hash('tl123', 10),
-      role: 'tl',
-      name: 'Rohit (Team Lead)',
+    // Insert default admin only
+    await usersCollection.insertOne({
+      username: 'admin',
+      password: hashedPassword,
+      role: 'admin',
+      name: 'Administrator',
       active: true,
       createdAt: new Date()
     });
     
-    // Then insert agents with TL reference
-    await usersCollection.insertMany([
-      {
-        username: 'admin',
-        password: hashedPassword,
-        role: 'admin',
-        name: 'Administrator',
-        active: true,
-        createdAt: new Date()
-      },
-      {
-        username: 'agent_priya',
-        password: await bcrypt.hash('ag123', 10),
-        role: 'agent',
-        name: 'Priya (Agent)',
-        active: true,
-        tlId: tlResult.insertedId,
-        teamLeadId: tlResult.insertedId,
-        createdAt: new Date()
-      },
-      {
-        username: 'agent_amit',
-        password: await bcrypt.hash('ag123', 10),
-        role: 'agent',
-        name: 'Amit (Agent)',
-        active: true,
-        tlId: tlResult.insertedId,
-        teamLeadId: tlResult.insertedId,
-        createdAt: new Date()
-      }
-    ]);
-    
-    console.log('✅ Initial users seeded');
+    console.log('✅ Default admin user created');
   } catch (error) {
     console.error('❌ Seeding error:', error);
     throw error;
