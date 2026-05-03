@@ -7,7 +7,7 @@ const { ObjectId } = require('mongodb');
 router.post('/workflow/dispose', verify, authorize(['agent']), async (req, res) => {
   try {
     const { contactId, disposition, remarks, appointmentDt, leadAmount, callBackDt } = req.body;
-    const validDisps = ['Lead', 'Appointment', 'CallNotAnswered', 'Invalid', 'DoNotCall', 'CallBack'];
+    const validDisps = ['Lead', 'Appointment', 'CallNotAnswered', 'Invalid', 'DoNotCall', 'CallBack', 'HungUp'];
     
     if (!validDisps.includes(disposition)) {
       return res.status(400).json({ error: 'Invalid disposition' });
@@ -62,8 +62,8 @@ router.post('/workflow/dispose', verify, authorize(['agent']), async (req, res) 
       update.appointmentStatus = null;
     }
 
-    // Handle CallNotAnswered - move to end of queue
-    if (disposition === 'CallNotAnswered') {
+    // Handle CallNotAnswered & HungUp - move to end of queue
+    if (disposition === 'CallNotAnswered' || disposition === 'HungUp') {
       const maxOrderContact = await contactsCollection.find({ 
         assignedTo: new ObjectId(req.user._id),
         queueOrder: { $lt: 999999 }
@@ -72,6 +72,7 @@ router.post('/workflow/dispose', verify, authorize(['agent']), async (req, res) 
       const newOrder = maxOrderContact.length > 0 ? (maxOrderContact[0].queueOrder + 1) : 0;
       update.queueOrder = newOrder;
       update.callAttempts = (contact.callAttempts || 0) + 1;
+      update.rechurnCount = (contact.rechurnCount || 0) + 1;
       update.lastCallAttempt = new Date();
     }
 

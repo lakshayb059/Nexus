@@ -311,6 +311,29 @@ const Contacts = ({ filterType }) => {
                       "{contact.remarks}"
                     </div>
                   )}
+                  {filterType === 'leads' && (
+                    <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 4 }}>
+                      <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>Lead Status</div>
+                      <select 
+                        className="input-field" 
+                        style={{ marginBottom: 0, padding: '4px 10px', fontSize: '0.75rem', height: 32, width: '100%' }}
+                        value={contact.status || ''}
+                        onChange={async (e) => {
+                          try {
+                            await api.put(`/contacts/${contact._id}/status`, { status: e.target.value });
+                            fetchContacts();
+                          } catch(err) { alert('Failed to update status'); }
+                        }}
+                      >
+                        <option value="">Set Status</option>
+                        <option value="Converted">Converted</option>
+                        <option value="Not Interested">Not Interested</option>
+                        <option value="DNC/DND">DNC/DND</option>
+                        <option value="Call Back">Call Back</option>
+                        <option value="Others">Others</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 {/* Footer */}

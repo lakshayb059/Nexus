@@ -118,8 +118,8 @@ class LeadsService {
         update.appointmentStatus = null;
       }
 
-      // Handle CallNotAnswered
-      if (disposition === 'CallNotAnswered') {
+      // Handle CallNotAnswered & HungUp
+      if (disposition === 'CallNotAnswered' || disposition === 'HungUp') {
         const maxOrderContact = await contactsCollection.find({ 
           assignedTo: new ObjectId(agentId),
           queueOrder: { $lt: 999999 }
@@ -128,6 +128,7 @@ class LeadsService {
         const newOrder = maxOrderContact.length > 0 ? (maxOrderContact[0].queueOrder + 1) : 0;
         update.queueOrder = newOrder;
         update.callAttempts = (contact.callAttempts || 0) + 1;
+        update.rechurnCount = (contact.rechurnCount || 0) + 1;
         update.lastCallAttempt = new Date();
       }
 

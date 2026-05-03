@@ -163,8 +163,65 @@ const MyLeads = () => {
                         <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Calendar size={13} /> {new Date(lead.lastModified).toLocaleDateString()}</span>
                         {lead.agentName && <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>by {lead.agentName}</span>}
                       </div>
+                      
+                      {/* Status Editor */}
+                      <div style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div style={{ position: 'relative', minWidth: 140 }}>
+                          <select 
+                            className="input-field" 
+                            style={{ marginBottom: 0, padding: '4px 10px', fontSize: '0.75rem', height: 32 }}
+                            value={lead.status || ''}
+                            onChange={async (e) => {
+                              const newStatus = e.target.value;
+                              try {
+                                await api.put(`/contacts/${lead._id}/status`, { status: newStatus });
+                                fetchData();
+                              } catch(err) { alert('Failed to update status'); }
+                            }}
+                          >
+                            <option value="">Set Status</option>
+                            <option value="Converted">Converted</option>
+                            <option value="Not Interested">Not Interested</option>
+                            <option value="DNC/DND">DNC/DND</option>
+                            <option value="Call Back">Call Back</option>
+                            <option value="Others">Others</option>
+                          </select>
+                        </div>
+                        
+                        {lead.status === 'Others' && (
+                          <input 
+                            type="text" 
+                            className="input-field" 
+                            placeholder="Specify other status…" 
+                            style={{ marginBottom: 0, padding: '4px 10px', fontSize: '0.75rem', height: 32, flex: 1, minWidth: 150 }}
+                            defaultValue={lead.statusDetails || ''}
+                            onBlur={async (e) => {
+                              try {
+                                await api.put(`/contacts/${lead._id}/status`, { status: 'Others', statusDetails: e.target.value });
+                                fetchData();
+                              } catch(err) {}
+                            }}
+                          />
+                        )}
+                        
+                        {lead.status === 'Call Back' && (
+                          <input 
+                            type="datetime-local" 
+                            className="input-field" 
+                            style={{ marginBottom: 0, padding: '4px 10px', fontSize: '0.75rem', height: 32, width: 'auto' }}
+                            defaultValue={lead.callBackDt ? new Date(lead.callBackDt).toISOString().slice(0, 16) : ''}
+                            onChange={async (e) => {
+                              try {
+                                await api.put(`/contacts/${lead._id}/status`, { status: 'Call Back', callBackDt: e.target.value });
+                                fetchData();
+                              } catch(err) {}
+                            }}
+                          />
+                        )}
+                      </div>
+
                       {lead.remarks && (
-                        <div style={{ marginTop: 8, fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                        <div style={{ marginTop: 10, fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
                           "{lead.remarks.substring(0, 80)}{lead.remarks.length > 80 ? '…' : ''}"
                         </div>
                       )}

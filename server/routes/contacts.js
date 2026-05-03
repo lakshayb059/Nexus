@@ -98,20 +98,44 @@ router.get('/queue', verify, authorize(['agent']), async (req, res) => {
       });
     }
 
-    // Find contacts that are either never called (disposition null) or marked as CallNotAnswered
-    const pending = await contactsCollection.find({ 
-      assignedTo: new ObjectId(req.user._id), 
-      queueOrder: { $lt: 999999 },
-      $or: [
-        { disposition: null },
-        { disposition: 'CallNotAnswered' }
-      ]
-    }).sort({ queueOrder: 1, createdAt: 1 }).toArray();
+    let query = { 
+      assignedTo: new ObjectId(req.user._id),
+      queueOrder: { $lt: 999999 }
+    };
+
+    // If specific contact requested
+    if (req.query.contactId) {
+      query._id = new ObjectId(req.query.contactId);
+    } else {
+      // Prioritize fresh contacts (disposition null)
+      // We'll search in two stages or use $sort with priority
+    }
+
+    const allPending = await contactsCollection.find(query).sort({ queueOrder: 1, createdAt: 1 }).toArray();
     
+    // Split into fresh and rechurn
+    const fresh = allPending.filter(c => c.disposition === null);
+    const rechurn = allPending.filter(c => (c.disposition === 'CallNotAnswered' || c.disposition === 'HungUp') && (c.rechurnCount || 0) < 3);
+
+    let contact = null;
+    let type = 'fresh';
+    let rechurnNum = 0;
+
+    if (req.query.contactId) {
+      contact = allPending[0];
+    } else if (fresh.length > 0) {
+      contact = fresh[0];
+      type = 'fresh';
+    } else if (rechurn.length > 0) {
+      contact = rechurn[0];
+      type = 'rechurn';
+      rechurnNum = (contact.rechurnCount || 0) + 1;
+    }
+
     const total = await contactsCollection.countDocuments({ assignedTo: new ObjectId(req.user._id) });
     const disposed = await contactsCollection.countDocuments({ 
       assignedTo: new ObjectId(req.user._id), 
-      disposition: { $nin: [null, 'CallNotAnswered'] } 
+      disposition: { $nin: [null, 'CallNotAnswered', 'HungUp'] } 
     });
     
     // Check for upcoming appointments
@@ -125,12 +149,14 @@ router.get('/queue', verify, authorize(['agent']), async (req, res) => {
     }).sort({ appointmentDt: 1 }).limit(3).toArray();
 
     res.json({ 
-      contact: pending[0] || null, 
-      remaining: pending.length, 
+      contact, 
+      remaining: fresh.length + rechurn.length, 
       total, 
       disposed,
       upcomingAppointments,
-      callbacksDue: dueCallbacks.length
+      callbacksDue: dueCallbacks.length,
+      type: contact ? (contact._id.equals(dueCallbacks[0]?._id) ? 'callback_due' : type) : null,
+      rechurnNum
     });
   } catch (err) {
     console.error('Queue error:', err);
@@ -218,7 +244,7 @@ router.get('/agent-queues', verify, authorize(['admin', 'tl']), async (req, res)
 router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
   try {
     const { disposition, remarks, appointmentDt, leadAmount, callBackDt } = req.body;
-    const validDisps = ['Lead', 'Appointment', 'CallNotAnswered', 'Invalid', 'DoNotCall', 'CallBack'];
+    const validDisps = ['Lead', 'Appointment', 'CallNotAnswered', 'Invalid', 'DoNotCall', 'CallBack', 'HungUp'];
     if (!validDisps.includes(disposition)) return res.status(400).json({ error: 'Invalid disposition' });
 
     const contactsCollection = getCollection('contacts');
@@ -260,8 +286,8 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
       update.appointmentStatus = null;
     }
 
-    // Enhanced CallNotAnswered handling
-    if (disposition === 'CallNotAnswered') {
+    // Enhanced CallNotAnswered & HungUp handling
+    if (disposition === 'CallNotAnswered' || disposition === 'HungUp') {
       const maxOrderContact = await contactsCollection.find({ 
         assignedTo: new ObjectId(req.user._id),
         queueOrder: { $lt: 999999 }
@@ -270,6 +296,7 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
       const newOrder = maxOrderContact.length > 0 ? (maxOrderContact[0].queueOrder + 1) : 0;
       update.queueOrder = newOrder;
       update.callAttempts = (contact.callAttempts || 0) + 1;
+      update.rechurnCount = (contact.rechurnCount || 0) + 1;
       update.lastCallAttempt = new Date();
     }
 
@@ -323,6 +350,40 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
     });
   } catch (err) {
     console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PUT /contacts/:id/status - update lead status (agent/tl/admin)
+router.put('/:id/status', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
+  try {
+    const { status, statusDetails, callBackDt } = req.body;
+    const contactsCollection = getCollection('contacts');
+    
+    let query = { _id: new ObjectId(req.params.id) };
+    if (req.user.role === 'agent') {
+      query.assignedTo = new ObjectId(req.user._id);
+    }
+    
+    const update = { 
+      status, 
+      statusDetails: statusDetails || '',
+      lastModified: new Date().toISOString()
+    };
+    
+    if (status === 'Call Back' && callBackDt) {
+      update.callBackDt = new Date(callBackDt);
+    }
+    
+    const result = await contactsCollection.updateOne(query, { $set: update });
+    if (result.matchedCount === 0) return res.status(404).json({ error: 'Contact not found or access denied' });
+    
+    const io = req.app.get('io');
+    if (io) io.emit('contacts_updated', { contactId: req.params.id, status });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Status update error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

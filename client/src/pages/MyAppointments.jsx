@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
-import { Calendar, Clock, Phone, ChevronRight, Bell, User } from 'lucide-react';
+import { Calendar, Clock, Phone, ChevronRight, Bell, User, AlertTriangle, X, Check } from 'lucide-react';
 
 const MyAppointments = () => {
   const { user }   = useAuth();
+  const navigate   = useNavigate();
   const [appointments, setAppointments] = useState([]);
   const [loading,      setLoading]      = useState(true);
+  const [showModal,    setShowModal]    = useState(false);
+  const [selectedApp,  setSelectedApp]  = useState(null);
 
   const fetchAppointments = async () => {
     try {
@@ -21,6 +25,16 @@ const MyAppointments = () => {
   };
 
   useEffect(() => { fetchAppointments(); }, []);
+
+  const handleContactNow = (app) => {
+    setSelectedApp(app);
+    setShowModal(true);
+  };
+
+  const confirmContactNow = () => {
+    if (!selectedApp) return;
+    navigate(`/workflow?contactId=${selectedApp._id}`);
+  };
 
   const isToday = (dateStr) =>
     new Date(dateStr).toDateString() === new Date().toDateString();
@@ -128,7 +142,7 @@ const MyAppointments = () => {
                     )}
                   </div>
 
-                  <button className="btn btn-primary appt-action-btn" style={{ padding: '10px 20px', flexShrink: 0 }}>
+                  <button className="btn btn-primary appt-action-btn" onClick={() => handleContactNow(app)} style={{ padding: '10px 20px', flexShrink: 0 }}>
                     <span className="hide-mobile">Contact Now</span>
                     <ChevronRight size={16} />
                   </button>
@@ -136,6 +150,31 @@ const MyAppointments = () => {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {showModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 }}>
+          <div className="glass-panel animate-fade-up" style={{ maxWidth: 400, padding: '30px 24px', textAlign: 'center', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
+            <div style={{ width: 64, height: 64, borderRadius: '50%', backgroundColor: '#f59e0b20', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+              <AlertTriangle size={32} />
+            </div>
+            <h3 style={{ marginBottom: 12 }}>Confirm Contact</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: 24, lineHeight: 1.6 }}>
+              The appointment time for <strong>{selectedApp?.fields?.Name || 'this lead'}</strong> is scheduled for {selectedApp ? formatTime(selectedApp.appointmentDt) : ''}.
+              <br/><br/>
+              Do you still want to make contact now?
+            </p>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowModal(false)}>
+                <X size={16} /> No, Cancel
+              </button>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={confirmContactNow}>
+                <Check size={16} /> Yes, Contact
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

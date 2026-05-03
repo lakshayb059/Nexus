@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
+import { useLocation } from 'react-router-dom';
 import api from '../utils/api';
 import {
   PhoneCall, Check, Clock, Database, CheckCircle2,
@@ -11,6 +12,7 @@ const DISPS = [
   { key: 'Lead',            label: 'Lead',              color: '#10b981', badgeClass: 'badge-success' },
   { key: 'Appointment',     label: 'Appointment',       color: '#8b5cf6', badgeClass: 'badge-violet' },
   { key: 'CallNotAnswered', label: 'Call Not Answered', color: '#f59e0b', badgeClass: 'badge-warning' },
+  { key: 'HungUp',          label: 'Hung Up',           color: '#f43f5e', badgeClass: 'badge-danger' },
   { key: 'Invalid',         label: 'Invalid / Wrong No.',color: '#ef4444', badgeClass: 'badge-danger' },
   { key: 'DoNotCall',       label: 'Do Not Call',       color: '#64748b', badgeClass: 'badge-muted' },
   { key: 'CallBack',        label: 'Call Back',         color: '#06b6d4', badgeClass: 'badge-cyan' },
@@ -19,6 +21,7 @@ const DISPS = [
 const Workflow = () => {
   const { user }   = useAuth();
   const { socket } = useSocket();
+  const location   = useLocation();
   const [data,       setData]       = useState(null);
   const [loading,    setLoading]    = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -30,10 +33,13 @@ const Workflow = () => {
   const removeToast = (id) =>
     setToasts(p => p.filter(t => t.id !== id));
 
-  const fetchNext = async () => {
+  const fetchNext = async (cid) => {
     try {
       setLoading(true);
-      const res = await api.get('/contacts/queue');
+      const params = new URLSearchParams(cid ? `?contactId=${cid}` : location.search);
+      const contactId = params.get('contactId');
+      const url = contactId ? `/contacts/queue?contactId=${contactId}` : '/contacts/queue';
+      const res = await api.get(url);
       setData(res.data);
     } catch (err) {
       console.error('Queue fetch failed', err);
@@ -43,19 +49,29 @@ const Workflow = () => {
   };
 
   useEffect(() => {
-    fetchNext();
+    const params = new URLSearchParams(location.search);
+    const cid = params.get('contactId');
+    fetchNext(cid);
+  }, [location.search]);
+
+  useEffect(() => {
     if (!socket) return;
-    socket.on('contacts_updated',  fetchNext);
-    socket.on('batch_uploaded',    fetchNext);
-    socket.on('contact_disposed',  fetchNext);
-    socket.on('appointment_reminder', (d) =>
-      addToast(`📅 Appointment: ${d.contactName} in ${d.minutesUntil} min`, 'appointment'));
-    socket.on('callback_due', (d) =>
-      addToast(`📞 Callback due: ${d.contactName}`, 'callback'));
+    const refresh = () => fetchNext();
+    socket.on('contacts_updated',  refresh);
+    socket.on('batch_uploaded',    refresh);
+    socket.on('contact_disposed',  refresh);
+    socket.on('appointment_reminder', (d) => {
+      addToast(`📅 Appointment: ${d.contactName} in ${d.minutesUntil} min`, 'appointment');
+      try { new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play(); } catch(e){}
+    });
+    socket.on('callback_due', (d) => {
+      addToast(`📞 Callback due: ${d.contactName}`, 'callback');
+      try { new Audio('https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3').play(); } catch(e){}
+    });
     return () => {
-      socket.off('contacts_updated',  fetchNext);
-      socket.off('batch_uploaded',    fetchNext);
-      socket.off('contact_disposed',  fetchNext);
+      socket.off('contacts_updated',  refresh);
+      socket.off('batch_uploaded',    refresh);
+      socket.off('contact_disposed',  refresh);
       socket.off('appointment_reminder');
       socket.off('callback_due');
     };
@@ -146,6 +162,12 @@ const Workflow = () => {
             </p>
             {isRecall   && <span className="badge badge-warning"><RotateCw size={11} /> RECALL</span>}
             {isCallback && <span className="badge badge-cyan"><Clock size={11} /> CALLBACK</span>}
+            {data.type === 'fresh' && <span className="badge badge-success">FRESH DATA</span>}
+            {data.type === 'rechurn' && (
+              <span className="badge" style={{ backgroundColor: '#f59e0b15', color: '#f59e0b', border: '1px solid #f59e0b40' }}>
+                RECHURN DATA {data.rechurnNum > 0 && `(Attempt ${data.rechurnNum})`}
+              </span>
+            )}
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
@@ -180,7 +202,7 @@ const Workflow = () => {
             <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'rgba(255,255,255,0.8)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Upcoming Appointments</div>
             {data.upcomingAppointments.map(a => (
               <div key={a._id} style={{ fontSize: '0.875rem', color: '#fff', opacity: 0.9 }}>
-                {a.fields?.Name || a.fields?.name} — {new Date(a.appointmentDt).toLocaleString()}
+                {a.fields?.Name || a.fields?.name} — {new Date(a.appointmentDt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
               </div>
             ))}
           </div>
