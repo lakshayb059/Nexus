@@ -28,6 +28,8 @@ const Workflow = () => {
   const [dispForm,   setDispForm]   = useState({ disposition: '', remarks: '', appointmentDt: '', leadAmount: '', callBackDt: '' });
   const [toasts,     setToasts]     = useState([]);
   const [emptyStateContacts, setEmptyStateContacts] = useState(null);
+  const [selectedForRequeue, setSelectedForRequeue] = useState([]);
+  const [requeuing, setRequeuing] = useState(false);
 
   const addToast = (msg, type) =>
     setToasts(p => [...p, { id: Date.now(), msg, type }]);
@@ -150,6 +152,26 @@ const Workflow = () => {
     }
   };
 
+  const toggleSelection = (id) => {
+    setSelectedForRequeue(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const handleBulkRequeue = async () => {
+    if (selectedForRequeue.length === 0) return;
+    setRequeuing(true);
+    try {
+      await Promise.all(selectedForRequeue.map(id => api.post(`/contacts/${id}/requeue`)));
+      addToast(`Added ${selectedForRequeue.length} contacts back to workflow`, 'success');
+      setSelectedForRequeue([]);
+      fetchNext();
+    } catch (err) {
+      console.error(err);
+      addToast('Failed to requeue some contacts', 'error');
+    } finally {
+      setRequeuing(false);
+    }
+  };
+
   /* ── Loading ── */
   if (loading && !data) {
     return (
@@ -190,6 +212,23 @@ const Workflow = () => {
           </button>
         </div>
 
+        {emptyStateContacts && selectedForRequeue.length > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+            <button 
+              className="btn btn-primary" 
+              onClick={handleBulkRequeue}
+              disabled={requeuing}
+              style={{ padding: '12px 28px', display: 'flex', gap: 8, alignItems: 'center', boxShadow: '0 8px 20px rgba(124, 58, 237, 0.3)' }}
+            >
+              {requeuing ? (
+                <span className="animate-spin" style={{ width: 18, height: 18, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block' }} />
+              ) : (
+                <><RotateCw size={18} /> Add {selectedForRequeue.length} Selected to Workflow</>
+              )}
+            </button>
+          </div>
+        )}
+
         {emptyStateContacts && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
             {Object.entries(partitions).map(([disp, list]) => {
@@ -204,9 +243,17 @@ const Workflow = () => {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {list.map(c => (
                       <div key={c._id} style={{ padding: '12px', background: 'var(--bg-surface-2)', borderRadius: 'var(--r-md)', border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ minWidth: 0, paddingRight: 10 }}>
-                          <div style={{ fontWeight: 600, fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.fields?.Name || c.fields?.name || 'Unknown'}</div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{c.fields?.Phone || c.fields?.phone || 'No phone'}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, paddingRight: 10 }}>
+                          <input 
+                            type="checkbox" 
+                            checked={selectedForRequeue.includes(c._id)}
+                            onChange={() => toggleSelection(c._id)}
+                            style={{ width: 18, height: 18, cursor: 'pointer', accentColor: 'var(--primary)', flexShrink: 0 }}
+                          />
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.fields?.Name || c.fields?.name || 'Unknown'}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{c.fields?.Phone || c.fields?.phone || 'No phone'}</div>
+                          </div>
                         </div>
                         <button className="btn btn-primary btn-icon" onClick={() => fetchNext(c._id)} title="Open in Workflow" style={{ flexShrink: 0 }}>
                           <PhoneCall size={14} />
