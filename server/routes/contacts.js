@@ -244,7 +244,7 @@ router.get('/agent-queues', verify, authorize(['admin', 'tl']), async (req, res)
 // POST /contacts/:id/dispose - set disposition (Enhanced)
 router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
   try {
-    const { disposition, remarks, appointmentDt, leadAmount, callBackDt } = req.body;
+    const { disposition, remarks, appointmentDt, leadAmount, callBackDt, status, statusDetails } = req.body;
     const validDisps = ['Lead', 'Appointment', 'CallNotAnswered', 'Invalid', 'DoNotCall', 'CallBack', 'HungUp'];
     if (!validDisps.includes(disposition)) return res.status(400).json({ error: 'Invalid disposition' });
 
@@ -265,9 +265,33 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
       if (leadAmount === undefined || leadAmount === '' || leadAmount <= 0) {
         return res.status(400).json({ error: 'Valid lead amount is required for Lead disposition' });
       }
+
+      // Check for duplicate lead by phone number
+      const phoneFields = ['Phone', 'phone', 'Mobile', 'mobile', 'Contact', 'contact'];
+      let contactPhone = null;
+      for (const field of phoneFields) {
+        if (contact.fields && contact.fields[field]) {
+          contactPhone = contact.fields[field];
+          break;
+        }
+      }
+
+      if (contactPhone) {
+        const duplicateQuery = {
+          disposition: 'Lead',
+          $or: phoneFields.map(f => ({ [`fields.${f}`]: contactPhone }))
+        };
+        const existingLead = await contactsCollection.findOne(duplicateQuery);
+        if (existingLead && !existingLead._id.equals(contact._id)) {
+          return res.status(400).json({ error: `A lead with the number ${contactPhone} already exists. Admin must delete it first.` });
+        }
+      }
+
       update.leadAmount = parseFloat(leadAmount);
       update.conversionDate = new Date();
       update.queueOrder = 999999; // Remove from active queue
+      if (status) update.status = status;
+      if (statusDetails) update.statusDetails = statusDetails;
     } else {
       update.leadAmount = null;
     }

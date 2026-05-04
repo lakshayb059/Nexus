@@ -29,6 +29,7 @@ const Reports = () => {
   const [stats,         setStats]         = useState(null);
   const [agents,        setAgents]        = useState([]);
   const [selectedAgent, setSelectedAgent] = useState('');
+  const [reportType,    setReportType]    = useState('workflow');
   const [loading,       setLoading]       = useState(true);
   const [isExporting,   setIsExporting]   = useState(false);
 
@@ -62,8 +63,10 @@ const Reports = () => {
   const handleExport = async (format) => {
     setIsExporting(true);
     try {
-      const q = selectedAgent ? `&agentId=${selectedAgent}` : '';
-      const res = await api.get(`/reports/download?format=${format}${q}`, { responseType: 'blob' });
+      const queryParams = new URLSearchParams({ format, reportType });
+      if (selectedAgent) queryParams.append('agentId', selectedAgent);
+      
+      const res = await api.get(`/reports/download?${queryParams.toString()}`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement('a');
       a.href = url;
@@ -102,11 +105,20 @@ const Reports = () => {
           </h1>
           <p className="page-subtitle">View analytics and export contact data</p>
         </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button className="btn btn-outline" onClick={() => handleExport('csv')} disabled={isExporting}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select 
+            className="input-field" 
+            style={{ marginBottom: 0, minWidth: 160, height: 38 }}
+            value={reportType} 
+            onChange={e => setReportType(e.target.value)}
+          >
+            <option value="workflow">Workflow Report</option>
+            <option value="lead">Lead Report</option>
+          </select>
+          <button className="btn btn-outline" onClick={() => handleExport('csv')} disabled={isExporting} style={{ height: 38 }}>
             <Download size={15} /> <span className="hide-mobile">{isExporting ? 'Exporting…' : 'CSV'}</span>
           </button>
-          <button className="btn btn-primary" onClick={() => handleExport('xlsx')} disabled={isExporting}>
+          <button className="btn btn-primary" onClick={() => handleExport('xlsx')} disabled={isExporting} style={{ height: 38 }}>
             <FileSpreadsheet size={15} /> <span className="hide-mobile">{isExporting ? 'Exporting…' : 'Excel'}</span>
           </button>
         </div>

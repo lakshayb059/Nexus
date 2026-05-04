@@ -46,7 +46,7 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
     console.log('Upload request received:', { user: req.user, file: req.file?.originalname, body: req.body });
     
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const { agentId, batchName } = req.body;
+    const { agentId, batchName, isLeadUpload } = req.body;
     if (!agentId) return res.status(400).json({ error: 'Agent ID required' });
 
     const usersCollection = getCollection('users');
@@ -75,18 +75,44 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
     }).sort({ queueOrder: -1 }).limit(1).toArray();
     let queueStart = existing.length ? (existing[0].queueOrder + 1) : 0;
 
-    const contacts = records.map((row, i) => ({
-      assignedTo: new ObjectId(agentId),
-      uploadedBy: new ObjectId(req.user._id),
-      batchId,
-      fields: row,
-      disposition: null,
-      remarks: '',
-      appointmentDt: null,
-      lastModified: now,
-      createdAt: now,
-      queueOrder: queueStart + i,
-    }));
+    const contacts = records.map((row, i) => {
+      let rowAgentId = agentId;
+      const agentIdCol = Object.keys(row).find(k => k.toLowerCase() === 'agent id' || k.toLowerCase() === 'agent_id' || k.toLowerCase() === 'agentid');
+      if (agentIdCol && row[agentIdCol]) {
+        try {
+          if (ObjectId.isValid(row[agentIdCol])) {
+            rowAgentId = row[agentIdCol];
+          }
+        } catch(e) {}
+      }
+
+      let disposition = null;
+      let queueOrder = queueStart + i;
+      let leadAmount = null;
+
+      if (isLeadUpload === 'true' || isLeadUpload === true) {
+        disposition = 'Lead';
+        queueOrder = 999999;
+        const amountCol = Object.keys(row).find(k => k.toLowerCase().includes('amount') || k.toLowerCase() === 'revenue');
+        if (amountCol) {
+          leadAmount = parseFloat(row[amountCol]) || null;
+        }
+      }
+
+      return {
+        assignedTo: new ObjectId(rowAgentId),
+        uploadedBy: new ObjectId(req.user._id),
+        batchId,
+        fields: row,
+        disposition,
+        leadAmount,
+        remarks: '',
+        appointmentDt: null,
+        lastModified: now,
+        createdAt: now,
+        queueOrder,
+      };
+    });
 
     await contactsCollection.insertMany(contacts);
 

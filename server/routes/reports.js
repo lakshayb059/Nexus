@@ -15,11 +15,15 @@ const DISP_LABELS = {
 
 router.get('/download', verify, authorize(['admin', 'tl', 'agent']), async (req, res) => {
   try {
-    const { format = 'csv', agentId, disposition, batchId } = req.query;
+    const { format = 'csv', agentId, disposition, batchId, reportType } = req.query;
 
     const query = {};
-    if (disposition === 'pending') query.disposition = null;
-    else if (disposition) query.disposition = disposition;
+    if (reportType === 'lead') {
+      query.disposition = 'Lead';
+    } else {
+      if (disposition === 'pending') query.disposition = null;
+      else if (disposition) query.disposition = disposition;
+    }
     if (batchId) query.batchId = batchId;
 
     const usersCollection = getCollection('users');
@@ -63,7 +67,9 @@ router.get('/download', verify, authorize(['admin', 'tl', 'agent']), async (req,
       fieldCols.forEach(col => { row[col] = c.fields?.[col] || ''; });
       row['Disposition'] = c.disposition ? (DISP_LABELS[c.disposition] || c.disposition) : 'Pending';
       row['Lead Amount'] = c.leadAmount || '';
-      row['Remarks'] = c.remarks || '';
+      row['Lead Status'] = c.status || '';
+      row['Other Remarks'] = c.statusDetails || '';
+      row['Agent Remarks'] = c.remarks || '';
       row['Appointment Date & Time'] = c.appointmentDt
         ? new Date(c.appointmentDt).toLocaleString('en-IN')
         : '';

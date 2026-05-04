@@ -25,7 +25,7 @@ const Workflow = () => {
   const [data,       setData]       = useState(null);
   const [loading,    setLoading]    = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [dispForm,   setDispForm]   = useState({ disposition: '', remarks: '', appointmentDt: '', leadAmount: '', callBackDt: '' });
+  const [dispForm,   setDispForm]   = useState({ disposition: '', remarks: '', appointmentDt: '', leadAmount: '', callBackDt: '', statusDetails: '' });
   const [toasts,     setToasts]     = useState([]);
   const [emptyStateContacts, setEmptyStateContacts] = useState(null);
   const [selectedForRequeue, setSelectedForRequeue] = useState([]);
@@ -141,9 +141,12 @@ const Workflow = () => {
       // Convert naive local datetime strings to ISO UTC
       if (payload.appointmentDt) payload.appointmentDt = new Date(payload.appointmentDt).toISOString();
       if (payload.callBackDt) payload.callBackDt = new Date(payload.callBackDt).toISOString();
+      if (payload.disposition === 'Lead' && payload.statusDetails) {
+        payload.status = 'Others';
+      }
 
       await api.post(`/contacts/${data.contact._id}/dispose`, payload);
-      setDispForm({ disposition: '', remarks: '', appointmentDt: '', leadAmount: '', callBackDt: '' });
+      setDispForm({ disposition: '', remarks: '', appointmentDt: '', leadAmount: '', callBackDt: '', statusDetails: '' });
       fetchNext();
     } catch (err) {
       alert(err.response?.data?.error || 'Disposition failed');
@@ -437,10 +440,16 @@ const Workflow = () => {
               </div>
             )}
             {dispForm.disposition === 'Lead' && (
-              <div className="input-group">
-                <label>Lead Amount (₹) *</label>
-                <input type="number" className="input-field" placeholder="Enter deal amount" value={dispForm.leadAmount} onChange={e => setDispForm(p => ({ ...p, leadAmount: e.target.value }))} min="0" step="0.01" required />
-              </div>
+              <>
+                <div className="input-group">
+                  <label>Lead Amount (₹) *</label>
+                  <input type="number" className="input-field" placeholder="Enter deal amount" value={dispForm.leadAmount} onChange={e => setDispForm(p => ({ ...p, leadAmount: e.target.value }))} min="0" step="0.01" required />
+                </div>
+                <div className="input-group">
+                  <label>Other Remarks (Lead Status Details)</label>
+                  <input type="text" className="input-field" placeholder="Specify any other status details…" value={dispForm.statusDetails} onChange={e => setDispForm(p => ({ ...p, statusDetails: e.target.value }))} />
+                </div>
+              </>
             )}
             {dispForm.disposition === 'CallBack' && (
               <div className="input-group">

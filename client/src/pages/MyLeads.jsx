@@ -9,8 +9,9 @@ const MyLeads = () => {
   const { socket } = useSocket();
   const [leads,      setLeads]      = useState([]);
   const [loading,    setLoading]    = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [stats,      setStats]      = useState({ totalLeads: 0, totalAmount: 0 });
+  const [searchTerm,   setSearchTerm]   = useState('');
+  const [sourceFilter, setSourceFilter] = useState('all');
+  const [stats,        setStats]        = useState({ totalLeads: 0, totalAmount: 0 });
 
   const fetchData = async () => {
     try {
@@ -40,6 +41,11 @@ const MyLeads = () => {
   }, [socket]);
 
   const filtered = leads.filter(l => {
+    // Source filter logic
+    if (sourceFilter === 'uploaded' && l.disposedBy) return false;
+    if (sourceFilter === 'created' && !l.disposedBy) return false;
+
+    // Search logic
     if (!searchTerm) return true;
     const q = searchTerm.toLowerCase();
     return Object.values(l.fields || {}).some(v => String(v).toLowerCase().includes(q)) ||
@@ -106,13 +112,23 @@ const MyLeads = () => {
         })}
       </div>
 
-      {/* Search */}
-      <div className="glass-panel" style={{ marginBottom: 'var(--gap)', padding: '12px 18px' }}>
-        <div style={{ position: 'relative' }}>
+      {/* Search and Filters */}
+      <div className="glass-panel" style={{ marginBottom: 'var(--gap)', padding: '12px 18px', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
           <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
           <input type="text" className="input-field" placeholder="Search leads by name, phone…" style={{ paddingLeft: 42, marginBottom: 0 }}
             value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
         </div>
+        <select 
+          className="input-field" 
+          style={{ width: 'auto', minWidth: 160, marginBottom: 0 }}
+          value={sourceFilter}
+          onChange={e => setSourceFilter(e.target.value)}
+        >
+          <option value="all">All Leads</option>
+          <option value="created">Created by Agent</option>
+          <option value="uploaded">Uploaded Directly</option>
+        </select>
       </div>
 
       {/* Lead list */}

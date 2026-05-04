@@ -14,6 +14,7 @@ const Upload = () => {
   const [file,           setFile]           = useState(null);
   const [isUploading,    setIsUploading]    = useState(false);
   const [isDragging,     setIsDragging]     = useState(false);
+  const [isLeadUpload,   setIsLeadUpload]   = useState(false);
   const [handoverBatch,  setHandoverBatch]  = useState(null);
   const [targetAgentId,  setTargetAgentId]  = useState('');
   const fileInputRef = useRef(null);
@@ -70,6 +71,7 @@ const Upload = () => {
     const fd = new FormData();
     fd.append('file', file);
     fd.append('agentId', selectedAgent);
+    fd.append('isLeadUpload', isLeadUpload);
     if (batchName) fd.append('batchName', batchName);
     try {
       await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
@@ -181,6 +183,19 @@ const Upload = () => {
             )}
           </div>
           <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept=".csv,.xlsx,.xls" onChange={handleFileChange} />
+
+          <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <input 
+              type="checkbox" 
+              id="isLeadUpload" 
+              checked={isLeadUpload} 
+              onChange={e => setIsLeadUpload(e.target.checked)} 
+              style={{ width: 18, height: 18, accentColor: 'var(--primary)', cursor: 'pointer' }}
+            />
+            <label htmlFor="isLeadUpload" style={{ fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', color: 'var(--text-primary)' }}>
+              Upload directly as Leads (bypasses workflow queue)
+            </label>
+          </div>
 
           <button
             className="btn btn-primary"
