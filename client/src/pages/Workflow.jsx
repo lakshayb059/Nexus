@@ -223,14 +223,14 @@ const Workflow = () => {
               const isPhone = k.toLowerCase().includes('phone') || k.toLowerCase().includes('mobile');
               return (
                 <div key={k} className="detail-item">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                     <div>
                       <span className="detail-label">{k}</span>
                       <span className="detail-value">{String(v) || '—'}</span>
                     </div>
                     {isPhone && v && (
                       <a href={`tel:${v}`} className="call-action-btn" title={`Call ${v}`}>
-                        <Phone size={20} fill="currentColor" />
+                        <Phone size={18} fill="currentColor" />
                       </a>
                     )}
                   </div>
@@ -238,6 +238,21 @@ const Workflow = () => {
               );
             })}
           </div>
+
+          {/* Prominent Call Bar for Mobile Only */}
+          {(() => {
+            const phoneEntry = Object.entries(fields).find(([k, v]) => (k.toLowerCase().includes('phone') || k.toLowerCase().includes('mobile')) && v);
+            if (phoneEntry) {
+              return (
+                <a href={`tel:${phoneEntry[1]}`} className="mobile-call-bar">
+                  <div className="pulse-white">
+                    <Phone size={22} fill="currentColor" />
+                  </div>
+                  <span>CALL CUSTOMER NOW</span>
+                </a>
+              );
+            }
+          })()}
 
           {contact.lastCallAttempt && (
             <div style={{ marginTop: 'auto', paddingTop: 20, fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -336,14 +351,49 @@ const Workflow = () => {
         .detail-label { display: block; font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 800; letter-spacing: 0.05em; margin-bottom: 2px; }
         .detail-value { font-size: 1.1rem; font-weight: 800; color: #1e293b; word-break: break-all; }
 
-        .call-action-btn { 
-          width: 48px; height: 48px; border-radius: 14px; background: #10b981; color: #fff; 
-          display: flex; align-items: center; justify-content: center; text-decoration: none;
-          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-          box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        .call-action-btn { display: none; } /* Hidden on desktop */
+        
+        .mobile-call-bar { display: none; } /* Hidden on desktop */
+
+        @media (max-width: 640px) {
+          .call-action-btn { 
+            width: 42px; height: 42px; border-radius: 12px; background: #10b981; color: #fff; 
+            display: flex; align-items: center; justify-content: center; text-decoration: none;
+            box-shadow: 0 4px 10px rgba(16, 185, 129, 0.2);
+          }
+          
+          .mobile-call-bar { 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            gap: 12px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: #fff;
+            padding: 18px;
+            border-radius: 18px;
+            text-decoration: none;
+            font-weight: 900;
+            font-size: 1rem;
+            letter-spacing: 0.02em;
+            margin-top: 24px;
+            box-shadow: 0 10px 25px rgba(16, 185, 129, 0.4);
+            transition: transform 0.2s;
+          }
+          .mobile-call-bar:active { transform: scale(0.98); }
+          
+          .pulse-white {
+            animation: pulse-white 2s infinite;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
         }
-        .call-action-btn:hover { background: #059669; transform: scale(1.05); box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4); }
-        .call-action-btn:active { transform: scale(0.95); }
+
+        @keyframes pulse-white {
+          0% { transform: scale(0.95); opacity: 1; }
+          70% { transform: scale(1.1); opacity: 0.8; }
+          100% { transform: scale(0.95); opacity: 1; }
+        }
 
         .dispo-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .dispo-btn { 
