@@ -88,7 +88,8 @@ router.get('/queue', verify, authorize(['agent']), async (req, res) => {
     else if (rechurn.length > 0) { contact = rechurn[0]; type = 'rechurn'; }
 
     const total = await contactsCollection.countDocuments(commonQuery);
-    const disposed = await contactsCollection.countDocuments({ ...commonQuery, disposition: { $nin: [null, 'CallNotAnswered', 'HungUp'] } });
+    const pending = await contactsCollection.countDocuments({ ...commonQuery, disposition: null });
+    const disposed = total - pending;
     
     const upcomingAppointments = await contactsCollection.find({
       ...commonQuery,
@@ -96,7 +97,7 @@ router.get('/queue', verify, authorize(['agent']), async (req, res) => {
       appointmentDt: { $gte: now, $lte: new Date(now.getTime() + 30 * 60 * 1000) }
     }).sort({ appointmentDt: 1 }).limit(3).toArray();
 
-    res.json({ contact, remaining: fresh.length + rechurn.length, total, disposed, upcomingAppointments, type: contact ? type : null, rechurnNum: contact?.rechurnCount || 0 });
+    res.json({ contact, remaining: fresh.length + rechurn.length, total, pending, disposed, upcomingAppointments, type: contact ? type : null, rechurnNum: contact?.rechurnCount || 0 });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -215,12 +216,51 @@ router.post('/bulk-delete', verify, authorize(['admin']), async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/:id/requeue', verify, authorize(['agent']), async (req, res) => {
+router.post('/:id/requeue', verify, authorize(['admin', 'tl', 'agent']), async (req, res) => {
   try {
     const contactsCollection = getCollection('contacts');
-    await contactsCollection.updateOne({ _id: new ObjectId(req.params.id), assignedTo: new ObjectId(req.user._id) }, { $set: { disposition: null, queueOrder: 0, lastModified: new Date() } });
+    const contactId = new ObjectId(req.params.id);
+    
+    const contact = await contactsCollection.findOne({ _id: contactId });
+    if (!contact) return res.status(404).json({ error: 'Contact not found' });
+
+    // Permission check
+    let canUpdate = false;
+    if (req.user.role === 'admin') {
+      canUpdate = true;
+    } else if (req.user.role === 'tl') {
+      const usersCollection = getCollection('users');
+      const assignedAgent = await usersCollection.findOne({ _id: contact.assignedTo });
+      if (assignedAgent && String(assignedAgent.tlId) === String(req.user._id)) {
+        canUpdate = true;
+      }
+    } else if (req.user.role === 'agent') {
+      if (String(contact.assignedTo) === String(req.user._id)) {
+        canUpdate = true;
+      }
+    }
+
+    if (!canUpdate) return res.status(403).json({ error: 'Forbidden' });
+
+    await contactsCollection.updateOne({ _id: contactId }, { $set: { disposition: null, queueOrder: 0, lastModified: new Date() } });
+    
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('requeue_notification', {
+        agentId: contact.assignedTo,
+        contactName: contact.fields?.Name || contact.fields?.name || 'Unknown',
+        adminName: req.user.name,
+        contactId: contact._id
+      });
+      io.emit('contacts_updated');
+      io.emit('dashboard_update');
+    }
+
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+  } catch (err) { 
+    console.error('Requeue error:', err);
+    res.status(500).json({ error: 'Server error' }); 
+  }
 });
 
 // GET /contacts/stats - Global statistics for dashboard
@@ -279,13 +319,13 @@ router.get('/agent-queues', verify, authorize(['admin', 'tl']), async (req, res)
     const stats = await Promise.all(agents.map(async (agent) => {
       const q = { assignedTo: agent._id, isDeleted: { $ne: true } };
       
-      const [total, disposed, lead, appointment, pending] = await Promise.all([
+      const [total, pending, lead, appointment] = await Promise.all([
         contactsCollection.countDocuments(q),
-        contactsCollection.countDocuments({ ...q, disposition: { $nin: [null, 'CallNotAnswered', 'HungUp'] } }),
+        contactsCollection.countDocuments({ ...q, disposition: null }),
         contactsCollection.countDocuments({ ...q, disposition: 'Lead' }),
         contactsCollection.countDocuments({ ...q, disposition: 'Appointment' }),
-        contactsCollection.countDocuments({ ...q, disposition: null }),
       ]);
+      const disposed = total - pending;
 
       const leadAmountResult = await contactsCollection.aggregate([
         { $match: { ...q, disposition: 'Lead' } },

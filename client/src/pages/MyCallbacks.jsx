@@ -169,10 +169,12 @@ const MyCallbacks = () => {
                     )}
                   </div>
 
-                  <button className="btn btn-primary appt-action-btn" onClick={() => handleContactNow(cb)} style={{ padding: '10px 20px', flexShrink: 0 }}>
-                    <span className="hide-mobile">Contact Now</span>
-                    <ChevronRight size={16} />
-                  </button>
+                  {user?.role === 'admin' && (
+                    <button className="btn btn-primary appt-action-btn" onClick={() => handleContactNow(cb)} style={{ padding: '10px 20px', flexShrink: 0 }}>
+                      <span className="hide-mobile">Contact Now</span>
+                      <ChevronRight size={16} />
+                    </button>
+                  )}
                 </div>
               </div>
             );

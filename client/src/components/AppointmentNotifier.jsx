@@ -7,9 +7,12 @@ const MAX_TOASTS = 5;
 
 // Sound URLs
 const SOUNDS = {
-  upcoming: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3',
+  // A professional digital bell/ring
+  upcoming: 'https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3',
+  // A more urgent digital alert
   late: 'https://assets.mixkit.co/active_storage/sfx/951/951-preview.mp3',
-  callback: 'https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3'
+  // A clean "ping" for immediate due
+  callback: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'
 };
 
 const AppointmentNotifier = () => {
@@ -27,9 +30,26 @@ const AppointmentNotifier = () => {
     }
   };
 
+  const requestPermission = () => {
+    if (Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  };
+
+  useEffect(() => {
+    requestPermission();
+  }, []);
+
+  const notifyBrowser = (title, message) => {
+    if (Notification.permission === 'granted') {
+      new Notification(title, { body: message });
+    }
+  };
+
   const add = (toast) => {
     setToasts(prev => [toast, ...prev].slice(0, MAX_TOASTS));
     playSound(toast.isLate ? 'late' : toast.type);
+    notifyBrowser(toast.title, toast.message);
   };
 
   const remove = (id) =>
@@ -63,9 +83,31 @@ const AppointmentNotifier = () => {
       });
     });
 
+    socket.on('callback_reminder', (data) => {
+      if (data.agentId !== user._id) return;
+      add({
+        id: Date.now(),
+        type: 'callback',
+        title: 'Callback Reminder',
+        message: `${data.contactName} — in 2 min`,
+      });
+    });
+    
+    socket.on('requeue_notification', (data) => {
+      if (data.agentId !== user._id) return;
+      add({
+        id: Date.now(),
+        type: 'callback',
+        title: 'Contact Re-queued',
+        message: `${data.contactName} re-added by ${data.adminName}`,
+      });
+    });
+
     return () => {
       socket.off('appointment_reminder');
       socket.off('callback_due');
+      socket.off('callback_reminder');
+      socket.off('requeue_notification');
     };
   }, [socket, isAuthenticated, user]);
 

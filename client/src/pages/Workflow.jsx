@@ -113,7 +113,7 @@ const Workflow = () => {
 
   const total = data?.total || 0;
   const disposed = data?.disposed || 0;
-  const progressPercent = total > 0 ? Math.round((disposed / total) * 100) : 0;
+  const progressPercent = total > 0 ? Math.round(((total - (data?.pending || 0)) / total) * 100) : 0;
 
   if (!data?.contact) {
     const appts = emptyStateContacts?.filter(c => c.disposition === 'Appointment') || [];

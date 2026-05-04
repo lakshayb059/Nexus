@@ -66,7 +66,7 @@ function getDB() {
 
 // Get collection helper
 function getCollection(name) {
-  return getDB().collection(COLLECTIONS[name]);
+  return getDB().collection(COLLECTIONS[name] || name);
 }
 
 // Close database connection

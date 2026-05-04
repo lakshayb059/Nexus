@@ -79,31 +79,52 @@ const Reports = () => {
     }
   };
 
-  const chartData = stats ? [
+  const chartData = stats ? (reportType === 'workflow' ? [
     { name: 'Pending',      value: stats.pending || 0 },
     { name: 'Leads',        value: stats.lead || 0 },
     { name: 'Appointments', value: stats.appointment || 0 },
-    { name: 'No Answer',    value: stats.callNotAnswered || 0 },
+    { name: 'No Answer',    value: stats.callNotAnswered || stats.noAnswer || 0 },
+    { name: 'Hung Up',      value: stats.hungUp || 0 },
     { name: 'Invalid',      value: stats.invalid || 0 },
     { name: 'Call Back',    value: stats.callBack || 0 },
-  ].filter(d => d.value > 0) : [];
+    { name: 'DNC',          value: stats.doNotCall || 0 },
+  ].filter(d => d.value > 0) : [
+    { name: 'Leads',        value: stats.lead || 0 },
+    { name: 'Appointments', value: stats.appointment || 0 },
+    { name: 'Call Backs',   value: stats.callBack || 0 },
+  ].filter(d => d.value > 0)) : [];
 
-  const summaryPills = stats ? [
-    { label: 'Total',        value: stats.total || 0,       color: 'var(--primary)' },
-    { label: 'Leads',        value: stats.lead || 0,        color: 'var(--success)' },
-    { label: 'Appointments', value: stats.appointment || 0, color: '#8b5cf6' },
-    { label: 'Pending',      value: stats.pending || 0,     color: 'var(--warning)' },
+  const funnelData = stats ? [
+    { name: 'Total', value: stats.total || 0 },
+    { name: 'Attempted', value: (stats.total - stats.pending) || 0 },
+    { name: 'Success', value: (stats.lead + stats.appointment) || 0 },
   ] : [];
 
+  const summaryPills = stats ? (reportType === 'workflow' ? [
+    { label: 'Total Contacts',   value: stats.total || 0,       color: 'var(--primary)' },
+    { label: 'Pending',          value: stats.pending || 0,     color: 'var(--warning)' },
+    { label: 'Processed',        value: (stats.total - stats.pending) || 0, color: 'var(--success)' },
+    { label: 'Efficiency',       value: stats.total > 0 ? `${Math.round(((stats.total - stats.pending) / stats.total) * 100)}%` : '0%', color: 'var(--violet)' },
+  ] : [
+    { label: 'Total Leads',      value: stats.lead || 0,        color: 'var(--success)' },
+    { label: 'Appointments',     value: stats.appointment || 0, color: '#8b5cf6' },
+    { label: 'Lead Value',       value: `₹${(stats.totalLeadAmount || 0).toLocaleString()}`, color: 'var(--primary)' },
+    { label: 'Conversion',       value: (stats.total - stats.pending) > 0 ? `${Math.round(((stats.lead + stats.appointment) / (stats.total - stats.pending)) * 100)}%` : '0%', color: 'var(--cyan)' },
+  ]) : [];
+
   return (
-    <div>
+    <div className="animate-fade-in">
       {/* Header */}
       <div className="page-header">
         <div>
           <h1 className="page-title" style={{ fontSize: 'var(--h1)' }}>
-            <BarChart2 size={24} style={{ color: 'var(--primary)' }} /> Reports &amp; Export
+            <BarChart2 size={24} style={{ color: 'var(--primary)' }} /> {reportType === 'workflow' ? 'Workflow Analytics' : 'Lead Intelligence'}
           </h1>
-          <p className="page-subtitle">View analytics and export contact data</p>
+          <p className="page-subtitle">
+            {reportType === 'workflow' 
+              ? 'Tracking productivity, dispositions, and funnel efficiency' 
+              : 'Detailed analysis of lead generation, revenue, and success rates'}
+          </p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           <select 
@@ -127,10 +148,12 @@ const Reports = () => {
       {/* Filter bar */}
       {user.role !== 'agent' && (
         <div className="glass-panel" style={{ marginBottom: 'var(--gap)', padding: '12px 18px', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Filter size={16} style={{ color: 'var(--text-muted)' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-secondary)', fontSize: '0.85rem', fontWeight: 600 }}>
+            <User size={16} /> Filter by Agent:
+          </div>
           <select className="input-field" style={{ marginBottom: 0, minWidth: 200, flex: 1, maxWidth: 320 }}
             value={selectedAgent} onChange={e => setSelectedAgent(e.target.value)}>
-            <option value="">All Agents</option>
+            <option value="">Full Team Overview</option>
             {agents.map(a => <option key={a._id} value={a._id}>{a.name}</option>)}
           </select>
           {selectedAgent && (
@@ -145,10 +168,9 @@ const Reports = () => {
       {!loading && stats && (
         <div style={{ display: 'flex', gap: 10, marginBottom: 'var(--gap)', flexWrap: 'wrap' }}>
           {summaryPills.map(p => (
-            <div key={p.label} className="glass-panel" style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10, flex: '1 1 140px' }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{p.label}</span>
-              <span style={{ fontWeight: 800, fontSize: '1.1rem', marginLeft: 'auto' }}>{p.value}</span>
+            <div key={p.label} className="glass-panel" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 6, flex: '1 1 200px', borderTop: `4px solid ${p.color}` }}>
+              <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{p.label}</span>
+              <span style={{ fontWeight: 900, fontSize: '1.5rem', color: 'var(--text-primary)' }}>{p.value}</span>
             </div>
           ))}
         </div>
@@ -168,49 +190,57 @@ const Reports = () => {
         <div className="glass-panel" style={{ padding: '80px 40px', textAlign: 'center' }}>
           <BarChart2 size={64} style={{ opacity: 0.08, margin: '0 auto 20px', display: 'block' }} />
           <h3 style={{ marginBottom: 8 }}>No data to display</h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No contacts have been disposed yet.</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No contacts have been disposed for this selection yet.</p>
         </div>
       ) : (
         <div className="grid-2">
-          {/* Pie chart */}
-          <div className="glass-panel" style={{ padding: 'var(--card-p)', height: 400 }}>
-            <h2 style={{ fontSize: '0.9rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-secondary)', marginBottom: 16 }}>
-              Disposition Distribution
+          {/* Main Chart Area */}
+          <div className="glass-panel" style={{ padding: 'var(--card-p)', minHeight: 450 }}>
+            <h2 style={{ fontSize: '0.85rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 8 }}>
+              {reportType === 'workflow' ? 'Disposition Funnel' : 'Success Distribution'}
             </h2>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={350}>
               <PieChart>
                 <Pie
                   data={chartData}
-                  cx="50%" cy="45%"
-                  innerRadius={70} outerRadius={110}
-                  paddingAngle={4}
+                  cx="50%" cy="50%"
+                  innerRadius={80} outerRadius={125}
+                  paddingAngle={5}
                   dataKey="value"
+                  animationBegin={0}
+                  animationDuration={1200}
                 >
                   {chartData.map((_, i) => (
-                    <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
+                    <Cell key={i} fill={PALETTE[i % PALETTE.length]} stroke="none" />
                   ))}
                 </Pie>
                 <Tooltip content={<CustomTooltip />} />
-                <Legend
-                  formatter={(v) => <span style={{ color: 'var(--text-secondary)', fontSize: '0.78rem' }}>{v}</span>}
+                <Legend 
+                  verticalAlign="bottom" 
+                  height={36} 
+                  iconType="circle"
+                  formatter={(v) => <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 600 }}>{v}</span>} 
                 />
               </PieChart>
             </ResponsiveContainer>
           </div>
 
-          {/* Bar chart */}
-          <div className="glass-panel" style={{ padding: 'var(--card-p)', height: 400 }}>
-            <h2 style={{ fontSize: '0.9rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-secondary)', marginBottom: 16 }}>
-              Performance Overview
+          <div className="glass-panel" style={{ padding: 'var(--card-p)', minHeight: 450 }}>
+            <h2 style={{ fontSize: '0.85rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: 24 }}>
+              {reportType === 'workflow' ? 'Workflow Efficiency' : 'Outcome Comparison'}
             </h2>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 24, left: 10, bottom: 0 }}>
-                <XAxis type="number" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis dataKey="name" type="category" width={90}
-                  tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(99,102,241,0.08)' }} />
-                <Bar dataKey="value" radius={[0, 6, 6, 0]}>
-                  {chartData.map((_, i) => (
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={reportType === 'workflow' ? funnelData : chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 11, fontWeight: 600 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(99,102,241,0.04)' }} />
+                <Bar 
+                  dataKey="value" 
+                  radius={[6, 6, 0, 0]} 
+                  barSize={40}
+                  animationDuration={1500}
+                >
+                  {(reportType === 'workflow' ? funnelData : chartData).map((_, i) => (
                     <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
                   ))}
                 </Bar>

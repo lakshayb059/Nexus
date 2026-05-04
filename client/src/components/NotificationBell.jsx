@@ -1,29 +1,54 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
-import { Bell, Calendar, Clock, Database, X, ChevronRight } from 'lucide-react';
+import { Bell, Calendar, Clock, Database, X, ChevronRight, Star } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import api from '../utils/api';
 
 const NotificationBell = () => {
   const { socket } = useSocket();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [notifications, setNotifications] = useState([]);
+  const [notifications, setNotifications] = useState(() => {
+    const saved = localStorage.getItem(`notifications_${user?._id}`);
+    return saved ? JSON.parse(saved) : [];
+  });
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem(`notifications_${user._id}`, JSON.stringify(notifications));
+    }
+  }, [notifications, user]);
+
   const addNotification = (notif) => {
     setNotifications(prev => {
-      // Avoid duplicate workflow notifications for same batch if needed
       if (notif.type === 'workflow' && prev.some(p => p.batchId === notif.batchId)) return prev;
-      return [notif, ...prev].slice(0, 20); // Keep last 20
+      return [notif, ...prev].slice(0, 20);
     });
   };
 
   useEffect(() => {
+    if (user) {
+      const sessionKey = `welcomed_${user._id}_${new Date().toDateString()}`;
+    if (!sessionStorage.getItem(sessionKey)) {
+      addNotification({
+        id: `welcome_${Date.now()}`,
+        type: 'welcome',
+        title: 'Welcome Back!',
+        message: `Hello ${user.name}, welcome to your dashboard.`,
+        time: new Date(),
+        path: '/dashboard'
+      });
+      sessionStorage.setItem(sessionKey, 'true');
+      }
+    }
+  }, [user?._id]);
+
+  useEffect(() => {
     if (!socket || !user) return;
 
-    // 1. Appointment Reminders
     socket.on('appointment_reminder', (data) => {
       if (data.agentId === user._id) {
         addNotification({
@@ -37,7 +62,6 @@ const NotificationBell = () => {
       }
     });
 
-    // 2. Callback Reminders
     socket.on('callback_due', (data) => {
       if (data.agentId === user._id) {
         addNotification({
@@ -51,11 +75,22 @@ const NotificationBell = () => {
       }
     });
 
-    // 3. New Workflow Assigned
+    socket.on('requeue_notification', (data) => {
+      if (data.agentId === user._id) {
+        addNotification({
+          id: `rq_${Date.now()}`,
+          type: 'callback',
+          title: 'Contact Re-queued',
+          message: `${data.contactName} re-added by ${data.adminName}`,
+          time: new Date(),
+          path: '/workflow'
+        });
+      }
+    });
+
+
+
     socket.on('batch_uploaded', (data) => {
-      // data.agentId can be the specific agent or "multi"
-      // If multi, we don't know exactly from this event if THIS agent got contacts
-      // But for specific assignments, it's clear
       if (data.agentId === user._id) {
         addNotification({
           id: `wf_${Date.now()}`,
@@ -72,6 +107,7 @@ const NotificationBell = () => {
     return () => {
       socket.off('appointment_reminder');
       socket.off('callback_due');
+      socket.off('requeue_notification');
       socket.off('batch_uploaded');
     };
   }, [socket, user]);
@@ -89,8 +125,11 @@ const NotificationBell = () => {
 
   const unreadCount = notifications.length;
 
-  const handleNotifClick = (notif) => {
+  const handleNotifClick = async (notif) => {
     if (notif.path) navigate(notif.path);
+    
+
+
     setNotifications(prev => prev.filter(n => n.id !== notif.id));
     setIsOpen(false);
   };
@@ -175,12 +214,12 @@ const NotificationBell = () => {
                   <div style={{
                     width: 32, height: 32,
                     borderRadius: 'var(--r-sm)',
-                    background: n.type === 'appointment' ? 'var(--violet-light)' : n.type === 'callback' ? 'var(--cyan-light)' : 'rgba(37,99,235,0.1)',
+                    background: n.type === 'appointment' ? 'var(--violet-light)' : n.type === 'callback' ? 'var(--cyan-light)' : n.type === 'welcome' ? 'var(--success-light)' : 'rgba(37,99,235,0.1)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     flexShrink: 0,
-                    color: n.type === 'appointment' ? '#8b5cf6' : n.type === 'callback' ? '#06b6d4' : 'var(--primary)',
+                    color: n.type === 'appointment' ? '#8b5cf6' : n.type === 'callback' ? '#06b6d4' : n.type === 'welcome' ? 'var(--success)' : 'var(--primary)',
                   }}>
-                    {n.type === 'appointment' ? <Calendar size={14} /> : n.type === 'callback' ? <Clock size={14} /> : <Database size={14} />}
+                    {n.type === 'appointment' ? <Calendar size={14} /> : n.type === 'callback' ? <Clock size={14} /> : n.type === 'welcome' ? <Star size={14} /> : <Database size={14} />}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 2 }}>{n.title}</div>

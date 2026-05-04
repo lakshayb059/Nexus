@@ -2,17 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import api from '../utils/api';
-import { PhoneOff, RotateCw, Search, PhoneCall, Calendar } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { PhoneOff, Search, PhoneCall, Calendar } from 'lucide-react';
+
 
 const HungUp = () => {
   const { user }   = useAuth();
   const { socket } = useSocket();
-  const navigate   = useNavigate();
   const [contacts,   setContacts]   = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [requeuing,  setRequeuing]  = useState(null);
 
   const fetchData = async () => {
     try {
@@ -56,16 +54,7 @@ const HungUp = () => {
            (c.agentName && c.agentName.toLowerCase().includes(q));
   });
 
-  const handleRequeue = async (contactId) => {
-    setRequeuing(contactId);
-    try {
-      await api.post(`/contacts/${contactId}/requeue`);
-      fetchData();
-    } catch (err) {
-      alert('Failed to requeue contact');
-      setRequeuing(null);
-    }
-  };
+
 
   return (
     <div>
@@ -160,28 +149,7 @@ const HungUp = () => {
                     <div style={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-secondary)', marginBottom: 8 }}>
                       {contact.rechurnCount} Attempts Made
                     </div>
-                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                      <button 
-                        className="btn btn-outline"
-                        style={{ fontSize: '0.75rem', padding: '6px 12px' }}
-                        onClick={() => navigate(`/workflow?contactId=${contact._id}`)}
-                      >
-                        View
-                      </button>
-                      <button 
-                        className="btn btn-primary"
-                        style={{ fontSize: '0.75rem', padding: '6px 12px', display: 'flex', gap: 6 }}
-                        onClick={() => handleRequeue(contact._id)}
-                        disabled={requeuing === contact._id}
-                      >
-                        {requeuing === contact._id ? (
-                          <span className="animate-spin" style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block' }} />
-                        ) : (
-                          <RotateCw size={14} />
-                        )}
-                        Re-queue
-                      </button>
-                    </div>
+                    {/* Action buttons removed as per user request */}
                   </div>
                 </div>
               </div>
