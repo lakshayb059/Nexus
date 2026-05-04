@@ -10,6 +10,7 @@ import Reports from './pages/Reports';
 import Workflow from './pages/Workflow';
 import MyLeads from './pages/MyLeads';
 import MyAppointments from './pages/MyAppointments';
+import MyCallbacks from './pages/MyCallbacks';
 import HungUp from './pages/HungUp';
 import Layout from './components/Layout';
 import AppointmentNotifier from './components/AppointmentNotifier';
@@ -38,6 +39,7 @@ function App() {
             <Route path="/workflow" element={<Workflow />} />
             <Route path="/leads" element={<MyLeads />} />
             <Route path="/appointments" element={<MyAppointments />} />
+            <Route path="/callbacks" element={<MyCallbacks />} />
             <Route path="/hungup" element={<HungUp />} />
             <Route path="/reports" element={<Reports />} />
           </Route>

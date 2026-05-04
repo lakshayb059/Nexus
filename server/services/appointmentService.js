@@ -13,10 +13,12 @@ class AppointmentService {
     
     // Check immediately on start
     this.checkAppointments();
+    this.checkCallbacks();
     
     // Set up recurring checks
     this.reminderInterval = setInterval(() => {
       this.checkAppointments();
+      this.checkCallbacks();
     }, this.checkInterval);
   }
 
@@ -67,6 +69,51 @@ class AppointmentService {
 
     } catch (error) {
       console.error('Appointment check error:', error);
+    }
+  }
+
+  async checkCallbacks() {
+    try {
+      const contactsCollection = getCollection('contacts');
+      const now = new Date();
+      
+      // Find due callbacks that are still at order 999999
+      const dueCallbacks = await contactsCollection.find({
+        disposition: 'CallBack',
+        callBackDt: { $lte: now },
+        queueOrder: 999999
+      }).toArray();
+
+      for (const callback of dueCallbacks) {
+        // Reset to queue order 0 (top of queue)
+        await contactsCollection.updateOne(
+          { _id: callback._id },
+          { 
+            $set: { 
+              queueOrder: 0, 
+              lastModified: new Date(),
+              remarks: (callback.remarks || '') + ' [Callback due - auto re-queued]'
+            } 
+          }
+        );
+
+        // Notify agent via socket
+        if (this.io) {
+          this.io.emit('callback_due', {
+            contactId: callback._id,
+            contactName: callback.fields?.Name || callback.fields?.name || 'Unknown',
+            agentId: callback.assignedTo,
+            callBackDt: callback.callBackDt
+          });
+        }
+      }
+
+      if (dueCallbacks.length > 0) {
+        console.log(`📅 Auto re-queued ${dueCallbacks.length} callbacks`);
+      }
+
+    } catch (error) {
+      console.error('Callback check error:', error);
     }
   }
 

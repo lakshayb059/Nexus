@@ -144,7 +144,7 @@ router.get('/workflow/next', verify, authorize(['agent']), async (req, res) => {
       assignedTo: new ObjectId(req.user._id),
       disposition: 'CallBack',
       callBackDt: { $lte: now },
-      queueOrder: { $lt: 999999 }
+      queueOrder: 999999
     }).sort({ callBackDt: 1 }).limit(1).toArray();
 
     if (dueCallbacks.length > 0) {

@@ -66,6 +66,37 @@ router.get('/appointments', verify, authorize(['agent', 'tl', 'admin']), async (
   }
 });
 
+// GET /api/leads/callbacks - Fetch upcoming callbacks
+router.get('/callbacks', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
+  try {
+    const contactsCollection = getCollection('contacts');
+    let query = { disposition: 'CallBack' };
+    
+    if (req.user.role === 'agent') {
+      query.assignedTo = new ObjectId(req.user._id);
+    } else if (req.user.role === 'tl') {
+      const usersCollection = getCollection('users');
+      const agents = await usersCollection.find({ tlId: new ObjectId(req.user._id) }).toArray();
+      const agentIds = agents.map(a => a._id);
+      query.assignedTo = { $in: agentIds };
+    }
+
+    const callbacks = await contactsCollection.find(query).sort({ callBackDt: 1 }).toArray();
+    
+    // Enrich with agent names
+    const usersCollection = getCollection('users');
+    const enriched = await Promise.all(callbacks.map(async c => {
+      const agent = await usersCollection.findOne({ _id: c.assignedTo }, { projection: { name: 1 } });
+      return { ...c, agentName: agent?.name || 'Unknown Agent' };
+    }));
+
+    res.json(enriched);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET /api/leads/stats - Statistics for lead amounts and counts
 router.get('/stats', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
   try {
