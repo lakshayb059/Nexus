@@ -58,11 +58,16 @@ router.get('/download', verify, authorize(['admin', 'tl', 'agent']), async (req,
     // Build rows
     const userCache = {};
     const rows = await Promise.all(contacts.map(async c => {
-      if (!userCache[c.assignedTo]) {
-        userCache[c.assignedTo] = await usersCollection.findOne({ _id: c.assignedTo }, { projection: { password: 0 } });
+      let agentName = 'Unknown';
+      if (c.assignedTo) {
+        if (!userCache[c.assignedTo]) {
+          userCache[c.assignedTo] = await usersCollection.findOne({ _id: new ObjectId(c.assignedTo) }, { projection: { password: 0 } });
+        }
+        agentName = userCache[c.assignedTo]?.name || 'Unknown';
       }
+      
       const row = {
-        'Agent': userCache[c.assignedTo]?.name || 'Unknown',
+        'Agent': agentName,
       };
       fieldCols.forEach(col => { row[col] = c.fields?.[col] || ''; });
       row['Disposition'] = c.disposition ? (DISP_LABELS[c.disposition] || c.disposition) : 'Pending';
@@ -84,10 +89,8 @@ router.get('/download', verify, authorize(['admin', 'tl', 'agent']), async (req,
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'CRM Report');
       const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-      res.set({
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="crm_report_${Date.now()}.xlsx"`,
-      });
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="crm_report_${Date.now()}.xlsx"`);
       return res.send(buf);
     }
 

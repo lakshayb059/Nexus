@@ -37,21 +37,14 @@ const corsOptions = {
     
     const allowedOrigins = [
       process.env.FRONTEND_URL,
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
       'https://crm-eight-sage.vercel.app',
       'https://crm-orcin-one.vercel.app',
-      'https://your-crm-portal.vercel.app',
       'https://crm-uf1s.onrender.com',
     ].filter(Boolean).map(o => o.toLowerCase().replace(/\/$/, ''));
     
-    const isLocalhost = normalizedOrigin.startsWith('http://localhost') || 
-                        normalizedOrigin.startsWith('http://127.0.0.1');
-
-    const isVercel = normalizedOrigin.endsWith('.vercel.app') || 
-                     normalizedOrigin.includes('vercel.app');
-
-    const isExplicitlyAllowed = allowedOrigins.includes(normalizedOrigin);
-
-    if (isExplicitlyAllowed || isLocalhost || isVercel) {
+    if (!origin || allowedOrigins.includes(origin.toLowerCase().replace(/\/$/, '')) || origin.includes('vercel.app')) {
       callback(null, true);
     } else {
       console.warn('CORS blocked origin:', origin);
@@ -60,7 +53,8 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  exposedHeaders: ['Content-Disposition'],
   optionsSuccessStatus: 200
 };
 
