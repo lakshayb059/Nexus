@@ -368,7 +368,7 @@ const Workflow = () => {
                     {isPhone && v && String(v).trim() !== '' && (
                       <a 
                         href={`tel:${String(v).replace(/\D/g, '')}`} 
-                        className="btn btn-primary" 
+                        className="btn btn-primary mobile-only-call" 
                         style={{ 
                           padding: '6px 14px', 
                           height: 'auto', 
@@ -480,6 +480,9 @@ const Workflow = () => {
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 16px;
+        }
+        @media (min-width: 641px) {
+          .mobile-only-call { display: none !important; }
         }
         @media (max-width: 1024px) {
           .workflow-grid { grid-template-columns: 1fr; }
