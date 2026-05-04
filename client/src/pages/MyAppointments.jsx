@@ -181,7 +181,7 @@ const MyAppointments = () => {
               <AlertTriangle size={32} />
             </div>
             <h3 style={{ marginBottom: 12, color: '#f59e0b' }}>Appointment Time Validation</h3>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: 24, lineHeight: 1.6 }}>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: 24, lineHeight: 1.6 }}>
               <strong style={{ color: 'var(--text-primary)' }}>{selectedApp?.fields?.Name || selectedApp?.fields?.name || 'This lead'}</strong> has an appointment scheduled for:
               <br/><br/>
               <div style={{ backgroundColor: 'var(--bg-surface-2)', padding: '12px', borderRadius: '8px', margin: '12px 0', border: '1px solid var(--border)' }}>
@@ -196,7 +196,7 @@ const MyAppointments = () => {
                 </div>
               </div>
               The appointment time has not yet arrived. Do you want to add this contact back to your workflow queue anyway?
-            </p>
+            </div>
             <div style={{ display: 'flex', gap: 12 }}>
               <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowModal(false)}>
                 <X size={16} /> No, Cancel
