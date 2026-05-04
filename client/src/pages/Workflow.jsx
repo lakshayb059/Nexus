@@ -358,12 +358,22 @@ const Workflow = () => {
             <Database size={16} style={{ color: 'var(--primary)' }} /> Contact Details
           </h2>
           <div className="contact-detail-grid">
-            {Object.entries(fields).map(([k, v]) => (
-              <div key={k} style={{ borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
-                <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{k}</div>
-                <div style={{ fontWeight: 600, fontSize: '0.9rem', wordBreak: 'break-word' }}>{String(v) || '—'}</div>
-              </div>
-            ))}
+            {Object.entries(fields).map(([k, v]) => {
+              const isPhone = k.toLowerCase() === 'phone' || k.toLowerCase() === 'mobile';
+              return (
+                <div key={k} style={{ borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
+                  <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{k}</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem', wordBreak: 'break-word', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>{String(v) || '—'}</span>
+                    {isPhone && v && String(v).trim() !== '' && (
+                      <a href={`tel:${String(v).replace(/\D/g, '')}`} className="btn btn-primary" style={{ padding: '4px 10px', height: 'auto', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem' }} title="Call this number">
+                        <PhoneCall size={12} /> Call
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
