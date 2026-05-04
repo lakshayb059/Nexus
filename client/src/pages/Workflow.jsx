@@ -193,7 +193,7 @@ const Workflow = () => {
 
     if (emptyStateContacts) {
       emptyStateContacts.forEach(c => {
-        if (partitions[c.disposition]) {
+        if (c.queueOrder !== 999999 && partitions[c.disposition]) {
           partitions[c.disposition].push(c);
         }
       });

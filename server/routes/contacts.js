@@ -177,6 +177,7 @@ router.get('/stats', verify, authorize(['admin', 'tl', 'agent']), async (req, re
       invalid: all.filter(c => c.disposition === 'Invalid').length,
       doNotCall: all.filter(c => c.disposition === 'DoNotCall').length,
       callBack: all.filter(c => c.disposition === 'CallBack').length,
+      hungUp: all.filter(c => (c.disposition === 'HungUp' || c.disposition === 'CallNotAnswered') && c.queueOrder === 999999).length,
       totalLeadAmount: all.reduce((sum, c) => sum + (Number(c.leadAmount) || 0), 0)
     };
     res.json(stats);
@@ -288,16 +289,22 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
 
     // Enhanced CallNotAnswered & HungUp handling
     if (disposition === 'CallNotAnswered' || disposition === 'HungUp') {
-      const maxOrderContact = await contactsCollection.find({ 
-        assignedTo: new ObjectId(req.user._id),
-        queueOrder: { $lt: 999999 }
-      }).sort({ queueOrder: -1 }).limit(1).toArray();
-      
-      const newOrder = maxOrderContact.length > 0 ? (maxOrderContact[0].queueOrder + 1) : 0;
-      update.queueOrder = newOrder;
+      const newRechurnCount = (contact.rechurnCount || 0) + 1;
       update.callAttempts = (contact.callAttempts || 0) + 1;
-      update.rechurnCount = (contact.rechurnCount || 0) + 1;
+      update.rechurnCount = newRechurnCount;
       update.lastCallAttempt = new Date();
+
+      if (newRechurnCount >= 3) {
+        update.queueOrder = 999999; // Permanently remove from active queue
+      } else {
+        const maxOrderContact = await contactsCollection.find({ 
+          assignedTo: new ObjectId(req.user._id),
+          queueOrder: { $lt: 999999 }
+        }).sort({ queueOrder: -1 }).limit(1).toArray();
+        
+        const newOrder = maxOrderContact.length > 0 ? (maxOrderContact[0].queueOrder + 1) : 0;
+        update.queueOrder = newOrder;
+      }
     }
 
     // Enhanced CallBack handling

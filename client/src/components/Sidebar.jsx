@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import {
   LayoutDashboard, Users, Upload, Database, Star, Calendar,
   Layers, Download, LogOut, Sparkles, X, ChevronLeft, ChevronRight,
-  PhoneCall, BarChart2
+  PhoneCall, BarChart2, PhoneOff
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, onClose, isCollapsed, setIsCollapsed }) => {
@@ -29,6 +29,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, setIsCollapsed }) => {
     { path: '/contacts',     icon: Database,        label: 'All Contacts' },
     { path: '/leads',        icon: Star,            label: 'Leads' },
     { path: '/appointments', icon: Calendar,        label: 'Appointments' },
+    { path: '/hungup',       icon: PhoneOff,        label: 'Hung Up' },
     { path: '/reports',      icon: BarChart2,       label: 'Reports' },
   ];
   const tlItems = [
@@ -37,6 +38,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, setIsCollapsed }) => {
     { path: '/contacts',     icon: Database,        label: 'Team Contacts' },
     { path: '/leads',        icon: Star,            label: 'Leads' },
     { path: '/appointments', icon: Calendar,        label: 'Appointments' },
+    { path: '/hungup',       icon: PhoneOff,        label: 'Hung Up' },
     { path: '/reports',      icon: BarChart2,       label: 'Reports' },
   ];
   const agentItems = [
@@ -44,6 +46,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, setIsCollapsed }) => {
     { path: '/workflow',     icon: PhoneCall,       label: 'Workflow' },
     { path: '/leads',        icon: Star,            label: 'My Leads' },
     { path: '/appointments', icon: Calendar,        label: 'My Appointments' },
+    { path: '/hungup',       icon: PhoneOff,        label: 'Hung Up' },
   ];
 
   const items = role === 'admin' ? adminItems : role === 'tl' ? tlItems : agentItems;

@@ -4,7 +4,7 @@ import { useSocket } from '../contexts/SocketContext';
 import api from '../utils/api';
 import {
   Users, PhoneCall, Star, Calendar, Clock,
-  XCircle, TrendingUp, Database, RefreshCw
+  XCircle, TrendingUp, Database, RefreshCw, PhoneOff, AlertCircle
 } from 'lucide-react';
 
 /* ── Skeleton card ── */
@@ -87,6 +87,8 @@ const Dashboard = () => {
     { title: 'Total Revenue',    value: `₹${(stats.totalLeadValue || 0).toLocaleString()}`, subtext: 'Aggregate lead value', icon: TrendingUp, accent: '#8b5cf6' },
     { title: 'Appointments',     value: stats.appointment || 0,                    subtext: 'Scheduled',               icon: Calendar,  accent: '#a855f7' },
     { title: 'Call Backs',       value: stats.callBack || 0,                       subtext: 'Follow-up required',      icon: PhoneCall, accent: '#06b6d4' },
+    { title: 'Invalid / Wrong No.', value: stats.invalid || 0,                     subtext: 'Bad contact info',        icon: AlertCircle, accent: '#f97316' },
+    { title: 'Hung Up / Failed', value: stats.hungUp || 0,                         subtext: 'Max attempts reached',    icon: PhoneOff,  accent: '#ef4444' },
     { title: 'Do Not Call',      value: stats.doNotCall || 0,                      subtext: 'Excluded contacts',       icon: XCircle,   accent: '#64748b' },
   ] : [];
 

@@ -21,9 +21,12 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      localStorage.removeItem('crm_token');
-      localStorage.removeItem('crm_user');
-      window.location.href = '/login';
+      if (error.config && !error.config.url.includes('/auth/login')) {
+        alert('Session expired. Please relogin to continue.');
+        localStorage.removeItem('crm_token');
+        localStorage.removeItem('crm_user');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

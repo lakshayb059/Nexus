@@ -106,12 +106,12 @@ const Upload = () => {
     }
   };
 
-  const downloadTemplate = async () => {
+  const downloadTemplate = async (format = 'csv') => {
     try {
-      const res = await api.get('/upload/template?format=csv', { responseType: 'blob' });
+      const res = await api.get(`/upload/template?format=${format}`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement('a');
-      a.href = url; a.setAttribute('download', 'crm-template.csv');
+      a.href = url; a.setAttribute('download', `crm-template.${format}`);
       document.body.appendChild(a); a.click(); a.remove();
     } catch {
       alert('Failed to download template');
@@ -194,10 +194,18 @@ const Upload = () => {
             }
           </button>
 
-          <div style={{ marginTop: 12, textAlign: 'center' }}>
-            <button className="btn btn-ghost" style={{ fontSize: '0.78rem' }} onClick={downloadTemplate}>
-              <Download size={13} /> Download CSV Template
-            </button>
+          <div style={{ marginTop: 24, borderTop: '1px dashed var(--border)', paddingTop: 16 }}>
+            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12, textAlign: 'center' }}>
+              Download Sample Templates
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
+              <button className="btn btn-outline" style={{ flex: '1 1 calc(50% - 5px)', padding: '8px 12px', fontSize: '0.75rem' }} onClick={() => downloadTemplate('csv')}>
+                <Download size={14} style={{ color: 'var(--primary)' }} /> CSV Format
+              </button>
+              <button className="btn btn-outline" style={{ flex: '1 1 calc(50% - 5px)', padding: '8px 12px', fontSize: '0.75rem' }} onClick={() => downloadTemplate('xlsx')}>
+                <FileSpreadsheet size={14} style={{ color: 'var(--success)' }} /> Excel Format
+              </button>
+            </div>
           </div>
         </div>
 

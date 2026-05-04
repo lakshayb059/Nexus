@@ -4,6 +4,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'crm-super-secret-jwt-key-2024-chan
 
 // Sign JWT token
 function sign(user) {
+  const expiresIn = user.role === 'admin' ? '24h' : '12h';
   return jwt.sign(
     { 
       _id: user._id, 
@@ -12,7 +13,7 @@ function sign(user) {
       name: user.name
     },
     JWT_SECRET,
-    { expiresIn: '24h' }
+    { expiresIn }
   );
 }
 
