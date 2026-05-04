@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Outlet, useLocation, NavLink } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import NotificationBell from './NotificationBell';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Menu, Sparkles, Bell,
@@ -83,6 +84,9 @@ const Layout = () => {
           </div>
 
           <div className="topbar-right">
+            {/* Notification Bell */}
+            <NotificationBell />
+
             {/* Live indicator */}
             <div className="topbar-live-pill">
               <span className="live-dot" />

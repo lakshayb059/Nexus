@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import api from '../utils/api';
-import { Star, TrendingUp, Users, Calendar, Search, PhoneCall, Award, Target } from 'lucide-react';
+import { Star, TrendingUp, Users, Calendar, Search, PhoneCall, Award, Target, Lock } from 'lucide-react';
 
 const MyLeads = () => {
   const { user }   = useAuth();
@@ -41,11 +41,8 @@ const MyLeads = () => {
   }, [socket]);
 
   const filtered = leads.filter(l => {
-    // Source filter logic
     if (sourceFilter === 'uploaded' && l.disposedBy) return false;
     if (sourceFilter === 'created' && !l.disposedBy) return false;
-
-    // Search logic
     if (!searchTerm) return true;
     const q = searchTerm.toLowerCase();
     return Object.values(l.fields || {}).some(v => String(v).toLowerCase().includes(q)) ||
@@ -56,9 +53,7 @@ const MyLeads = () => {
     .filter(l => new Date(l.lastModified).toDateString() === new Date().toDateString())
     .reduce((s, l) => s + (l.leadAmount || 0), 0);
 
-  const avgValue = stats.totalLeads > 0
-    ? Math.round(stats.totalAmount / stats.totalLeads)
-    : 0;
+  const avgValue = stats.totalLeads > 0 ? Math.round(stats.totalAmount / stats.totalLeads) : 0;
 
   const kpiCards = [
     { label: 'Total Revenue', value: `₹${stats.totalAmount.toLocaleString()}`, sub: 'Gross converted amount',   icon: TrendingUp, accent: '#10b981', gradient: 'linear-gradient(135deg,#10b981,#059669)', dark: true },
@@ -81,26 +76,13 @@ const MyLeads = () => {
         </span>
       </div>
 
-      {/* KPI Cards */}
       <div className="grid-stats" style={{ marginBottom: 'var(--gap)' }}>
         {kpiCards.map((c, i) => {
           const Icon = c.icon;
           return (
-            <div
-              key={i}
-              className="glass-panel"
-              style={{
-                padding: 'var(--card-p)',
-                background: c.gradient || undefined,
-                border: c.gradient ? 'none' : undefined,
-                boxShadow: c.gradient ? '0 8px 24px rgba(16,185,129,0.2)' : undefined,
-                position: 'relative', overflow: 'hidden',
-              }}
-            >
+            <div key={i} className="glass-panel" style={{ padding: 'var(--card-p)', background: c.gradient || undefined, border: c.gradient ? 'none' : undefined, boxShadow: c.gradient ? '0 8px 24px rgba(16,185,129,0.2)' : undefined, position: 'relative', overflow: 'hidden' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
-                <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: c.dark ? 'rgba(255,255,255,0.8)' : 'var(--text-secondary)' }}>
-                  {c.label}
-                </span>
+                <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: c.dark ? 'rgba(255,255,255,0.8)' : 'var(--text-secondary)' }}>{c.label}</span>
                 <div style={{ width: 34, height: 34, borderRadius: 'var(--r-sm)', background: c.dark ? 'rgba(255,255,255,0.15)' : `${c.accent}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.dark ? '#fff' : c.accent }}>
                   <Icon size={17} />
                 </div>
@@ -112,64 +94,44 @@ const MyLeads = () => {
         })}
       </div>
 
-      {/* Search and Filters */}
       <div className="glass-panel" style={{ marginBottom: 'var(--gap)', padding: '12px 18px', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
           <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-          <input type="text" className="input-field" placeholder="Search leads by name, phone…" style={{ paddingLeft: 42, marginBottom: 0 }}
-            value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+          <input type="text" className="input-field" placeholder="Search leads by name, phone…" style={{ paddingLeft: 42, marginBottom: 0 }} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
         </div>
-        <select 
-          className="input-field" 
-          style={{ width: 'auto', minWidth: 160, marginBottom: 0 }}
-          value={sourceFilter}
-          onChange={e => setSourceFilter(e.target.value)}
-        >
+        <select className="input-field" style={{ width: 'auto', minWidth: 160, marginBottom: 0 }} value={sourceFilter} onChange={e => setSourceFilter(e.target.value)}>
           <option value="all">All Leads</option>
           <option value="created">Created by Agent</option>
           <option value="uploaded">Uploaded Directly</option>
         </select>
       </div>
 
-      {/* Lead list */}
       {loading ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="glass-panel" style={{ padding: 'var(--card-p)' }}>
-              <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                <div className="skeleton" style={{ width: 64, height: 64, borderRadius: 'var(--r-md)', flexShrink: 0 }} />
-                <div style={{ flex: 1 }}>
-                  <div className="skeleton" style={{ height: 16, width: '40%', marginBottom: 10 }} />
-                  <div className="skeleton" style={{ height: 12, width: '60%' }} />
-                </div>
-                <div className="skeleton" style={{ width: 120, height: 40, borderRadius: 'var(--r-md)' }} />
-              </div>
+              <div className="skeleton" style={{ height: 40 }} />
             </div>
           ))}
         </div>
       ) : filtered.length === 0 ? (
         <div className="glass-panel" style={{ padding: '80px 40px', textAlign: 'center' }}>
           <Star size={64} style={{ opacity: 0.08, margin: '0 auto 20px', display: 'block' }} />
-          <h3 style={{ marginBottom: 8 }}>No leads found</h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>You haven't converted any leads yet. Keep calling!</p>
+          <h3>No leads found</h3>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {filtered.map(lead => {
             const fields = lead.fields || {};
-            const name   = fields.Name || fields.name || 'Unknown';
-            const phone  = fields.Phone || fields.phone || fields.Mobile || 'N/A';
+            const name = fields.Name || fields.name || 'Unknown';
+            const phone = fields.Phone || fields.phone || fields.Mobile || 'N/A';
+            const isLocked = user.role === 'agent' && lead.status === 'Converted' && lead.transactionId;
+
             return (
               <div key={lead._id} className="glass-panel lead-list-item" style={{ padding: 'var(--card-p)', borderLeft: '4px solid #10b981' }}>
                 <div className="lead-list-inner">
                   <div style={{ display: 'flex', gap: 18, alignItems: 'center', flex: 1, minWidth: 0 }}>
-                    <div style={{
-                      width: 56, height: 56, borderRadius: 'var(--r-md)',
-                      background: 'linear-gradient(135deg,#10b981,#059669)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: '#fff', flexShrink: 0,
-                      boxShadow: '0 4px 12px rgba(16,185,129,0.3)',
-                    }}>
+                    <div style={{ width: 56, height: 56, borderRadius: 'var(--r-md)', background: 'linear-gradient(135deg,#10b981,#059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0, boxShadow: '0 4px 12px rgba(16,185,129,0.3)' }}>
                       <Star size={24} fill="white" />
                     </div>
                     <div style={{ minWidth: 0, flex: 1 }}>
@@ -178,21 +140,35 @@ const MyLeads = () => {
                         <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><PhoneCall size={13} /> {phone}</span>
                         <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Calendar size={13} /> {new Date(lead.lastModified).toLocaleDateString()}</span>
                         {lead.agentName && <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>by {lead.agentName}</span>}
+                        {lead.transactionId && (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(16,185,129,0.1)', color: '#10b981', padding: '4px 8px', borderRadius: '4px', fontWeight: 700 }}>
+                            UTR/ID: {lead.transactionId}
+                          </span>
+                        )}
                       </div>
                       
-                      {/* Status Editor */}
                       <div style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                         <div style={{ position: 'relative', minWidth: 140 }}>
                           <select 
                             className="input-field" 
-                            style={{ marginBottom: 0, padding: '4px 10px', fontSize: '0.75rem', height: 32 }}
+                            style={{ marginBottom: 0, padding: '4px 10px', fontSize: '0.75rem', height: 32, opacity: isLocked ? 0.6 : 1 }}
                             value={lead.status || ''}
+                            disabled={isLocked}
                             onChange={async (e) => {
                               const newStatus = e.target.value;
+                              let transactionId = lead.transactionId;
+                              
+                              if (newStatus === 'Converted') {
+                                const tid = window.prompt('Please enter Transaction ID (UTR ID) for confirmation:', transactionId || '');
+                                if (tid === null) return;
+                                if (!tid.trim()) { alert('Transaction ID is required for Converted status'); return; }
+                                transactionId = tid;
+                              }
+
                               try {
-                                await api.put(`/contacts/${lead._id}/status`, { status: newStatus });
+                                await api.put(`/contacts/${lead._id}/status`, { status: newStatus, transactionId });
                                 fetchData();
-                              } catch(err) { alert('Failed to update status'); }
+                              } catch(err) { alert(err.response?.data?.error || 'Failed to update status'); fetchData(); }
                             }}
                           >
                             <option value="">Set Status</option>
@@ -202,14 +178,11 @@ const MyLeads = () => {
                             <option value="Call Back">Call Back</option>
                             <option value="Others">Others</option>
                           </select>
+                          {isLocked && <Lock size={12} style={{ position: 'absolute', right: 25, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />}
                         </div>
                         
-                        {lead.status === 'Others' && (
-                          <input 
-                            type="text" 
-                            className="input-field" 
-                            placeholder="Specify other status…" 
-                            style={{ marginBottom: 0, padding: '4px 10px', fontSize: '0.75rem', height: 32, flex: 1, minWidth: 150 }}
+                        {!isLocked && lead.status === 'Others' && (
+                          <input type="text" className="input-field" placeholder="Specify other status…" style={{ marginBottom: 0, padding: '4px 10px', fontSize: '0.75rem', height: 32, flex: 1, minWidth: 150 }}
                             defaultValue={lead.statusDetails || ''}
                             onBlur={async (e) => {
                               try {
@@ -220,11 +193,8 @@ const MyLeads = () => {
                           />
                         )}
                         
-                        {lead.status === 'Call Back' && (
-                          <input 
-                            type="datetime-local" 
-                            className="input-field" 
-                            style={{ marginBottom: 0, padding: '4px 10px', fontSize: '0.75rem', height: 32, width: 'auto' }}
+                        {!isLocked && lead.status === 'Call Back' && (
+                          <input type="datetime-local" className="input-field" style={{ marginBottom: 0, padding: '4px 10px', fontSize: '0.75rem', height: 32, width: 'auto' }}
                             defaultValue={lead.callBackDt ? new Date(lead.callBackDt).toISOString().slice(0, 16) : ''}
                             onChange={async (e) => {
                               try {
@@ -246,9 +216,7 @@ const MyLeads = () => {
                   </div>
                   <div className="lead-amount-box">
                     <div style={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#10b981', marginBottom: 4 }}>Lead Amount</div>
-                    <div style={{ fontSize: 'clamp(1.4rem,3vw,1.9rem)', fontWeight: 900, color: '#10b981', lineHeight: 1 }}>
-                      ₹{(lead.leadAmount || 0).toLocaleString()}
-                    </div>
+                    <div style={{ fontSize: 'clamp(1.4rem,3vw,1.9rem)', fontWeight: 900, color: '#10b981', lineHeight: 1 }}>₹{(lead.leadAmount || 0).toLocaleString()}</div>
                   </div>
                 </div>
               </div>
@@ -258,22 +226,11 @@ const MyLeads = () => {
       )}
 
       <style>{`
-        .lead-list-item {
-          transition: transform var(--t-base), box-shadow var(--t-base);
-          background: linear-gradient(135deg, rgba(16,185,129,0.04) 0%, transparent 100%);
-        }
+        .lead-list-item { transition: transform var(--t-base), box-shadow var(--t-base); background: linear-gradient(135deg, rgba(16,185,129,0.04) 0%, transparent 100%); }
         .lead-list-item:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(0,0,0,0.35); }
-        .lead-list-inner {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 20px;
-        }
+        .lead-list-inner { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
         .lead-amount-box { text-align: right; min-width: 140px; flex-shrink: 0; }
-        @media (max-width: 640px) {
-          .lead-list-inner { flex-direction: column; align-items: stretch; }
-          .lead-amount-box { text-align: left; border-top: 1px solid var(--border); padding-top: 14px; }
-        }
+        @media (max-width: 640px) { .lead-list-inner { flex-direction: column; align-items: stretch; } .lead-amount-box { text-align: left; border-top: 1px solid var(--border); padding-top: 14px; } }
       `}</style>
     </div>
   );

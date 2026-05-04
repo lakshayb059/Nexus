@@ -244,7 +244,7 @@ router.get('/agent-queues', verify, authorize(['admin', 'tl']), async (req, res)
 // POST /contacts/:id/dispose - set disposition (Enhanced)
 router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
   try {
-    const { disposition, remarks, appointmentDt, leadAmount, callBackDt, status, statusDetails } = req.body;
+    const { disposition, remarks, appointmentDt, leadAmount, callBackDt, status, statusDetails, transactionId } = req.body;
     const validDisps = ['Lead', 'Appointment', 'CallNotAnswered', 'Invalid', 'DoNotCall', 'CallBack', 'HungUp'];
     if (!validDisps.includes(disposition)) return res.status(400).json({ error: 'Invalid disposition' });
 
@@ -292,6 +292,7 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
       update.queueOrder = 999999; // Remove from active queue
       if (status) update.status = status;
       if (statusDetails) update.statusDetails = statusDetails;
+      if (transactionId) update.transactionId = transactionId;
     } else {
       update.leadAmount = null;
     }
@@ -388,7 +389,7 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
 // PUT /contacts/:id/status - update lead status (agent/tl/admin)
 router.put('/:id/status', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
   try {
-    const { status, statusDetails, callBackDt } = req.body;
+    const { status, statusDetails, callBackDt, transactionId } = req.body;
     const contactsCollection = getCollection('contacts');
     
     let query = { _id: new ObjectId(req.params.id) };
@@ -396,11 +397,51 @@ router.put('/:id/status', verify, authorize(['agent', 'tl', 'admin']), async (re
       query.assignedTo = new ObjectId(req.user._id);
     }
     
+    const existingContact = await contactsCollection.findOne({ _id: new ObjectId(req.params.id) });
+    if (!existingContact) return res.status(404).json({ error: 'Contact not found' });
+
+    // Lock check: Agents cannot change status if it's already 'Converted' with a Transaction ID
+    if (req.user.role === 'agent' && existingContact.status === 'Converted' && existingContact.transactionId) {
+      return res.status(403).json({ error: 'This lead is locked and cannot be modified by agents.' });
+    }
+
     const update = { 
-      status, 
-      statusDetails: statusDetails || '',
       lastModified: new Date().toISOString()
     };
+
+    if (status !== undefined) update.status = status;
+    if (statusDetails !== undefined) update.statusDetails = statusDetails;
+    if (transactionId !== undefined) update.transactionId = transactionId;
+    
+    // If setting to Converted, perform duplicate check and remove from workflow
+    if (status === 'Converted') {
+      const phoneFields = ['Phone', 'phone', 'Mobile', 'mobile', 'Contact', 'contact'];
+      let contactPhone = null;
+      for (const field of phoneFields) {
+        if (existingContact.fields && existingContact.fields[field]) {
+          contactPhone = existingContact.fields[field];
+          break;
+        }
+      }
+
+      if (contactPhone) {
+        const duplicateQuery = {
+          $or: [
+            { disposition: 'Lead' },
+            { status: 'Converted' }
+          ],
+          $or: phoneFields.map(f => ({ [`fields.${f}`]: contactPhone })),
+          _id: { $ne: existingContact._id }
+        };
+        const duplicate = await contactsCollection.findOne(duplicateQuery);
+        if (duplicate) {
+          return res.status(400).json({ error: `A lead with the number ${contactPhone} already exists. Admin must delete it first.` });
+        }
+      }
+
+      update.queueOrder = 999999; // Remove from workflow
+      if (!existingContact.conversionDate) update.conversionDate = new Date();
+    }
     
     if (status === 'Call Back' && callBackDt) {
       update.callBackDt = new Date(callBackDt);

@@ -39,7 +39,7 @@ router.get('/my-leads', verify, authorize(['agent', 'tl', 'admin']), async (req,
 router.get('/appointments', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
   try {
     const contactsCollection = getCollection('contacts');
-    let query = { disposition: 'Appointment', appointmentDt: { $gte: new Date() } };
+    let query = { disposition: 'Appointment' };
     
     if (req.user.role === 'agent') {
       query.assignedTo = new ObjectId(req.user._id);

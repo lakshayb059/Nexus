@@ -135,9 +135,22 @@ const Workflow = () => {
     if (dispForm.disposition === 'CallBack' && !dispForm.callBackDt) {
       alert('Callback date is required'); return;
     }
+
+    const remarkWords = dispForm.remarks.trim().split(/\s+/).filter(w => w.length > 0);
+    if (remarkWords.length < 2) {
+      alert('Remarks must be at least 2 words long for every contact'); return;
+    }
+
+    let currentTransactionId = '';
+    if (dispForm.disposition === 'Lead') {
+      const tid = window.prompt('Please enter Transaction ID for confirmation:');
+      if (tid === null) return; // User cancelled
+      currentTransactionId = tid;
+    }
+
     setSubmitting(true);
     try {
-      const payload = { ...dispForm };
+      const payload = { ...dispForm, transactionId: currentTransactionId };
       // Convert naive local datetime strings to ISO UTC
       if (payload.appointmentDt) payload.appointmentDt = new Date(payload.appointmentDt).toISOString();
       if (payload.callBackDt) payload.callBackDt = new Date(payload.callBackDt).toISOString();
@@ -196,7 +209,8 @@ const Workflow = () => {
 
     if (emptyStateContacts) {
       emptyStateContacts.forEach(c => {
-        if (c.queueOrder !== 999999 && partitions[c.disposition]) {
+        const isApptOrCb = c.disposition === 'Appointment' || c.disposition === 'CallBack';
+        if ((c.queueOrder !== 999999 || isApptOrCb) && partitions[c.disposition]) {
           partitions[c.disposition].push(c);
         }
       });

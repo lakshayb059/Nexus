@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import api from '../utils/api';
-import { UploadCloud, FileSpreadsheet, Trash2, Download, Share2, X, CheckCircle2 } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet, Trash2, Download, Share2, X, CheckCircle2, Star } from 'lucide-react';
 
 const Upload = () => {
   const { user }   = useAuth();
@@ -142,6 +142,7 @@ const Upload = () => {
             <label>Assign to Agent *</label>
             <select className="input-field" value={selectedAgent} onChange={e => setSelectedAgent(e.target.value)}>
               <option value="">-- Select Agent --</option>
+              <option value="multi" style={{ fontWeight: 'bold', color: 'var(--primary)' }}>Multi-Agents (from file)</option>
               {agents.map(a => <option key={a._id} value={a._id}>{a.name}</option>)}
             </select>
           </div>
@@ -213,12 +214,18 @@ const Upload = () => {
             <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12, textAlign: 'center' }}>
               Download Sample Templates
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
-              <button className="btn btn-outline" style={{ flex: '1 1 calc(50% - 5px)', padding: '8px 12px', fontSize: '0.75rem' }} onClick={() => downloadTemplate('csv')}>
-                <Download size={14} style={{ color: 'var(--primary)' }} /> CSV Format
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, width: '100%' }}>
+              <button className="btn btn-outline" style={{ padding: '10px 8px', fontSize: '0.7rem', display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'center' }} onClick={() => downloadTemplate('csv')}>
+                <Download size={14} style={{ color: 'var(--primary)' }} />
+                <span>CSV Template</span>
               </button>
-              <button className="btn btn-outline" style={{ flex: '1 1 calc(50% - 5px)', padding: '8px 12px', fontSize: '0.75rem' }} onClick={() => downloadTemplate('xlsx')}>
-                <FileSpreadsheet size={14} style={{ color: 'var(--success)' }} /> Excel Format
+              <button className="btn btn-outline" style={{ padding: '10px 8px', fontSize: '0.7rem', display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'center' }} onClick={() => downloadTemplate('xlsx')}>
+                <FileSpreadsheet size={14} style={{ color: 'var(--success)' }} />
+                <span>Excel Template</span>
+              </button>
+              <button className="btn btn-outline" style={{ padding: '10px 8px', fontSize: '0.7rem', display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'center', border: '1px solid #10b981', background: 'rgba(16,185,129,0.05)' }} onClick={() => downloadTemplate('xlsx')}>
+                <Star size={14} style={{ color: '#10b981' }} />
+                <span style={{ color: '#10b981', fontWeight: 700 }}>Leads Template</span>
               </button>
             </div>
           </div>

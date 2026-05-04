@@ -43,15 +43,21 @@ function parseExcel(buffer) {
 // POST /upload
 router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('file'), async (req, res) => {
   try {
-    console.log('Upload request received:', { user: req.user, file: req.file?.originalname, body: req.body });
-    
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     const { agentId, batchName, isLeadUpload } = req.body;
     if (!agentId) return res.status(400).json({ error: 'Agent ID required' });
 
     const usersCollection = getCollection('users');
-    const agent = await usersCollection.findOne({ _id: new ObjectId(agentId), role: { $in: ['agent', 'tl'] } });
-    if (!agent) return res.status(404).json({ error: 'Assignee not found' });
+    let selectedAgent = null;
+    
+    // Validate the main agentId if it's not "multi"
+    if (agentId !== 'multi') {
+      if (!ObjectId.isValid(agentId)) {
+        return res.status(400).json({ error: 'Invalid Agent ID selected' });
+      }
+      selectedAgent = await usersCollection.findOne({ _id: new ObjectId(agentId), role: { $in: ['agent', 'tl'] } });
+      if (!selectedAgent) return res.status(404).json({ error: 'Selected agent not found' });
+    }
 
     let records;
     const fname = req.file.originalname.toLowerCase();
@@ -67,52 +73,117 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
     const batchId = 'batch_' + Date.now();
     const now = new Date().toISOString();
 
-    // Get current max queueOrder for agent
-    const contactsCollection = getCollection('contacts');
-    const existing = await contactsCollection.find({ 
-      assignedTo: new ObjectId(agentId),
-      queueOrder: { $lt: 999999 }
-    }).sort({ queueOrder: -1 }).limit(1).toArray();
-    let queueStart = existing.length ? (existing[0].queueOrder + 1) : 0;
+    // Map of agent names/IDs to their ObjectIds
+    const allAgents = await usersCollection.find({ role: { $in: ['agent', 'tl'] } }).toArray();
+    const agentMap = {};
+    for (const a of allAgents) {
+      if (a.name) {
+        agentMap[a.name.toLowerCase()] = a._id;
+      }
+      agentMap[a._id.toString()] = a._id;
+    }
 
-    const contacts = records.map((row, i) => {
-      let rowAgentId = agentId;
-      const agentIdCol = Object.keys(row).find(k => k.toLowerCase() === 'agent id' || k.toLowerCase() === 'agent_id' || k.toLowerCase() === 'agentid');
-      if (agentIdCol && row[agentIdCol]) {
-        try {
-          if (ObjectId.isValid(row[agentIdCol])) {
-            rowAgentId = row[agentIdCol];
-          }
-        } catch(e) {}
+    const contactsCollection = getCollection('contacts');
+    const queueStarts = {};
+    
+    const getNextQueueOrder = async (assignedId) => {
+      const idStr = assignedId.toString();
+      if (queueStarts[idStr] !== undefined) {
+        return queueStarts[idStr]++;
+      }
+      const existing = await contactsCollection.find({ 
+        assignedTo: assignedId,
+        queueOrder: { $lt: 999999 }
+      }).sort({ queueOrder: -1 }).limit(1).toArray();
+      let start = existing.length ? (existing[0].queueOrder + 1) : 0;
+      queueStarts[idStr] = start + 1;
+      return start;
+    };
+
+    const contacts = [];
+    for (let i = 0; i < records.length; i++) {
+      const row = records[i];
+      let rowAgentObjectId = null;
+
+      // 1. Check if row has an Agent column
+      const agentCol = Object.keys(row).find(k => {
+        const kl = k.toLowerCase();
+        return kl === 'agent' || kl === 'agent name' || kl === 'agent id' || kl === 'agent_id' || kl === 'agentid';
+      });
+      
+      if (agentCol && row[agentCol]) {
+        const val = row[agentCol].toString().trim().toLowerCase();
+        if (agentMap[val]) {
+          rowAgentObjectId = agentMap[val];
+        } else if (ObjectId.isValid(row[agentCol].toString().trim())) {
+          rowAgentObjectId = new ObjectId(row[agentCol].toString().trim());
+        }
+      }
+
+      // 2. Fallback to the dropdown agent if row agent is missing
+      if (!rowAgentObjectId) {
+        if (agentId === 'multi') {
+          return res.status(400).json({ 
+            error: `Row ${i + 1} (${row.Name || row.name || 'Unknown'}) is missing a valid Agent. Since you chose "Multi-Agents", every row must have an agent name or ID.` 
+          });
+        }
+        rowAgentObjectId = new ObjectId(agentId);
       }
 
       let disposition = null;
-      let queueOrder = queueStart + i;
+      let queueOrder = await getNextQueueOrder(rowAgentObjectId);
       let leadAmount = null;
+      let status = null;
+      let statusDetails = null;
+      let transactionId = null;
+      let callBackDt = null;
 
       if (isLeadUpload === 'true' || isLeadUpload === true) {
         disposition = 'Lead';
         queueOrder = 999999;
+        
+        // Extract status from row
+        const statusCol = Object.keys(row).find(k => k.toLowerCase() === 'status');
+        if (statusCol) status = row[statusCol];
+
+        // Map template status to DB status
+        if (status === 'Converted') {
+          const utrCol = Object.keys(row).find(k => k.toLowerCase().includes('utr') || k.toLowerCase().includes('transaction'));
+          if (utrCol) transactionId = row[utrCol];
+        } else if (status === 'Call Back') {
+          const cbCol = Object.keys(row).find(k => k.toLowerCase().includes('callback') || k.toLowerCase().includes('date'));
+          if (cbCol && row[cbCol]) {
+            try { callBackDt = new Date(row[cbCol]).toISOString(); } catch(e) {}
+          }
+        } else if (status === 'Others') {
+          const detCol = Object.keys(row).find(k => k.toLowerCase().includes('detail') || k.toLowerCase().includes('info'));
+          if (detCol) statusDetails = row[detCol];
+        }
+
         const amountCol = Object.keys(row).find(k => k.toLowerCase().includes('amount') || k.toLowerCase() === 'revenue');
         if (amountCol) {
           leadAmount = parseFloat(row[amountCol]) || null;
         }
       }
 
-      return {
-        assignedTo: new ObjectId(rowAgentId),
+      contacts.push({
+        assignedTo: rowAgentObjectId,
         uploadedBy: new ObjectId(req.user._id),
         batchId,
         fields: row,
         disposition,
         leadAmount,
-        remarks: '',
+        status,
+        statusDetails,
+        transactionId,
+        callBackDt,
+        remarks: row.Remarks || row.remarks || '',
         appointmentDt: null,
         lastModified: now,
         createdAt: now,
         queueOrder,
-      };
-    });
+      });
+    }
 
     await contactsCollection.insertMany(contacts);
 
@@ -124,8 +195,8 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
       uploadedAt: new Date(now),
       columns,
       totalContacts: contacts.length,
-      agentId: new ObjectId(agentId),
-      agentName: agent.name,
+      agentId: agentId === 'multi' ? null : new ObjectId(agentId),
+      agentName: agentId === 'multi' ? 'Multi-Agents' : (selectedAgent?.name || 'Unknown'),
       fileName: req.file.originalname,
     });
 
@@ -139,7 +210,7 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
       batchId,
       totalUploaded: contacts.length,
       columns,
-      agentName: agent.name,
+      agentName: agentId === 'multi' ? 'Multi-Agents' : (selectedAgent?.name || 'Unknown'),
     });
   } catch (err) {
     console.error('Upload error:', err);
@@ -151,51 +222,41 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
 router.get('/template', verify, authorize(['admin', 'tl']), async (req, res) => {
   try {
     const { format = 'csv' } = req.query;
-    const validFormats = ['csv', 'xlsx', 'xls'];
-    if (!validFormats.includes(format)) {
-      return res.status(400).json({ error: 'Invalid format. Use csv, xlsx, or xls' });
-    }
-
-    // Template structure with headers and sample data (Meesho-style template)
+    
+    // Detailed template with sample data for different statuses
     const templateData = [
       {
-        'Name': 'John Doe',
+        'Name': 'John Smith (Converted)',
+        'Agent': 'Abhishek',
         'Phone': '9876543210',
-        'Email': 'john.doe@example.com',
-        'Company': 'Tech Solutions Ltd',
-        'City': 'Mumbai',
-        'State': 'Maharashtra',
-        'Product': 'Premium Package',
-        'Budget': '50000',
-        'Source': 'Website',
-        'Status': 'Hot Lead',
-        'Notes': 'Interested in premium features'
+        'Status': 'Converted',
+        'Amount': '5000',
+        'Transaction ID / UTR': 'TRX123456789',
+        'Callback Date': '',
+        'Status Details': '',
+        'Remarks': 'Successfully converted lead'
       },
       {
-        'Name': 'Jane Smith',
-        'Phone': '9123456789',
-        'Email': 'jane.smith@company.com',
-        'Company': 'Global Industries',
-        'City': 'Bangalore',
-        'State': 'Karnataka',
-        'Product': 'Basic Package',
-        'Budget': '25000',
-        'Source': 'Referral',
-        'Status': 'Warm Lead',
-        'Notes': 'Follow up next week'
+        'Name': 'Jane Doe (Callback)',
+        'Agent': 'Abhishek',
+        'Phone': '8877665544',
+        'Status': 'Call Back',
+        'Amount': '',
+        'Transaction ID / UTR': '',
+        'Callback Date': new Date(Date.now() + 86400000).toISOString().slice(0, 16),
+        'Status Details': '',
+        'Remarks': 'Interested but busy, call tomorrow'
       },
       {
-        'Name': 'Rahul Kumar',
-        'Phone': '8899776655',
-        'Email': 'rahul.k@startup.in',
-        'Company': 'Startup Hub',
-        'City': 'Delhi',
-        'State': 'Delhi',
-        'Product': 'Enterprise Solution',
-        'Budget': '100000',
-        'Source': 'Cold Call',
-        'Status': 'New Lead',
-        'Notes': 'Decision maker, schedule demo'
+        'Name': 'Robert Fox (Others)',
+        'Agent': 'Abhishek',
+        'Phone': '7766554433',
+        'Status': 'Others',
+        'Amount': '',
+        'Transaction ID / UTR': '',
+        'Callback Date': '',
+        'Status Details': 'Needs special approval',
+        'Remarks': 'Waiting for manager approval'
       }
     ];
 
@@ -204,26 +265,54 @@ router.get('/template', verify, authorize(['admin', 'tl']), async (req, res) => 
     if (format === 'csv') {
       const csvContent = [
         headers.join(','),
-        ...templateData.map(row => headers.map(h => `"${row[h]}"`).join(','))
+        ...templateData.map(row => headers.map(h => `"${row[h] || ''}"`).join(','))
       ].join('\n');
       
       res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename="crm-template-${Date.now()}.csv"`);
+      res.setHeader('Content-Disposition', `attachment; filename="crm-leads-template-${Date.now()}.csv"`);
       res.send(csvContent);
     } else {
-      // Excel format (XLSX/XLS)
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(templateData);
       
-      // Add column width for better readability
-      const colWidths = headers.map(() => ({ wch: 15 }));
-      ws['!cols'] = colWidths;
+      // Auto-size columns
+      ws['!cols'] = headers.map(h => ({ wch: Math.max(h.length, 20) }));
       
-      XLSX.utils.book_append_sheet(wb, ws, 'CRM Template');
+      XLSX.utils.book_append_sheet(wb, ws, 'Leads Template');
+
+      // Add Comprehensive Reference Sheet (Agents + Statuses)
+      const usersCollection = getCollection('users');
+      let agentsList = [];
+      if (req.user.role === 'admin') {
+        agentsList = await usersCollection.find({ role: 'agent' }).toArray();
+      } else if (req.user.role === 'tl') {
+        agentsList = await usersCollection.find({ role: 'agent', tlId: new ObjectId(req.user._id) }).toArray();
+      }
+
+      // Combine Agents and Status Info into one Reference Sheet
+      const referenceData = [
+        ['--- ACTIVE AGENTS ---', '', ''],
+        ['Agent Name', 'Username', 'Status'],
+        ...agentsList.map(a => [a.name, a.username, a.active ? 'Active' : 'Inactive']),
+        ['', '', ''],
+        ['--- LEAD STATUS OPTIONS ---', '', ''],
+        ['Status Option', 'Required Additional Info', 'Instructions / Info'],
+        ['Converted', 'Transaction ID / UTR', 'MUST enter valid payment ID and Amount'],
+        ['Call Back', 'Callback Date', 'Format: YYYY-MM-DD HH:MM (e.g. 2026-05-10 14:00)'],
+        ['Others', 'Status Details', 'Brief description of the specific reason'],
+        ['Not Interested', 'None', 'Standard rejection - no extra info needed'],
+        ['DNC/DND', 'None', 'Permanently remove from calling queue'],
+        ['Lead', 'None', 'Initial interest - moves to My Leads queue']
+      ];
+
+      const wsRef = XLSX.utils.aoa_to_sheet(referenceData);
+      wsRef['!cols'] = [{ wch: 30 }, { wch: 30 }, { wch: 45 }];
+      
+      XLSX.utils.book_append_sheet(wb, wsRef, 'Agents & Status Info');
+
       const buffer = XLSX.write(wb, { type: 'buffer', bookType: format === 'xls' ? 'xls' : 'xlsx' });
-      
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename="crm-template-${Date.now()}.${format}"`);
+      res.setHeader('Content-Disposition', `attachment; filename="crm-leads-template-${Date.now()}.${format}"`);
       res.send(buffer);
     }
   } catch (err) {

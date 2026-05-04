@@ -101,12 +101,22 @@ router.delete('/:id', verify, authorize('admin'), async (req, res) => {
     const user = await usersCollection.findOne({ _id: new ObjectId(req.params.id) });
     if (!user) return res.status(404).json({ error: 'User not found' });
     if (user.role === 'admin') return res.status(403).json({ error: 'Cannot delete admin' });
+    
+    // Cascading delete: if TL is deleted, delete all associated agents
+    if (user.role === 'tl') {
+      const deleteResult = await usersCollection.deleteMany({ tlId: user._id });
+      console.log(`Cascading delete: Removed ${deleteResult.deletedCount} agents under TL ${user.name}`);
+    }
+
     await usersCollection.deleteOne({ _id: new ObjectId(req.params.id) });
     
     const io = req.app.get('io');
     if (io) io.emit('users_updated', { action: 'delete', userId: req.params.id });
 
-    res.json({ success: true });
+    res.json({ 
+      success: true, 
+      message: user.role === 'tl' ? 'Team Lead and all associated agents deleted.' : 'User deleted.' 
+    });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
