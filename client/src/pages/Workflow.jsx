@@ -363,11 +363,31 @@ const Workflow = () => {
               return (
                 <div key={k} style={{ borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
                   <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{k}</div>
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem', wordBreak: 'break-word', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ fontWeight: 600, fontSize: isPhone ? '1.05rem' : '0.9rem', color: isPhone ? 'var(--text-primary)' : 'inherit', wordBreak: 'break-word', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <span>{String(v) || '—'}</span>
                     {isPhone && v && String(v).trim() !== '' && (
-                      <a href={`tel:${String(v).replace(/\D/g, '')}`} className="btn btn-primary" style={{ padding: '4px 10px', height: 'auto', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem' }} title="Call this number">
-                        <PhoneCall size={12} /> Call
+                      <a 
+                        href={`tel:${String(v).replace(/\D/g, '')}`} 
+                        className="btn btn-primary" 
+                        style={{ 
+                          padding: '6px 14px', 
+                          height: 'auto', 
+                          borderRadius: '24px', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '6px', 
+                          fontSize: '0.75rem',
+                          fontWeight: 800,
+                          background: 'linear-gradient(135deg, var(--primary), var(--violet))',
+                          boxShadow: '0 4px 14px rgba(124, 58, 237, 0.3)',
+                          border: 'none',
+                          color: '#fff',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em'
+                        }} 
+                        title="Call this number"
+                      >
+                        <PhoneCall size={13} style={{ fill: 'rgba(255,255,255,0.2)' }} /> Call
                       </a>
                     )}
                   </div>
