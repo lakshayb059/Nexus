@@ -299,7 +299,7 @@ router.get('/template', verify, authorize(['admin', 'tl']), async (req, res) => 
         ['Status Option', 'Required Additional Info', 'Instructions / Info'],
         ['Converted', 'Transaction ID / UTR', 'MUST enter valid payment ID and Amount'],
         ['Call Back', 'Callback Date', 'Format: YYYY-MM-DD HH:MM (e.g. 2026-05-10 14:00)'],
-        ['Others', 'Status Details', 'Brief description of the specific reason'],
+        ['Others', 'Status Details', 'Options: Language Barrier, Already Using Competitor, Price Too High, Not Eligible, Wrong Number, Busy/No Answer, Invalid Profile, Customer Request Close, Follow up Needed, Other Reason'],
         ['Not Interested', 'None', 'Standard rejection - no extra info needed'],
         ['DNC/DND', 'None', 'Permanently remove from calling queue'],
         ['Lead', 'None', 'Initial interest - moves to My Leads queue']

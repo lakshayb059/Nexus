@@ -80,7 +80,7 @@ const MyLeads = () => {
         {kpiCards.map((c, i) => {
           const Icon = c.icon;
           return (
-            <div key={i} className="glass-panel" style={{ padding: 'var(--card-p)', background: c.gradient || undefined, border: c.gradient ? 'none' : undefined, boxShadow: c.gradient ? '0 8px 24px rgba(16,185,129,0.2)' : undefined, position: 'relative', overflow: 'hidden' }}>
+            <div key={i} className="glass-panel" style={{ padding: 'var(--card-p)', background: c.gradient || undefined, border: c.gradient ? 'none' : undefined, boxShadow: c.gradient ? '0 8px 24px rgba(16,185,129,0.25)' : undefined, position: 'relative', overflow: 'hidden' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
                 <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: c.dark ? 'rgba(255,255,255,0.8)' : 'var(--text-secondary)' }}>{c.label}</span>
                 <div style={{ width: 34, height: 34, borderRadius: 'var(--r-sm)', background: c.dark ? 'rgba(255,255,255,0.15)' : `${c.accent}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.dark ? '#fff' : c.accent }}>
@@ -182,11 +182,24 @@ const MyLeads = () => {
                         </div>
                         
                         {!isLocked && lead.status === 'Others' && (
-                          <input type="text" className="input-field" placeholder="Specify other status…" style={{ marginBottom: 0, padding: '4px 10px', fontSize: '0.75rem', height: 32, flex: 1, minWidth: 150 }}
-                            defaultValue={lead.statusDetails || ''}
+                          <input 
+                            type="text"
+                            className="input-field" 
+                            style={{ marginBottom: 0, padding: '4px 10px', fontSize: '0.75rem', height: 32, flex: 1, minWidth: 150 }}
+                            placeholder="Enter status details (Required) *"
+                            value={lead.statusDetails || ''}
+                            onChange={(e) => {
+                              // Local update for responsiveness
+                              const newList = [...leads];
+                              const idx = newList.findIndex(x => x._id === lead._id);
+                              if (idx !== -1) newList[idx].statusDetails = e.target.value;
+                              setLeads(newList);
+                            }}
                             onBlur={async (e) => {
+                              const val = e.target.value.trim();
+                              if (!val) { alert('Details are required for "Others" status'); fetchData(); return; }
                               try {
-                                await api.put(`/contacts/${lead._id}/status`, { status: 'Others', statusDetails: e.target.value });
+                                await api.put(`/contacts/${lead._id}/status`, { status: 'Others', statusDetails: val });
                                 fetchData();
                               } catch(err) {}
                             }}
