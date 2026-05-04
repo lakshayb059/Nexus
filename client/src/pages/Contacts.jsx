@@ -28,7 +28,7 @@ const Contacts = ({ filterType }) => {
   const [selectedIds, setSelectedIds] = useState([]);
 
   const [selectedContact, setSelectedContact] = useState(null);
-  const [dispForm, setDispForm] = useState({ disposition: '', remarks: '', appointmentDt: '', leadAmount: '' });
+  const [dispForm, setDispForm] = useState({ disposition: '', remarks: '', appointmentDt: '', callBackDt: '', leadAmount: '' });
 
   const [selectedTl,       setSelectedTl]       = useState('');
   const [selectedAgent,    setSelectedAgent]    = useState('');
@@ -101,10 +101,11 @@ const Contacts = ({ filterType }) => {
 
       const payload = { ...dispForm, transactionId };
       if (payload.appointmentDt) payload.appointmentDt = new Date(payload.appointmentDt).toISOString();
+      if (payload.callBackDt) payload.callBackDt = new Date(payload.callBackDt).toISOString();
       
       await api.post(`/contacts/${selectedContact._id}/dispose`, payload);
       setSelectedContact(null);
-      setDispForm({ disposition: '', remarks: '', appointmentDt: '', leadAmount: '' });
+      setDispForm({ disposition: '', remarks: '', appointmentDt: '', callBackDt: '', leadAmount: '' });
       fetchContacts();
     } catch (err) {
       alert(err.response?.data?.error || 'Disposition failed');
@@ -297,11 +298,38 @@ const Contacts = ({ filterType }) => {
           <div className="modal-box">
             <div className="modal-header"><h2>Update Disposition</h2><button onClick={() => setSelectedContact(null)}><X size={18} /></button></div>
             <form onSubmit={handleDispose}>
-              <select className="input-field" value={dispForm.disposition} onChange={e => setDispForm({ ...dispForm, disposition: e.target.value })} required>
-                <option value="">-- Select --</option>
-                {DISPS.map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
-              </select>
-              <textarea className="input-field" rows="3" value={dispForm.remarks} onChange={e => setDispForm({ ...dispForm, remarks: e.target.value })} placeholder="Notes..." required />
+              <div className="input-group">
+                <label htmlFor="modalDisp">Disposition</label>
+                <select id="modalDisp" name="disposition" className="input-field" value={dispForm.disposition} onChange={e => setDispForm({ ...dispForm, disposition: e.target.value, appointmentDt: '', callBackDt: '', leadAmount: '' })} required>
+                  <option value="">-- Select --</option>
+                  {DISPS.map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
+                </select>
+              </div>
+
+              {dispForm.disposition === 'Appointment' && (
+                <div className="input-group">
+                  <label htmlFor="modalApptDt">Appointment Date & Time</label>
+                  <input id="modalApptDt" name="appointmentDt" type="datetime-local" className="input-field" value={dispForm.appointmentDt} onChange={e => setDispForm({ ...dispForm, appointmentDt: e.target.value })} required />
+                </div>
+              )}
+
+              {dispForm.disposition === 'CallBack' && (
+                <div className="input-group">
+                  <label htmlFor="modalCBDt">Callback Date & Time</label>
+                  <input id="modalCBDt" name="callBackDt" type="datetime-local" className="input-field" value={dispForm.callBackDt} onChange={e => setDispForm({ ...dispForm, callBackDt: e.target.value })} required />
+                </div>
+              )}
+
+              {dispForm.disposition === 'Lead' && (
+                <div className="input-group">
+                  <label htmlFor="modalLeadAmt">Lead Amount (₹)</label>
+                  <input id="modalLeadAmt" name="leadAmount" type="number" className="input-field" value={dispForm.leadAmount} onChange={e => setDispForm({ ...dispForm, leadAmount: e.target.value })} required />
+                </div>
+              )}
+              <div className="input-group">
+                <label htmlFor="modalRemarks">Remarks *</label>
+                <textarea id="modalRemarks" name="remarks" className="input-field" rows="3" value={dispForm.remarks} onChange={e => setDispForm({ ...dispForm, remarks: e.target.value })} placeholder="Notes..." required />
+              </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                 <button type="button" onClick={() => setSelectedContact(null)}>Cancel</button>
                 <button type="submit" className="btn btn-primary">Save</button>

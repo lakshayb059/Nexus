@@ -88,8 +88,12 @@ router.get('/queue', verify, authorize(['agent']), async (req, res) => {
     else if (rechurn.length > 0) { contact = rechurn[0]; type = 'rechurn'; }
 
     const total = await contactsCollection.countDocuments(commonQuery);
-    const pending = await contactsCollection.countDocuments({ ...commonQuery, disposition: null });
-    const disposed = total - pending;
+    const finalized = await contactsCollection.countDocuments({ 
+      ...commonQuery, 
+      disposition: { $in: ['Lead', 'Invalid', 'DoNotCall'] } 
+    });
+    const pendingCount = total - finalized;
+    const disposed = finalized;
     
     const upcomingAppointments = await contactsCollection.find({
       ...commonQuery,
@@ -97,7 +101,16 @@ router.get('/queue', verify, authorize(['agent']), async (req, res) => {
       appointmentDt: { $gte: now, $lte: new Date(now.getTime() + 30 * 60 * 1000) }
     }).sort({ appointmentDt: 1 }).limit(3).toArray();
 
-    res.json({ contact, remaining: fresh.length + rechurn.length, total, pending, disposed, upcomingAppointments, type: contact ? type : null, rechurnNum: contact?.rechurnCount || 0 });
+    res.json({ 
+      contact, 
+      remaining: fresh.length + rechurn.length, 
+      total, 
+      pending: pendingCount, 
+      disposed, 
+      upcomingAppointments, 
+      type: contact ? type : null, 
+      rechurnNum: contact?.rechurnCount || 0 
+    });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }

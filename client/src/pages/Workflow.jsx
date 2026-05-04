@@ -87,6 +87,15 @@ const Workflow = () => {
     setSubmitting(true);
     try {
       const payload = { ...dispForm };
+      
+      // Convert local date strings to ISO strings to preserve the exact moment across timezones
+      if (payload.appointmentDt) {
+        payload.appointmentDt = new Date(payload.appointmentDt).toISOString();
+      }
+      if (payload.callBackDt) {
+        payload.callBackDt = new Date(payload.callBackDt).toISOString();
+      }
+
       await api.post(`/contacts/${data.contact._id}/dispose`, payload);
       setDispForm({ disposition: '', remarks: '', appointmentDt: '', leadAmount: '', callBackDt: '', status: '', statusDetails: '', transactionId: '' });
       fetchNext();
@@ -258,25 +267,55 @@ const Workflow = () => {
           <form onSubmit={handleDispose} style={{ marginTop: 20 }}>
             {dispForm.disposition === 'Lead' && (
               <div className="animate-slide-up">
-                <div className="input-group"><label>Lead Amount (₹)</label><input type="number" className="input-field" value={dispForm.leadAmount} onChange={e => setDispForm(p => ({ ...p, leadAmount: e.target.value }))} required /></div>
-                <div className="input-group"><label>Lead Status</label><select className="input-field" value={dispForm.status} onChange={e => setDispForm(p => ({ ...p, status: e.target.value }))} required><option value="">Select Status...</option>{LEAD_STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select></div>
-                {dispForm.status === 'Converted' && <div className="input-group"><label>Transaction ID / UTR</label><input type="text" className="input-field" value={dispForm.transactionId} onChange={e => setDispForm(p => ({ ...p, transactionId: e.target.value }))} required /></div>}
-                {dispForm.status === 'Call Back' && <div className="input-group"><label>Callback Schedule</label><input type="datetime-local" className="input-field" value={dispForm.callBackDt} onChange={e => setDispForm(p => ({ ...p, callBackDt: e.target.value }))} required /></div>}
-                {dispForm.status === 'Others' && <div className="input-group"><label>Details</label><input type="text" className="input-field" value={dispForm.statusDetails} onChange={e => setDispForm(p => ({ ...p, statusDetails: e.target.value }))} required /></div>}
+                <div className="input-group">
+                  <label htmlFor="leadAmount">Lead Amount (₹)</label>
+                  <input id="leadAmount" name="leadAmount" type="number" className="input-field" value={dispForm.leadAmount} onChange={e => setDispForm(p => ({ ...p, leadAmount: e.target.value }))} required />
+                </div>
+                <div className="input-group">
+                  <label htmlFor="leadStatus">Lead Status</label>
+                  <select id="leadStatus" name="leadStatus" className="input-field" value={dispForm.status} onChange={e => setDispForm(p => ({ ...p, status: e.target.value }))} required>
+                    <option value="">Select Status...</option>
+                    {LEAD_STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                </div>
+                {dispForm.status === 'Converted' && (
+                  <div className="input-group">
+                    <label htmlFor="transactionId">Transaction ID / UTR</label>
+                    <input id="transactionId" name="transactionId" type="text" className="input-field" value={dispForm.transactionId} onChange={e => setDispForm(p => ({ ...p, transactionId: e.target.value }))} required />
+                  </div>
+                )}
+                {dispForm.status === 'Call Back' && (
+                  <div className="input-group">
+                    <label htmlFor="leadCallBackDt">Callback Schedule</label>
+                    <input id="leadCallBackDt" name="callBackDt" type="datetime-local" className="input-field" value={dispForm.callBackDt} onChange={e => setDispForm(p => ({ ...p, callBackDt: e.target.value }))} required />
+                  </div>
+                )}
+                {dispForm.status === 'Others' && (
+                  <div className="input-group">
+                    <label htmlFor="statusDetails">Details</label>
+                    <input id="statusDetails" name="statusDetails" type="text" className="input-field" value={dispForm.statusDetails} onChange={e => setDispForm(p => ({ ...p, statusDetails: e.target.value }))} required />
+                  </div>
+                )}
               </div>
             )}
 
             {dispForm.disposition === 'Appointment' && (
-              <div className="input-group animate-slide-up"><label>Appointment Date & Time</label><input type="datetime-local" className="input-field" value={dispForm.appointmentDt} onChange={e => setDispForm(p => ({ ...p, appointmentDt: e.target.value }))} required /></div>
+              <div className="input-group animate-slide-up">
+                <label htmlFor="appointmentDt">Appointment Date & Time</label>
+                <input id="appointmentDt" name="appointmentDt" type="datetime-local" className="input-field" value={dispForm.appointmentDt} onChange={e => setDispForm(p => ({ ...p, appointmentDt: e.target.value }))} required />
+              </div>
             )}
 
             {dispForm.disposition === 'CallBack' && (
-              <div className="input-group animate-slide-up"><label>Callback Date & Time</label><input type="datetime-local" className="input-field" value={dispForm.callBackDt} onChange={e => setDispForm(p => ({ ...p, callBackDt: e.target.value }))} required /></div>
+              <div className="input-group animate-slide-up">
+                <label htmlFor="callBackDt">Callback Date & Time</label>
+                <input id="callBackDt" name="callBackDt" type="datetime-local" className="input-field" value={dispForm.callBackDt} onChange={e => setDispForm(p => ({ ...p, callBackDt: e.target.value }))} required />
+              </div>
             )}
 
             <div className="input-group">
-              <label>Remarks (Min 1 word) *</label>
-              <textarea className="input-field" rows="3" value={dispForm.remarks} onChange={e => setDispForm(p => ({ ...p, remarks: e.target.value }))} required placeholder="Enter call notes here..." />
+              <label htmlFor="remarks">Remarks (Min 1 word) *</label>
+              <textarea id="remarks" name="remarks" className="input-field" rows="3" value={dispForm.remarks} onChange={e => setDispForm(p => ({ ...p, remarks: e.target.value }))} required placeholder="Enter call notes here..." />
             </div>
 
             <button type="submit" className="btn btn-primary submit-btn" disabled={submitting || !dispForm.disposition}>

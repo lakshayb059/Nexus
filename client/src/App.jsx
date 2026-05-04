@@ -14,6 +14,7 @@ import MyCallbacks from './pages/MyCallbacks';
 import HungUp from './pages/HungUp';
 import Layout from './components/Layout';
 import AppointmentNotifier from './components/AppointmentNotifier';
+import DueTaskModal from './components/DueTaskModal';
 
 // Protect routes based on authentication
 const ProtectedRoute = ({ children }) => {
@@ -46,6 +47,7 @@ function App() {
         </Route>
       </Routes>
       <AppointmentNotifier />
+      <DueTaskModal />
     </Router>
   );
 }
