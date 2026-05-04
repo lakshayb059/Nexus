@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import api from '../utils/api';
-import { Star, TrendingUp, Users, Calendar, Search, PhoneCall, Award, Target, Lock } from 'lucide-react';
+import { Star, TrendingUp, Users, Calendar, Search, PhoneCall, Award, Target, Trash2, X, CheckSquare, Square } from 'lucide-react';
 
 const MyLeads = () => {
   const { user }   = useAuth();
@@ -11,7 +11,9 @@ const MyLeads = () => {
   const [loading,    setLoading]    = useState(true);
   const [searchTerm,   setSearchTerm]   = useState('');
   const [sourceFilter, setSourceFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [stats,        setStats]        = useState({ totalLeads: 0, totalAmount: 0 });
+  const [selectedIds,  setSelectedIds]  = useState([]);
 
   const fetchData = async () => {
     try {
@@ -34,64 +36,99 @@ const MyLeads = () => {
     if (!socket) return;
     socket.on('contact_disposed', fetchData);
     socket.on('dashboard_update', fetchData);
+    socket.on('contacts_updated', fetchData);
     return () => {
       socket.off('contact_disposed', fetchData);
       socket.off('dashboard_update', fetchData);
+      socket.off('contacts_updated', fetchData);
     };
   }, [socket]);
 
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this lead? This will remove all associated data.')) return;
+    try {
+      await api.delete(`/contacts/${id}`);
+      fetchData();
+      setSelectedIds(prev => prev.filter(i => i !== id));
+    } catch (err) {
+      alert(err.response?.data?.error || 'Delete failed');
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!window.confirm(`Are you sure you want to delete ${selectedIds.length} selected leads?`)) return;
+    try {
+      await api.post('/contacts/bulk-delete', { ids: selectedIds });
+      setSelectedIds([]);
+      fetchData();
+    } catch (err) {
+      alert('Bulk delete failed');
+    }
+  };
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filtered.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filtered.map(l => l._id));
+    }
+  };
+
   const filtered = leads.filter(l => {
-    if (sourceFilter === 'uploaded' && l.disposedBy) return false;
-    if (sourceFilter === 'created' && !l.disposedBy) return false;
-    if (!searchTerm) return true;
-    const q = searchTerm.toLowerCase();
-    return Object.values(l.fields || {}).some(v => String(v).toLowerCase().includes(q)) ||
-           (l.agentName && l.agentName.toLowerCase().includes(q));
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      const match = Object.values(l.fields || {}).some(v => String(v).toLowerCase().includes(q)) ||
+                    (l.agentName && l.agentName.toLowerCase().includes(q));
+      if (!match) return false;
+    }
+    if (sourceFilter === 'created' && l.batchId) return false;
+    if (sourceFilter === 'uploaded' && !l.batchId) return false;
+    if (statusFilter !== 'all' && l.status !== statusFilter) return false;
+    return true;
   });
 
-  const todayAmount = leads
-    .filter(l => new Date(l.lastModified).toDateString() === new Date().toDateString())
-    .reduce((s, l) => s + (l.leadAmount || 0), 0);
-
-  const avgValue = stats.totalLeads > 0 ? Math.round(stats.totalAmount / stats.totalLeads) : 0;
-
-  const kpiCards = [
-    { label: 'Total Revenue', value: `₹${stats.totalAmount.toLocaleString()}`, sub: 'Gross converted amount',   icon: TrendingUp, accent: '#10b981', gradient: 'linear-gradient(135deg,#10b981,#059669)', dark: true },
-    { label: 'Total Leads',   value: stats.totalLeads,                          sub: 'Converted clients',        icon: Users,      accent: 'var(--primary)' },
-    { label: 'Avg Lead Value',value: `₹${avgValue.toLocaleString()}`,           sub: 'Average per conversion',   icon: Target,     accent: '#8b5cf6' },
-    { label: "Today's Revenue",value: `₹${todayAmount.toLocaleString()}`,       sub: 'Lead amount today',        icon: Award,      accent: '#f59e0b' },
-  ];
-
   return (
-    <div>
-      <div className="page-header">
+    <div className="animate-fade-in">
+      <div className="page-header" style={{ marginBottom: 30 }}>
         <div>
-          <h1 className="page-title" style={{ fontSize: 'var(--h1)' }}>
-            <Star size={24} fill="currentColor" style={{ color: '#10b981' }} /> My Leads
+          <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Award size={32} style={{ color: '#10b981' }} /> My Leads
           </h1>
-          <p className="page-subtitle">Tracking your converted sales and revenue performance</p>
+          <p className="page-subtitle">Track and manage your successful conversions</p>
         </div>
-        <span className="badge badge-success" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
-          {filtered.length} Converted Leads
-        </span>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {user?.role === 'admin' && filtered.length > 0 && (
+            <>
+              <button className="btn btn-outline" onClick={toggleSelectAll} style={{ fontSize: '0.8rem', padding: '8px 16px' }}>
+                {selectedIds.length === filtered.length ? <CheckSquare size={16} /> : <Square size={16} />}
+                {selectedIds.length === filtered.length ? 'Deselect All' : 'Select All'}
+              </button>
+              {selectedIds.length > 0 && (
+                <button className="btn btn-danger" onClick={handleBulkDelete} style={{ boxShadow: '0 4px 12px rgba(239,68,68,0.2)' }}>
+                  <Trash2 size={16} /> Delete Selected ({selectedIds.length})
+                </button>
+              )}
+            </>
+          )}
+          <div className="badge badge-primary" style={{ padding: '8px 16px', fontSize: '0.9rem' }}>
+            {filtered.length} Leads Found
+          </div>
+        </div>
       </div>
 
       <div className="grid-stats" style={{ marginBottom: 'var(--gap)' }}>
-        {kpiCards.map((c, i) => {
-          const Icon = c.icon;
-          return (
-            <div key={i} className="glass-panel" style={{ padding: 'var(--card-p)', background: c.gradient || undefined, border: c.gradient ? 'none' : undefined, boxShadow: c.gradient ? '0 8px 24px rgba(16,185,129,0.25)' : undefined, position: 'relative', overflow: 'hidden' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
-                <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: c.dark ? 'rgba(255,255,255,0.8)' : 'var(--text-secondary)' }}>{c.label}</span>
-                <div style={{ width: 34, height: 34, borderRadius: 'var(--r-sm)', background: c.dark ? 'rgba(255,255,255,0.15)' : `${c.accent}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.dark ? '#fff' : c.accent }}>
-                  <Icon size={17} />
-                </div>
-              </div>
-              <div style={{ fontSize: 'clamp(1.5rem,4vw,2rem)', fontWeight: 900, color: c.dark ? '#fff' : 'var(--text-primary)', marginBottom: 6, lineHeight: 1 }}>{c.value}</div>
-              <div style={{ fontSize: '0.75rem', color: c.dark ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)' }}>{c.sub}</div>
-            </div>
-          );
-        })}
+        <div className="glass-panel" style={{ padding: 'var(--card-p)', display: 'flex', alignItems: 'center', gap: 20 }}>
+          <div style={{ padding: 14, background: '#10b98118', color: '#10b981', borderRadius: 'var(--r-md)' }}><Target size={24} /></div>
+          <div><div style={{ fontSize: '1.8rem', fontWeight: 900 }}>{stats.totalLeads}</div><div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600 }}>Total Leads</div></div>
+        </div>
+        <div className="glass-panel" style={{ padding: 'var(--card-p)', display: 'flex', alignItems: 'center', gap: 20 }}>
+          <div style={{ padding: 14, background: '#8b5cf618', color: '#8b5cf6', borderRadius: 'var(--r-md)' }}><TrendingUp size={24} /></div>
+          <div><div style={{ fontSize: '1.8rem', fontWeight: 900 }}>₹{stats.totalAmount.toLocaleString()}</div><div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600 }}>Total Revenue</div></div>
+        </div>
       </div>
 
       <div className="glass-panel" style={{ marginBottom: 'var(--gap)', padding: '12px 18px', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -99,25 +136,29 @@ const MyLeads = () => {
           <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
           <input type="text" className="input-field" placeholder="Search leads by name, phone…" style={{ paddingLeft: 42, marginBottom: 0 }} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
         </div>
+        
+        <select className="input-field" style={{ width: 'auto', minWidth: 160, marginBottom: 0 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+          <option value="all">All Statuses</option>
+          <option value="Converted">Converted</option>
+          <option value="Not Interested">Not Interested</option>
+          <option value="DNC/DND">DNC/DND</option>
+          <option value="Call Back">Call Back</option>
+          <option value="Others">Others</option>
+        </select>
+
         <select className="input-field" style={{ width: 'auto', minWidth: 160, marginBottom: 0 }} value={sourceFilter} onChange={e => setSourceFilter(e.target.value)}>
-          <option value="all">All Leads</option>
+          <option value="all">All Sources</option>
           <option value="created">Created by Agent</option>
           <option value="uploaded">Uploaded Directly</option>
         </select>
       </div>
 
       {loading ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="glass-panel" style={{ padding: 'var(--card-p)' }}>
-              <div className="skeleton" style={{ height: 40 }} />
-            </div>
-          ))}
-        </div>
+        <div className="skeleton" style={{ height: 200 }} />
       ) : filtered.length === 0 ? (
         <div className="glass-panel" style={{ padding: '80px 40px', textAlign: 'center' }}>
           <Star size={64} style={{ opacity: 0.08, margin: '0 auto 20px', display: 'block' }} />
-          <h3>No leads found</h3>
+          <h3>No matching leads found</h3>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -125,111 +166,88 @@ const MyLeads = () => {
             const fields = lead.fields || {};
             const name = fields.Name || fields.name || 'Unknown';
             const phone = fields.Phone || fields.phone || fields.Mobile || 'N/A';
-            const isLocked = user.role === 'agent' && lead.status === 'Converted' && lead.transactionId;
+            const isSelected = selectedIds.includes(lead._id);
 
             return (
-              <div key={lead._id} className="glass-panel lead-list-item" style={{ padding: 'var(--card-p)', borderLeft: '4px solid #10b981' }}>
-                <div className="lead-list-inner">
+              <div key={lead._id} className={`glass-panel lead-list-item ${isSelected ? 'selected' : ''}`} style={{ padding: 'var(--card-p)', borderLeft: isSelected ? '4px solid var(--primary)' : `4px solid ${lead.status === 'Converted' ? '#10b981' : lead.status === 'Call Back' ? '#06b6d4' : 'var(--border)'}`, position: 'relative' }}>
+                
+                {user?.role === 'admin' && (
+                  <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10 }}>
+                    <input 
+                      type="checkbox" 
+                      checked={isSelected} 
+                      onChange={() => toggleSelect(lead._id)} 
+                      style={{ width: 18, height: 18, cursor: 'pointer', accentColor: 'var(--primary)' }} 
+                    />
+                  </div>
+                )}
+
+                {user?.role === 'admin' && (
+                  <button 
+                    className="btn btn-ghost btn-icon" 
+                    onClick={() => handleDelete(lead._id)}
+                    style={{ position: 'absolute', top: 12, right: 12, color: 'var(--danger)' }}
+                    title="Delete Lead"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
+
+                <div className="lead-list-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, paddingLeft: user?.role === 'admin' ? 32 : 0 }}>
                   <div style={{ display: 'flex', gap: 18, alignItems: 'center', flex: 1, minWidth: 0 }}>
-                    <div style={{ width: 56, height: 56, borderRadius: 'var(--r-md)', background: 'linear-gradient(135deg,#10b981,#059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0, boxShadow: '0 4px 12px rgba(16,185,129,0.3)' }}>
-                      <Star size={24} fill="white" />
+                    <div style={{ width: 56, height: 56, borderRadius: 'var(--r-md)', background: lead.status === 'Converted' ? 'linear-gradient(135deg,#10b981,#059669)' : 'var(--bg-surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: lead.status === 'Converted' ? '#fff' : 'var(--text-muted)', flexShrink: 0 }}>
+                      <Star size={24} fill={lead.status === 'Converted' ? "white" : "none"} />
                     </div>
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#10b981', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</h3>
+                      <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: 6 }}>{name}</h3>
                       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><PhoneCall size={13} /> {phone}</span>
                         <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Calendar size={13} /> {new Date(lead.lastModified).toLocaleDateString()}</span>
                         {lead.agentName && <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>by {lead.agentName}</span>}
-                        {lead.transactionId && (
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(16,185,129,0.1)', color: '#10b981', padding: '4px 8px', borderRadius: '4px', fontWeight: 700 }}>
-                            UTR/ID: {lead.transactionId}
-                          </span>
-                        )}
                       </div>
                       
                       <div style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <div style={{ position: 'relative', minWidth: 140 }}>
-                          <select 
-                            className="input-field" 
-                            style={{ marginBottom: 0, padding: '4px 10px', fontSize: '0.75rem', height: 32, opacity: isLocked ? 0.6 : 1 }}
-                            value={lead.status || ''}
-                            disabled={isLocked}
-                            onChange={async (e) => {
-                              const newStatus = e.target.value;
-                              let transactionId = lead.transactionId;
-                              
-                              if (newStatus === 'Converted') {
-                                const tid = window.prompt('Please enter Transaction ID (UTR ID) for confirmation:', transactionId || '');
-                                if (tid === null) return;
-                                if (!tid.trim()) { alert('Transaction ID is required for Converted status'); return; }
-                                transactionId = tid;
-                              }
+                        <select 
+                          className="input-field" 
+                          style={{ marginBottom: 0, padding: '4px 10px', fontSize: '0.75rem', height: 32, width: 'auto', minWidth: 140 }}
+                          value={lead.status || ''}
+                          onChange={async (e) => {
+                            const newStatus = e.target.value;
+                            let transactionId = lead.transactionId;
+                            if (newStatus === 'Converted') {
+                              const tid = window.prompt('Transaction ID:', transactionId || '');
+                              if (!tid) return;
+                              transactionId = tid;
+                            }
+                            await api.put(`/contacts/${lead._id}/status`, { status: newStatus, transactionId });
+                            fetchData();
+                          }}
+                        >
+                          <option value="">Set Status</option>
+                          <option value="Converted">Converted</option>
+                          <option value="Not Interested">Not Interested</option>
+                          <option value="DNC/DND">DNC/DND</option>
+                          <option value="Call Back">Call Back</option>
+                          <option value="Others">Others</option>
+                        </select>
 
-                              try {
-                                await api.put(`/contacts/${lead._id}/status`, { status: newStatus, transactionId });
-                                fetchData();
-                              } catch(err) { alert(err.response?.data?.error || 'Failed to update status'); fetchData(); }
-                            }}
-                          >
-                            <option value="">Set Status</option>
-                            <option value="Converted">Converted</option>
-                            <option value="Not Interested">Not Interested</option>
-                            <option value="DNC/DND">DNC/DND</option>
-                            <option value="Call Back">Call Back</option>
-                            <option value="Others">Others</option>
-                          </select>
-                          {isLocked && <Lock size={12} style={{ position: 'absolute', right: 25, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />}
-                        </div>
-                        
-                        {!isLocked && lead.status === 'Others' && (
-                          <input 
-                            type="text"
-                            className="input-field" 
-                            style={{ marginBottom: 0, padding: '4px 10px', fontSize: '0.75rem', height: 32, flex: 1, minWidth: 150 }}
-                            placeholder="Enter status details (Required) *"
-                            value={lead.statusDetails || ''}
-                            onChange={(e) => {
-                              // Local update for responsiveness
-                              const newList = [...leads];
-                              const idx = newList.findIndex(x => x._id === lead._id);
-                              if (idx !== -1) newList[idx].statusDetails = e.target.value;
-                              setLeads(newList);
-                            }}
-                            onBlur={async (e) => {
-                              const val = e.target.value.trim();
-                              if (!val) { alert('Details are required for "Others" status'); fetchData(); return; }
-                              try {
-                                await api.put(`/contacts/${lead._id}/status`, { status: 'Others', statusDetails: val });
-                                fetchData();
-                              } catch(err) {}
-                            }}
-                          />
+                        {lead.transactionId && (
+                          <span className="badge" style={{ backgroundColor: '#10b98115', color: '#10b981' }}>UTR: {lead.transactionId}</span>
                         )}
-                        
-                        {!isLocked && lead.status === 'Call Back' && (
-                          <input type="datetime-local" className="input-field" style={{ marginBottom: 0, padding: '4px 10px', fontSize: '0.75rem', height: 32, width: 'auto' }}
-                            defaultValue={lead.callBackDt ? new Date(lead.callBackDt).toISOString().slice(0, 16) : ''}
-                            onChange={async (e) => {
-                              try {
-                                const dt = new Date(e.target.value).toISOString();
-                                await api.put(`/contacts/${lead._id}/status`, { status: 'Call Back', callBackDt: dt });
-                                fetchData();
-                              } catch(err) {}
-                            }}
-                          />
+                        {lead.status === 'Others' && lead.statusDetails && (
+                          <span className="badge" style={{ backgroundColor: 'var(--primary-light)', color: 'var(--primary)' }}>{lead.statusDetails}</span>
+                        )}
+                        {lead.remarks && (
+                          <div style={{ width: '100%', fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 8 }}>
+                            "{lead.remarks}"
+                          </div>
                         )}
                       </div>
-
-                      {lead.remarks && (
-                        <div style={{ marginTop: 10, fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                          "{lead.remarks.substring(0, 80)}{lead.remarks.length > 80 ? '…' : ''}"
-                        </div>
-                      )}
                     </div>
                   </div>
-                  <div className="lead-amount-box">
-                    <div style={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#10b981', marginBottom: 4 }}>Lead Amount</div>
-                    <div style={{ fontSize: 'clamp(1.4rem,3vw,1.9rem)', fontWeight: 900, color: '#10b981', lineHeight: 1 }}>₹{(lead.leadAmount || 0).toLocaleString()}</div>
+                  <div className="lead-amount-box" style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)' }}>Lead Amount</div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#10b981' }}>₹{(lead.leadAmount || 0).toLocaleString()}</div>
                   </div>
                 </div>
               </div>
@@ -237,13 +255,18 @@ const MyLeads = () => {
           })}
         </div>
       )}
-
+      
       <style>{`
-        .lead-list-item { transition: transform var(--t-base), box-shadow var(--t-base); background: linear-gradient(135deg, rgba(16,185,129,0.04) 0%, transparent 100%); }
-        .lead-list-item:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(0,0,0,0.35); }
-        .lead-list-inner { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
-        .lead-amount-box { text-align: right; min-width: 140px; flex-shrink: 0; }
-        @media (max-width: 640px) { .lead-list-inner { flex-direction: column; align-items: stretch; } .lead-amount-box { text-align: left; border-top: 1px solid var(--border); padding-top: 14px; } }
+        .lead-list-item {
+          transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
+        }
+        .lead-list-item:hover {
+          transform: translateX(4px);
+          box-shadow: var(--shadow-lg);
+        }
+        .lead-list-item.selected {
+          background-color: var(--primary-light-alpha);
+        }
       `}</style>
     </div>
   );

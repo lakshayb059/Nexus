@@ -7,7 +7,7 @@ const { ObjectId } = require('mongodb');
 router.get('/my-leads', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
   try {
     const contactsCollection = getCollection('contacts');
-    let query = { disposition: 'Lead' };
+    let query = { disposition: 'Lead', isDeleted: { $ne: true } };
     
     if (req.user.role === 'agent') {
       query.assignedTo = new ObjectId(req.user._id);
@@ -39,7 +39,7 @@ router.get('/my-leads', verify, authorize(['agent', 'tl', 'admin']), async (req,
 router.get('/appointments', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
   try {
     const contactsCollection = getCollection('contacts');
-    let query = { disposition: 'Appointment' };
+    let query = { disposition: 'Appointment', isDeleted: { $ne: true } };
     
     if (req.user.role === 'agent') {
       query.assignedTo = new ObjectId(req.user._id);
@@ -70,7 +70,7 @@ router.get('/appointments', verify, authorize(['agent', 'tl', 'admin']), async (
 router.get('/callbacks', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
   try {
     const contactsCollection = getCollection('contacts');
-    let query = { disposition: 'CallBack' };
+    let query = { disposition: 'CallBack', isDeleted: { $ne: true } };
     
     if (req.user.role === 'agent') {
       query.assignedTo = new ObjectId(req.user._id);
@@ -101,7 +101,7 @@ router.get('/callbacks', verify, authorize(['agent', 'tl', 'admin']), async (req
 router.get('/stats', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
   try {
     const contactsCollection = getCollection('contacts');
-    let query = { disposition: 'Lead' };
+    let query = { disposition: 'Lead', isDeleted: { $ne: true } };
     
     if (req.user.role === 'agent') {
       query.assignedTo = new ObjectId(req.user._id);

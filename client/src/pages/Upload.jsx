@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import api from '../utils/api';
-import { UploadCloud, FileSpreadsheet, Trash2, Download, Share2, X, CheckCircle2, Star } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet, Trash2, Download, Share2, X, CheckCircle2, Star, Square, CheckSquare } from 'lucide-react';
 
 const Upload = () => {
   const { user }   = useAuth();
@@ -17,6 +17,7 @@ const Upload = () => {
   const [isLeadUpload,   setIsLeadUpload]   = useState(false);
   const [handoverBatch,  setHandoverBatch]  = useState(null);
   const [targetAgentId,  setTargetAgentId]  = useState('');
+  const [selectedBatchIds, setSelectedBatchIds] = useState([]);
   const fileInputRef = useRef(null);
 
   const fetchData = React.useCallback(async () => {
@@ -90,9 +91,34 @@ const Upload = () => {
     if (!window.confirm('Delete this batch and ALL its contacts? This cannot be undone.')) return;
     try {
       await api.delete(`/contacts/batch/${batchId}`);
+      setSelectedBatchIds(prev => prev.filter(id => id !== batchId));
       fetchData();
     } catch (err) {
       alert(err.response?.data?.error || 'Delete failed');
+    }
+  };
+
+  const handleBulkDeleteBatches = async () => {
+    if (!window.confirm(`Delete ${selectedBatchIds.length} selected batches and ALL their contacts?`)) return;
+    try {
+      await api.post('/contacts/bulk-delete-batches', { batchIds: selectedBatchIds });
+      setSelectedBatchIds([]);
+      fetchData();
+      alert('Selected batches deleted successfully!');
+    } catch (err) {
+      alert('Bulk delete failed');
+    }
+  };
+
+  const toggleSelectBatch = (id) => {
+    setSelectedBatchIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
+  const toggleSelectAllBatches = () => {
+    if (selectedBatchIds.length === batches.length) {
+      setSelectedBatchIds([]);
+    } else {
+      setSelectedBatchIds(batches.map(b => b._id));
     }
   };
 
@@ -233,14 +259,31 @@ const Upload = () => {
 
         {/* Batch history */}
         <div className="glass-panel" style={{ overflow: 'hidden' }}>
-          <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <h2 style={{ fontSize: '0.9rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-secondary)', margin: 0 }}>Upload History</h2>
-            <span className="badge badge-primary">{batches.length} Batches</span>
+          <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <h2 style={{ fontSize: '0.9rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-secondary)', margin: 0 }}>Upload History</h2>
+              <span className="badge badge-primary">{batches.length} Batches</span>
+            </div>
+            
+            {user?.role === 'admin' && batches.length > 0 && (
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="btn btn-outline" onClick={toggleSelectAllBatches} style={{ fontSize: '0.75rem', padding: '6px 12px' }}>
+                  {selectedBatchIds.length === batches.length ? <CheckSquare size={14} /> : <Square size={14} />}
+                  {selectedBatchIds.length === batches.length ? 'Deselect All' : 'Select All'}
+                </button>
+                {selectedBatchIds.length > 0 && (
+                  <button className="btn btn-danger" onClick={handleBulkDeleteBatches} style={{ fontSize: '0.75rem', padding: '6px 12px', boxShadow: '0 4px 12px rgba(239,68,68,0.2)' }}>
+                    <Trash2 size={14} /> Delete ({selectedBatchIds.length})
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           <div className="table-responsive">
             <table className="crm-table">
               <thead>
                 <tr>
+                  {user?.role === 'admin' && <th style={{ width: 40 }}></th>}
                   <th>Batch</th>
                   <th>Agent</th>
                   <th>Records</th>
@@ -250,9 +293,19 @@ const Upload = () => {
               </thead>
               <tbody>
                 {batches.length === 0 ? (
-                  <tr><td colSpan="5" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>No uploads yet</td></tr>
+                  <tr><td colSpan="6" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>No uploads yet</td></tr>
                 ) : batches.map(b => (
-                  <tr key={b._id}>
+                  <tr key={b._id} className={selectedBatchIds.includes(b._id) ? 'selected-row' : ''}>
+                    {user?.role === 'admin' && (
+                      <td>
+                        <input 
+                          type="checkbox" 
+                          checked={selectedBatchIds.includes(b._id)} 
+                          onChange={() => toggleSelectBatch(b._id)}
+                          style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--primary)' }}
+                        />
+                      </td>
+                    )}
                     <td>
                       <div style={{ fontWeight: 700, fontSize: '0.875rem' }}>{b.name}</div>
                       <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{b.fileName}</div>
@@ -335,6 +388,7 @@ const Upload = () => {
           margin-top: 4px;
         }
         .dropzone:hover { border-color: var(--primary); background: var(--bg-surface-hover); }
+        .selected-row { background-color: var(--primary-light-alpha) !important; }
       `}</style>
     </div>
   );

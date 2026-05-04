@@ -30,10 +30,6 @@ const Contacts = ({ filterType }) => {
   const [selectedContact, setSelectedContact] = useState(null);
   const [dispForm, setDispForm] = useState({ disposition: '', remarks: '', appointmentDt: '', leadAmount: '' });
 
-  const [reassigning, setReassigning] = useState(null);
-  const [targetAgent, setTargetAgent] = useState('');
-  const [teamAgents, setTeamAgents]   = useState([]);
-
   const [selectedTl,       setSelectedTl]       = useState('');
   const [selectedAgent,    setSelectedAgent]    = useState('');
   const [tls,              setTls]              = useState([]);
@@ -53,10 +49,6 @@ const Contacts = ({ filterType }) => {
       const res = await api.get(`/contacts${query}`);
       setContacts(res.data);
 
-      if (user?.role === 'tl') {
-        const teamRes = await api.get('/users/my-agents');
-        setTeamAgents(teamRes.data);
-      }
       if (user?.role === 'admin' && tls.length === 0) {
         const usersRes = await api.get('/users');
         const all = usersRes.data;
@@ -98,7 +90,7 @@ const Contacts = ({ filterType }) => {
     e.preventDefault();
     try {
       const remarkWords = dispForm.remarks.trim().split(/\s+/).filter(w => w.length > 0);
-      if (remarkWords.length < 2) { alert('Remarks must be at least 2 words long'); return; }
+      if (remarkWords.length < 1) { alert('Remarks are mandatory'); return; }
 
       let transactionId = '';
       if (dispForm.disposition === 'Lead') {
@@ -162,7 +154,7 @@ const Contacts = ({ filterType }) => {
   const { title, icon } = pageInfo[filterType] || pageInfo.all;
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <div className="page-header">
         <div>
           <h1 className="page-title" style={{ fontSize: 'var(--h1)' }}>{icon} {title}</h1>
@@ -198,7 +190,7 @@ const Contacts = ({ filterType }) => {
       )}
 
       <div className="glass-panel" style={{ marginBottom: 'var(--gap)', padding: '14px 18px' }}>
-        <div className="contacts-filter-row">
+        <div className="contacts-filter-row" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, position: 'relative', minWidth: 180 }}>
             <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
             <input type="text" className="input-field" placeholder="Search..." style={{ paddingLeft: 42, marginBottom: 0 }} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
@@ -230,19 +222,18 @@ const Contacts = ({ filterType }) => {
             const phone = fields.Phone || fields.phone || fields.Mobile || 'No Phone';
             const disp = DISPS.find(d => d.key === contact.disposition);
             const isSel = selectedIds.includes(contact._id);
-            const isLocked = user.role === 'agent' && contact.status === 'Converted' && contact.transactionId;
 
             return (
-              <div key={contact._id} className="glass-panel contact-card" style={{ border: isSel ? '2px solid var(--primary)' : undefined }}>
+              <div key={contact._id} className="glass-panel contact-card" style={{ padding: 16, position: 'relative', border: isSel ? '2px solid var(--primary)' : undefined }}>
                 {user?.role === 'admin' && (
                   <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10 }}>
                     <input type="checkbox" checked={isSel} onChange={() => toggleSelect(contact._id)} style={{ width: 18, height: 18, cursor: 'pointer', accentColor: 'var(--primary)' }} />
                   </div>
                 )}
                 
-                <div className="contact-card-header" style={{ paddingLeft: user?.role === 'admin' ? 28 : 0 }}>
-                  <div>
-                    <h3 style={{ fontSize: '0.95rem', fontWeight: 700 }}>{mainName}</h3>
+                <div style={{ display: 'flex', justifySelf: 'space-between', marginBottom: 12, paddingLeft: user?.role === 'admin' ? 28 : 0 }}>
+                  <div style={{ flex: 1 }}>
+                    <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0 }}>{mainName}</h3>
                     <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}><PhoneCall size={13} /> {phone}</span>
                   </div>
                   <div style={{ textAlign: 'right' }}>
@@ -251,19 +242,19 @@ const Contacts = ({ filterType }) => {
                   </div>
                 </div>
 
-                <div className="contact-fields-area">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: 12, background: 'var(--bg-surface-2)', borderRadius: 'var(--r-md)' }}>
                   {Object.entries(fields).slice(0, 4).map(([k, v]) => (
-                    <div key={k} className="contact-field-item">
-                      <span className="field-label">{k}</span>
-                      <span className="field-value">{String(v)}</span>
+                    <div key={k}>
+                      <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{k}</div>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>{String(v)}</div>
                     </div>
                   ))}
-                  {contact.remarks && <div className="contact-remarks">"{contact.remarks}"</div>}
+                  {contact.remarks && <div style={{ gridColumn: '1 / -1', fontSize: '0.75rem', fontStyle: 'italic', color: 'var(--text-muted)' }}>"{contact.remarks}"</div>}
                   {contact.transactionId && <div style={{ gridColumn: '1 / -1', fontSize: '0.75rem', fontWeight: 700, color: '#10b981' }}>UTR/ID: {contact.transactionId}</div>}
                   
                   {filterType === 'leads' && (
                     <div style={{ gridColumn: '1 / -1', marginTop: 10 }}>
-                      <select className="input-field" value={contact.status || ''} disabled={isLocked}
+                      <select className="input-field" value={contact.status || ''}
                         onChange={async (e) => {
                           const newStatus = e.target.value;
                           let transactionId = contact.transactionId;
@@ -289,7 +280,7 @@ const Contacts = ({ filterType }) => {
                   )}
                 </div>
 
-                <div className="contact-card-footer">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
                   <span style={{ fontSize: '0.75rem' }}>Agent: <strong>{contact.agentName}</strong></span>
                   <div style={{ display: 'flex', gap: 8 }}>
                     {user?.role === 'admin' && <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(contact._id)}><Trash2 size={15} style={{ color: 'var(--danger)' }} /></button>}
@@ -301,7 +292,6 @@ const Contacts = ({ filterType }) => {
         )}
       </div>
 
-      {/* Disposition Modal */}
       {selectedContact && (
         <div className="modal-overlay">
           <div className="modal-box">
@@ -311,7 +301,7 @@ const Contacts = ({ filterType }) => {
                 <option value="">-- Select --</option>
                 {DISPS.map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
               </select>
-              <textarea className="input-field" rows="3" value={dispForm.remarks} onChange={e => setDispForm({ ...dispForm, remarks: e.target.value })} placeholder="Notes (min 2 words)..." required />
+              <textarea className="input-field" rows="3" value={dispForm.remarks} onChange={e => setDispForm({ ...dispForm, remarks: e.target.value })} placeholder="Notes..." required />
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                 <button type="button" onClick={() => setSelectedContact(null)}>Cancel</button>
                 <button type="submit" className="btn btn-primary">Save</button>
@@ -320,17 +310,6 @@ const Contacts = ({ filterType }) => {
           </div>
         </div>
       )}
-
-      <style>{`
-        .contacts-filter-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-        .contact-card { padding: 16px; position: relative; border-radius: var(--r-md); background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-        .contact-card-header { display: flex; justify-content: space-between; margin-bottom: 12px; }
-        .contact-fields-area { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px; background: var(--bg-surface-2); border-radius: var(--r-md); }
-        .field-label { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; }
-        .field-value { font-size: 0.8rem; font-weight: 600; }
-        .contact-remarks { grid-column: 1 / -1; font-size: 0.75rem; font-style: italic; color: var(--text-muted); }
-        .contact-card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
-      `}</style>
     </div>
   );
 };

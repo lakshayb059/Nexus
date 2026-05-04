@@ -155,7 +155,7 @@ const Dashboard = () => {
                 </tr>
               </thead>
               <tbody>
-                {queues.map((q, i) => {
+                {Array.isArray(queues) && queues.map((q, i) => {
                   const progress = q.total > 0 ? Math.round((q.disposed / q.total) * 100) : 0;
                   return (
                     <tr key={i}>
