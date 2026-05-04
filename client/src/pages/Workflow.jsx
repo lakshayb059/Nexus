@@ -230,7 +230,7 @@ const Workflow = () => {
                     </div>
                     {isPhone && v && (
                       <a href={`tel:${v}`} className="call-action-btn" title={`Call ${v}`}>
-                        <Phone size={14} fill="currentColor" />
+                        <Phone size={20} fill="currentColor" />
                       </a>
                     )}
                   </div>
@@ -331,29 +331,34 @@ const Workflow = () => {
         .progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary), #8b5cf6); transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
         
         .workflow-grid { display: grid; grid-template-columns: 1fr 400px; gap: 24px; }
-        .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 10px; }
-        .detail-item { padding: 12px 14px; background: #f8fafc; border-radius: 12px; border: 1px solid #f1f5f9; }
-        .detail-label { display: block; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; font-weight: 800; letter-spacing: 0.05em; }
-        .detail-value { font-size: 0.95rem; font-weight: 700; color: #1e293b; word-break: break-all; }
+        .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; margin-top: 10px; }
+        .detail-item { padding: 16px; background: #f8fafc; border-radius: 16px; border: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
+        .detail-label { display: block; font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 800; letter-spacing: 0.05em; margin-bottom: 2px; }
+        .detail-value { font-size: 1.1rem; font-weight: 800; color: #1e293b; word-break: break-all; }
 
         .call-action-btn { 
-          width: 28px; height: 28px; border-radius: 8px; background: #10b981; color: #fff; 
-          display: flex; alignItems: center; justify-content: center; text-decoration: none;
-          transition: transform 0.2s, background 0.2s;
+          width: 48px; height: 48px; border-radius: 14px; background: #10b981; color: #fff; 
+          display: flex; align-items: center; justify-content: center; text-decoration: none;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
         }
-        .call-action-btn:hover { background: #059669; transform: scale(1.1); }
+        .call-action-btn:hover { background: #059669; transform: scale(1.05); box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4); }
+        .call-action-btn:active { transform: scale(0.95); }
 
         .dispo-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .dispo-btn { 
-          padding: 12px; border-radius: 12px; border: 1px solid #e2e8f0; background: #fff; 
+          padding: 14px; border-radius: 14px; border: 1px solid #e2e8f0; background: #fff; 
           color: #64748b; font-weight: 700; font-size: 0.85rem; cursor: pointer; transition: all 0.2s;
         }
         .dispo-btn:hover { border-color: var(--btn-color); background: #f8fafc; }
         .dispo-btn.active { background: var(--btn-color); color: #fff; border-color: var(--btn-color); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
 
-        .submit-btn { width: 100%; height: 52px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 1rem; }
+        .submit-btn { width: 100%; height: 56px; border-radius: 16px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 1.1rem; font-weight: 800; }
         
-        @media (max-width: 1024px) { .workflow-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 1024px) { 
+          .workflow-grid { grid-template-columns: 1fr; } 
+          .detail-grid { grid-template-columns: 1fr; }
+        }
       `}</style>
     </div>
   );
