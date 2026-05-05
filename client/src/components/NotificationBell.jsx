@@ -181,32 +181,46 @@ const NotificationBell = () => {
       </button>
 
       {isOpen && (
-        <div className="glass-panel notification-dropdown animate-fade-down" style={{
-          position: 'absolute',
-          top: '100%',
-          right: 0,
-          marginTop: 10,
-          width: 320,
-          maxHeight: 400,
-          overflowY: 'auto',
-          zIndex: 2000,
-          padding: 0,
-          boxShadow: 'var(--shadow-xl)'
-        }}>
+        <>
+          {/* Mobile overlay backdrop */}
+          <div className="notif-backdrop" onClick={() => setIsOpen(false)} />
+          <div className="glass-panel notification-dropdown animate-fade-down" style={{
+            position: 'fixed',
+            top: 0,
+            right: 0,
+            marginTop: 0,
+            width: '100%',
+            maxWidth: 340,
+            height: '100vh',
+            maxHeight: '100vh',
+            overflowY: 'auto',
+            zIndex: 3000,
+            padding: 0,
+            boxShadow: '-8px 0 40px rgba(0,0,0,0.18)',
+            borderRadius: 0,
+          }}>
           <div style={{
-            padding: '12px 16px',
+            padding: '14px 16px',
             borderBottom: '1px solid var(--border)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            background: 'var(--bg-surface-2)'
+            background: 'var(--bg-surface-2)',
+            position: 'sticky',
+            top: 0,
+            zIndex: 1
           }}>
-            <h3 style={{ fontSize: '0.85rem', fontWeight: 800 }}>Notifications</h3>
-            {unreadCount > 0 && (
-              <button onClick={clearAll} style={{ fontSize: '0.7rem', color: 'var(--primary)', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer' }}>
-                Clear All
+            <h3 style={{ fontSize: '0.9rem', fontWeight: 800, margin: 0 }}>Notifications</h3>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {unreadCount > 0 && (
+                <button onClick={clearAll} style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer' }}>
+                  Clear All
+                </button>
+              )}
+              <button onClick={() => setIsOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', padding: 4, borderRadius: 6 }}>
+                <X size={18} />
               </button>
-            )}
+            </div>
           </div>
 
           {notifications.length === 0 ? (
@@ -244,10 +258,15 @@ const NotificationBell = () => {
               ))}
             </div>
           )}
-        </div>
+          </div>
+        </>
       )}
 
       <style>{`
+        .notif-backdrop {
+          display: none;
+        }
+
         .notification-dropdown {
           border: 1px solid var(--border);
           border-radius: var(--r-lg);
@@ -261,7 +280,7 @@ const NotificationBell = () => {
           padding: 12px 16px;
           border-bottom: 1px solid var(--border);
           cursor: pointer;
-          transition: all 0.2s;
+          transition: background 0.15s;
           align-items: center;
         }
 
@@ -282,26 +301,46 @@ const NotificationBell = () => {
           font-size: 10px;
           font-weight: 800;
           min-width: 18px; height: 18px;
-          border-radius: 50%;
-          display: flex; alignItems: center; justify-content: center;
+          border-radius: 20px;
+          display: flex; align-items: center; justify-content: center;
           border: 2px solid #fff;
           padding: 0 4px;
         }
 
+        /* Desktop: classic dropdown */
+        @media (min-width: 641px) {
+          .notification-dropdown {
+            position: absolute !important;
+            top: 100% !important;
+            right: 0 !important;
+            width: 340px !important;
+            max-width: 340px !important;
+            height: auto !important;
+            max-height: 480px !important;
+            border-radius: var(--r-lg) !important;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.15) !important;
+          }
+        }
+
+        /* Mobile: full-height side panel */
         @media (max-width: 640px) {
-          .bell-btn-responsive { width: 44px!important; height: 44px!important; }
-          .bell-icon-responsive { width: 32px!important; height: 32px!important; }
-          .bell-badge-responsive {
-            top: 4px; right: 4px;
-            font-size: 11px;
-            width: 19px; height: 19px;
-            border-width: 2.5px;
-            box-shadow: var(--shadow-md);
-            z-index: 10;
+          .notif-backdrop {
+            display: block;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 2999;
           }
           .notification-dropdown {
-            width: calc(100vw - 32px) !important;
-            right: -16px !important;
+            border-radius: 0 !important;
+            border-left: 1px solid var(--border);
+          }
+          .bell-badge-responsive {
+            top: 4px; right: 4px;
+            font-size: 10px;
+            min-width: 17px; height: 17px;
+            border-width: 2px;
+            z-index: 10;
           }
         }
       `}</style>
