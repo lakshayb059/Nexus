@@ -72,6 +72,12 @@ export const AuthProvider = ({ children }) => {
         }));
         const merged = [...newAlerts, ...existing].slice(0, 20);
         localStorage.setItem(`notifications_${user._id}`, JSON.stringify(merged));
+
+        // Play the notification sound so they notice immediately upon login
+        try {
+          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+          audio.play().catch(e => console.log('Sound blocked by browser policy'));
+        } catch (e) {}
       }
 
       setUser(user);

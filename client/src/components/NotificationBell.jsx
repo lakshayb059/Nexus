@@ -9,13 +9,27 @@ const NotificationBell = () => {
   const { socket } = useSocket();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [notifications, setNotifications] = useState(() => {
-    const saved = localStorage.getItem(`notifications_${user?._id}`);
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [notifications, setNotifications] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
+  // On user login, load notifications from localStorage (includes past-due alerts)
+  useEffect(() => {
+    if (user?._id) {
+      try {
+        const saved = localStorage.getItem(`notifications_${user._id}`);
+        if (saved) {
+          setNotifications(JSON.parse(saved));
+        } else {
+          setNotifications([]);
+        }
+      } catch (e) {
+        setNotifications([]);
+      }
+    }
+  }, [user?._id]);
+
+  // Persist notifications to localStorage whenever they change
   useEffect(() => {
     if (user) {
       localStorage.setItem(`notifications_${user._id}`, JSON.stringify(notifications));
