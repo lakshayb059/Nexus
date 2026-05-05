@@ -54,6 +54,14 @@ router.post('/login', async (req, res) => {
       }))
     ];
 
+    // Set HTTP cookie valid for 2 hours
+    res.cookie('crm_session', token, {
+      httpOnly: true,
+      sameSite: 'Lax',
+      maxAge: 2 * 60 * 60 * 1000, // 2 hours in ms
+      secure: process.env.NODE_ENV === 'production'
+    });
+
     res.json({
       token,
       user: { _id: user._id, username: user.username, name: user.name, role: user.role, tlId: user.tlId },
