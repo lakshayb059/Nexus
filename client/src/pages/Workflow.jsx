@@ -15,7 +15,7 @@ const DISPS = [
   { key: 'CallNotAnswered', label: 'Call Not Answered', color: '#f59e0b', badgeClass: 'badge-warning' },
   { key: 'HungUp', label: 'Hung Up', color: '#f43f5e', badgeClass: 'badge-danger' },
   { key: 'Invalid', label: 'Invalid / Wrong No.', color: '#ef4444', badgeClass: 'badge-danger' },
-  { key: 'DoNotCall', label: 'Do Not Call', color: '#64748b', badgeClass: 'badge-muted' },
+  { key: 'DoNotCall', label: 'Do Not Call', color: '#ef4444', badgeClass: 'badge-danger' },
   { key: 'CallBack', label: 'Call Back', color: '#06b6d4', badgeClass: 'badge-cyan' },
 ];
 

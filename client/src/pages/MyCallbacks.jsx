@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
-import { Phone, Clock, ChevronRight, Bell, User, AlertTriangle, X, Check } from 'lucide-react';
+import { Phone, Clock, ChevronRight, Bell, User, AlertTriangle, X, Check, Award } from 'lucide-react';
 
 const MyCallbacks = () => {
   const { user }   = useAuth();
@@ -160,13 +160,24 @@ const MyCallbacks = () => {
                         <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>"{cb.remarks}"</span>
                       )}
                     </div>
-                    {today && (
-                      <div style={{ marginTop: 10 }}>
+                    
+                    <div style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                      {cb.disposition === 'Lead' && (
+                        <span className="badge badge-success" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <Award size={12} /> Lead: ₹{cb.leadAmount?.toLocaleString()}
+                        </span>
+                      )}
+                      {cb.status && (
+                        <span className="badge" style={{ backgroundColor: 'var(--primary-light)', color: 'var(--primary)', fontSize: '0.7rem' }}>
+                          Status: {cb.status}
+                        </span>
+                      )}
+                      {today && (
                         <span className="badge badge-primary" style={{ fontSize: '0.7rem' }}>
                           Callback Due Today
                         </span>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
 
                   {user?.role === 'agent' && (

@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import api from '../utils/api';
-import { Star, TrendingUp, Users, Calendar, Search, PhoneCall, Award, Target, Trash2, X, CheckSquare, Square } from 'lucide-react';
+import { Star, TrendingUp, Users, Calendar, Search, PhoneCall, Award, Target, Trash2, X, CheckSquare, Square, RotateCw } from 'lucide-react';
+import LeadStatusModal from '../components/LeadStatusModal';
 
 const MyLeads = () => {
   const { user }   = useAuth();
@@ -14,6 +15,11 @@ const MyLeads = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [stats,        setStats]        = useState({ totalLeads: 0, totalAmount: 0 });
   const [selectedIds,  setSelectedIds]  = useState([]);
+  
+  // Modal State
+  const [modalLead,       setModalLead]       = useState(null);
+  const [modalStatus,     setModalStatus]     = useState(null);
+  const [modalSubmitting, setModalSubmitting] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -63,6 +69,40 @@ const MyLeads = () => {
       fetchData();
     } catch (err) {
       alert('Bulk delete failed');
+    }
+  };
+
+  const handleStatusChange = async (lead, newStatus) => {
+    // If it's a special status requiring input, show modal
+    if (['Converted', 'Call Back', 'Others'].includes(newStatus)) {
+      setModalLead(lead);
+      setModalStatus(newStatus);
+      return;
+    }
+
+    // Simple status update
+    try {
+      await api.put(`/contacts/${lead._id}/status`, { status: newStatus });
+      fetchData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Update failed');
+    }
+  };
+
+  const handleModalSave = async (formData) => {
+    setModalSubmitting(true);
+    try {
+      await api.put(`/contacts/${modalLead._id}/status`, { 
+        status: modalStatus, 
+        ...formData 
+      });
+      setModalLead(null);
+      setModalStatus(null);
+      fetchData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Update failed');
+    } finally {
+      setModalSubmitting(false);
     }
   };
 
@@ -167,9 +207,18 @@ const MyLeads = () => {
             const name = fields.Name || fields.name || 'Unknown';
             const phone = fields.Phone || fields.phone || fields.Mobile || 'N/A';
             const isSelected = selectedIds.includes(lead._id);
+            
+            const isNegative = lead.status === 'Not Interested' || lead.status === 'DNC/DND';
+            const isConverted = lead.status === 'Converted';
+            const isLocked = isConverted && lead.transactionId && user?.role !== 'admin';
 
             return (
-              <div key={lead._id} className={`glass-panel lead-list-item ${isSelected ? 'selected' : ''}`} style={{ padding: 'var(--card-p)', borderLeft: isSelected ? '4px solid var(--primary)' : `4px solid ${lead.status === 'Converted' ? '#10b981' : lead.status === 'Call Back' ? '#06b6d4' : 'var(--border)'}`, position: 'relative' }}>
+              <div key={lead._id} className={`glass-panel lead-list-item ${isSelected ? 'selected' : ''}`} style={{ 
+                padding: 'var(--card-p)', 
+                borderLeft: isSelected ? '4px solid var(--primary)' : `4px solid ${isConverted ? '#10b981' : isNegative ? '#ef4444' : lead.status === 'Call Back' ? '#06b6d4' : 'var(--border)'}`, 
+                position: 'relative',
+                opacity: isLocked ? 0.8 : 1
+              }}>
                 
                 {user?.role === 'admin' && (
                   <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10 }}>
@@ -195,33 +244,40 @@ const MyLeads = () => {
 
                 <div className="lead-list-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, paddingLeft: user?.role === 'admin' ? 32 : 0 }}>
                   <div style={{ display: 'flex', gap: 18, alignItems: 'center', flex: 1, minWidth: 0 }}>
-                    <div style={{ width: 56, height: 56, borderRadius: 'var(--r-md)', background: lead.status === 'Converted' ? 'linear-gradient(135deg,#10b981,#059669)' : 'var(--bg-surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: lead.status === 'Converted' ? '#fff' : 'var(--text-muted)', flexShrink: 0 }}>
-                      <Star size={24} fill={lead.status === 'Converted' ? "white" : "none"} />
+                    <div style={{ 
+                      width: 56, 
+                      height: 56, 
+                      borderRadius: 'var(--r-md)', 
+                      background: isConverted ? 'linear-gradient(135deg,#10b981,#059669)' : isNegative ? 'linear-gradient(135deg,#ef4444,#b91c1c)' : 'var(--bg-surface-2)', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      color: (isConverted || isNegative) ? '#fff' : 'var(--text-muted)', 
+                      flexShrink: 0 
+                    }}>
+                      <Star size={24} fill={(isConverted || isNegative) ? "white" : "none"} />
                     </div>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: 6 }}>{name}</h3>
                       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><PhoneCall size={13} /> {phone}</span>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Calendar size={13} /> {new Date(lead.lastModified).toLocaleDateString()}</span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Calendar size={13} /> {new Date(lead.lastModified || lead.createdAt).toLocaleDateString()}</span>
                         {lead.agentName && <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>by {lead.agentName}</span>}
+                        {lead.leadsCount > 1 && (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#8b5cf6', fontWeight: 700 }}>
+                            <TrendingUp size={13} /> {lead.leadsCount} Total Conversions
+                          </span>
+                        )}
                       </div>
                       
                       <div style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                         <select 
                           className="input-field" 
-                          style={{ marginBottom: 0, padding: '4px 10px', fontSize: '0.75rem', height: 32, width: 'auto', minWidth: 140 }}
+                          style={{ marginBottom: 0, padding: '4px 10px', fontSize: '0.75rem', height: 32, width: 'auto', minWidth: 140, cursor: isLocked ? 'not-allowed' : 'pointer' }}
                           value={lead.status || ''}
-                          onChange={async (e) => {
-                            const newStatus = e.target.value;
-                            let transactionId = lead.transactionId;
-                            if (newStatus === 'Converted') {
-                              const tid = window.prompt('Transaction ID:', transactionId || '');
-                              if (!tid) return;
-                              transactionId = tid;
-                            }
-                            await api.put(`/contacts/${lead._id}/status`, { status: newStatus, transactionId });
-                            fetchData();
-                          }}
+                          disabled={isLocked}
+                          title={isLocked ? "This lead is locked and cannot be modified by agents." : ""}
+                          onChange={(e) => handleStatusChange(lead, e.target.value)}
                         >
                           <option value="">Set Status</option>
                           <option value="Converted">Converted</option>
@@ -231,12 +287,17 @@ const MyLeads = () => {
                           <option value="Others">Others</option>
                         </select>
 
-                        {lead.transactionId && (
+                        {lead.status === 'Call Back' && lead.callBackDt ? (
+                          <span className="badge" style={{ backgroundColor: '#06b6d415', color: '#06b6d4', display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <Calendar size={12} /> Callback: {new Date(lead.callBackDt).toLocaleString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        ) : lead.status === 'Others' && lead.statusDetails ? (
+                          <span className="badge" style={{ backgroundColor: 'var(--primary-light)', color: 'var(--primary)' }}>
+                            Info: {lead.statusDetails}
+                          </span>
+                        ) : lead.transactionId ? (
                           <span className="badge" style={{ backgroundColor: '#10b98115', color: '#10b981' }}>UTR: {lead.transactionId}</span>
-                        )}
-                        {lead.status === 'Others' && lead.statusDetails && (
-                          <span className="badge" style={{ backgroundColor: 'var(--primary-light)', color: 'var(--primary)' }}>{lead.statusDetails}</span>
-                        )}
+                        ) : null}
                         {lead.remarks && (
                           <div style={{ width: '100%', fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 8 }}>
                             "{lead.remarks}"
@@ -245,9 +306,36 @@ const MyLeads = () => {
                       </div>
                     </div>
                   </div>
-                  <div className="lead-amount-box" style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)' }}>Lead Amount</div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#10b981' }}>₹{(lead.leadAmount || 0).toLocaleString()}</div>
+                  <div className="lead-actions-col" style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end', minWidth: 120 }}>
+                    <div className="lead-amount-box" style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)' }}>Latest Amount</div>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#10b981' }}>₹{(lead.leadAmount || 0).toLocaleString()}</div>
+                      {lead.totalAmount > lead.leadAmount && (
+                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#8b5cf6', marginTop: 4 }}>
+                          Total: ₹{lead.totalAmount.toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {phone !== 'N/A' && (
+                        <a 
+                          href={`tel:${phone}`} 
+                          className="btn btn-primary btn-icon" 
+                          style={{ 
+                            background: 'linear-gradient(135deg, #10b981, #059669)', 
+                            border: 'none',
+                            width: 42,
+                            height: 42,
+                            borderRadius: '12px',
+                            boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                          }}
+                          title={`Call ${name}`}
+                        >
+                          <PhoneCall size={18} fill="white" />
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -268,6 +356,16 @@ const MyLeads = () => {
           background-color: var(--primary-light-alpha);
         }
       `}</style>
+
+      {modalLead && (
+        <LeadStatusModal 
+          lead={modalLead} 
+          newStatus={modalStatus} 
+          onClose={() => { setModalLead(null); setModalStatus(null); }}
+          onSave={handleModalSave}
+          submitting={modalSubmitting}
+        />
+      )}
     </div>
   );
 };

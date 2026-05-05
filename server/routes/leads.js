@@ -6,31 +6,46 @@ const { ObjectId } = require('mongodb');
 // GET /api/leads/my-leads - Fetch leads for the current agent
 router.get('/my-leads', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
   try {
-    const contactsCollection = getCollection('contacts');
-    let query = { disposition: 'Lead', isDeleted: { $ne: true } };
-    
-    if (req.user.role === 'agent') {
-      query.assignedTo = new ObjectId(req.user._id);
-    } else if (req.user.role === 'tl') {
-      const usersCollection = getCollection('users');
-      const agents = await usersCollection.find({ tlId: new ObjectId(req.user._id) }).toArray();
-      const agentIds = agents.map(a => a._id);
-      query.assignedTo = { $in: agentIds };
-    }
-    // Admin sees all leads
-
-    const leads = await contactsCollection.find(query).sort({ lastModified: -1 }).toArray();
-    
-    // Enrich with agent names
+    const leadsCollection = getCollection('leads');
     const usersCollection = getCollection('users');
-    const enriched = await Promise.all(leads.map(async l => {
-      const agent = await usersCollection.findOne({ _id: l.assignedTo }, { projection: { name: 1 } });
-      return { ...l, agentName: agent?.name || 'Unknown Agent' };
-    }));
+    
+    let matchQuery = {};
+    if (req.user.role === 'agent') {
+      matchQuery.assignedTo = new ObjectId(req.user._id);
+    } else if (req.user.role === 'tl') {
+      const agents = await usersCollection.find({ tlId: new ObjectId(req.user._id) }).toArray();
+      matchQuery.assignedTo = { $in: agents.map(a => a._id) };
+    }
 
-    res.json(enriched);
+    if (req.user.role === 'admin') {
+      // Admin sees every single lead record independently
+      const leads = await leadsCollection.find(matchQuery).sort({ createdAt: -1 }).toArray();
+      res.json(leads);
+    } else {
+      // Agents and TLs see aggregated view (one card per contact with total stats)
+      const pipeline = [
+        { $match: matchQuery },
+        { $addFields: { 
+            normPhone: { $ifNull: ["$fields.Phone", { $ifNull: ["$fields.phone", { $ifNull: ["$fields.Mobile", "N/A"] }] }] } 
+        }},
+        { $sort: { createdAt: -1 } },
+        { $group: {
+            _id: "$normPhone",
+            latestLead: { $first: "$$ROOT" },
+            totalAmount: { $sum: "$leadAmount" },
+            leadsCount: { $sum: 1 }
+        }},
+        { $replaceRoot: { 
+            newRoot: { $mergeObjects: ["$latestLead", { totalAmount: "$totalAmount", leadsCount: "$leadsCount" }] } 
+        }},
+        { $sort: { lastModified: -1 } }
+      ];
+      
+      const aggregatedLeads = await leadsCollection.aggregate(pipeline).toArray();
+      res.json(aggregatedLeads);
+    }
   } catch (err) {
-    console.error(err);
+    console.error('Fetch leads error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -38,8 +53,8 @@ router.get('/my-leads', verify, authorize(['agent', 'tl', 'admin']), async (req,
 // GET /api/leads/appointments - Fetch upcoming appointments
 router.get('/appointments', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
   try {
-    const contactsCollection = getCollection('contacts');
-    let query = { disposition: 'Appointment', isDeleted: { $ne: true } };
+    const appointmentsCollection = getCollection('appointments');
+    let query = {};
     
     if (req.user.role === 'agent') {
       query.assignedTo = new ObjectId(req.user._id);
@@ -50,16 +65,8 @@ router.get('/appointments', verify, authorize(['agent', 'tl', 'admin']), async (
       query.assignedTo = { $in: agentIds };
     }
 
-    const appointments = await contactsCollection.find(query).sort({ appointmentDt: 1 }).toArray();
-    
-    // Enrich with agent names
-    const usersCollection = getCollection('users');
-    const enriched = await Promise.all(appointments.map(async a => {
-      const agent = await usersCollection.findOne({ _id: a.assignedTo }, { projection: { name: 1 } });
-      return { ...a, agentName: agent?.name || 'Unknown Agent' };
-    }));
-
-    res.json(enriched);
+    const appointments = await appointmentsCollection.find(query).sort({ appointmentDt: 1 }).toArray();
+    res.json(appointments);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -69,8 +76,8 @@ router.get('/appointments', verify, authorize(['agent', 'tl', 'admin']), async (
 // GET /api/leads/callbacks - Fetch upcoming callbacks
 router.get('/callbacks', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
   try {
-    const contactsCollection = getCollection('contacts');
-    let query = { disposition: 'CallBack', isDeleted: { $ne: true } };
+    const callbacksCollection = getCollection('callbacks');
+    let query = {};
     
     if (req.user.role === 'agent') {
       query.assignedTo = new ObjectId(req.user._id);
@@ -81,16 +88,8 @@ router.get('/callbacks', verify, authorize(['agent', 'tl', 'admin']), async (req
       query.assignedTo = { $in: agentIds };
     }
 
-    const callbacks = await contactsCollection.find(query).sort({ callBackDt: 1 }).toArray();
-    
-    // Enrich with agent names
-    const usersCollection = getCollection('users');
-    const enriched = await Promise.all(callbacks.map(async c => {
-      const agent = await usersCollection.findOne({ _id: c.assignedTo }, { projection: { name: 1 } });
-      return { ...c, agentName: agent?.name || 'Unknown Agent' };
-    }));
-
-    res.json(enriched);
+    const callbacks = await callbacksCollection.find(query).sort({ callBackDt: 1 }).toArray();
+    res.json(callbacks);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -100,8 +99,8 @@ router.get('/callbacks', verify, authorize(['agent', 'tl', 'admin']), async (req
 // GET /api/leads/stats - Statistics for lead amounts and counts
 router.get('/stats', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
   try {
-    const contactsCollection = getCollection('contacts');
-    let query = { disposition: 'Lead', isDeleted: { $ne: true } };
+    const leadsCollection = getCollection('leads');
+    let query = {};
     
     if (req.user.role === 'agent') {
       query.assignedTo = new ObjectId(req.user._id);
@@ -112,7 +111,7 @@ router.get('/stats', verify, authorize(['agent', 'tl', 'admin']), async (req, re
       query.assignedTo = { $in: agentIds };
     }
 
-    const stats = await contactsCollection.aggregate([
+    const stats = await leadsCollection.aggregate([
       { $match: query },
       { 
         $group: { 

@@ -77,7 +77,7 @@ class AppointmentService {
       
       // 1. Auto-requeue when DUE
       const dueCallbacks = await contactsCollection.find({
-        disposition: 'CallBack',
+        $or: [{ disposition: 'CallBack' }, { status: 'Call Back' }],
         callBackDt: { $lte: now },
         queueOrder: 999999
       }).toArray();
@@ -106,7 +106,7 @@ class AppointmentService {
 
       // 2. Pre-notification (2 minutes before)
       const upcoming = await contactsCollection.find({
-        disposition: 'CallBack',
+        $or: [{ disposition: 'CallBack' }, { status: 'Call Back' }],
         callBackDt: { 
           $gte: now,
           $lte: new Date(now.getTime() + 2 * 60 * 1000)

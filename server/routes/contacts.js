@@ -164,6 +164,67 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
     }
 
     await contactsCollection.updateOne({ _id: new ObjectId(req.params.id) }, { $set: update });
+
+    // Permanent Lead Storage
+    if (disposition === 'Lead') {
+      try {
+        const leadsCollection = getCollection('leads');
+        const leadRecord = {
+          contactId: new ObjectId(req.params.id),
+          fields: contact.fields,
+          batchId: contact.batchId,
+          assignedTo: new ObjectId(req.user._id),
+          agentName: req.user.name,
+          leadAmount: parseFloat(leadAmount) || 0,
+          status: status || 'Converted',
+          statusDetails: statusDetails || '',
+          transactionId: transactionId || '',
+          remarks: remarks || '',
+          createdAt: new Date(),
+          lastModified: new Date()
+        };
+        await leadsCollection.insertOne(leadRecord);
+      } catch (leadErr) {
+        console.error('Failed to save permanent lead record:', leadErr);
+      }
+    } else if (disposition === 'Appointment') {
+      try {
+        const appointmentsCollection = getCollection('appointments');
+        await appointmentsCollection.updateOne(
+          { contactId: new ObjectId(req.params.id) },
+          { $set: {
+              contactId: new ObjectId(req.params.id),
+              fields: contact.fields,
+              assignedTo: new ObjectId(req.user._id),
+              agentName: req.user.name,
+              appointmentDt: appointmentDt ? new Date(appointmentDt) : null,
+              remarks: remarks || '',
+              lastModified: new Date(),
+              createdAt: new Date()
+          }},
+          { upsert: true }
+        );
+      } catch (err) { console.error('Appointment save error:', err); }
+    } else if (disposition === 'CallBack') {
+      try {
+        const callbacksCollection = getCollection('callbacks');
+        await callbacksCollection.updateOne(
+          { contactId: new ObjectId(req.params.id) },
+          { $set: {
+              contactId: new ObjectId(req.params.id),
+              fields: contact.fields,
+              assignedTo: new ObjectId(req.user._id),
+              agentName: req.user.name,
+              callBackDt: callBackDt ? new Date(callBackDt) : null,
+              remarks: remarks || '',
+              lastModified: new Date(),
+              createdAt: new Date()
+          }},
+          { upsert: true }
+        );
+      } catch (err) { console.error('Callback save error:', err); }
+    }
+
     const io = req.app.get('io');
     if (io) io.emit('contact_disposed', { contactId: req.params.id, disposition, agentName: req.user.name });
     res.json({ success: true });
@@ -178,13 +239,37 @@ router.put('/:id/status', verify, authorize(['agent', 'tl', 'admin']), async (re
   try {
     const { status, statusDetails, callBackDt, transactionId } = req.body;
     const contactsCollection = getCollection('contacts');
+    const contactId = new ObjectId(req.params.id);
+
+    // Locking Logic: If lead is already converted with transactionId, agents cannot change it
+    if (req.user.role === 'agent') {
+      const existing = await contactsCollection.findOne({ _id: contactId });
+      if (existing && existing.status === 'Converted' && existing.transactionId) {
+        return res.status(403).json({ error: 'This lead is locked and cannot be modified.' });
+      }
+    }
+
     const update = { lastModified: new Date(), status, statusDetails, transactionId };
     if (callBackDt) update.callBackDt = new Date(callBackDt);
     if (status === 'Converted') {
       update.queueOrder = 999999;
       update.conversionDate = new Date();
     }
-    await contactsCollection.updateOne({ _id: new ObjectId(req.params.id) }, { $set: update });
+    await contactsCollection.updateOne({ _id: contactId }, { $set: update });
+
+    // Sync with Permanent Leads
+    try {
+      const leadsCollection = getCollection('leads');
+      // Update the latest lead record for this contact
+      await leadsCollection.updateOne(
+        { contactId: contactId },
+        { $set: { status, statusDetails, transactionId, lastModified: new Date() } },
+        { sort: { createdAt: -1 } }
+      );
+    } catch (leadErr) {
+      console.error('Failed to sync status to leads collection:', leadErr);
+    }
+
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
@@ -200,7 +285,11 @@ router.delete('/:id', verify, authorize(['admin']), async (req, res) => {
 router.delete('/batch/:batchId', verify, authorize(['admin']), async (req, res) => {
   try {
     const contactsCollection = getCollection('contacts');
-    await contactsCollection.updateMany({ batchId: req.params.batchId }, { $set: { isDeleted: true, deletedAt: new Date() } });
+    // Preservation Logic: Skip contacts that have been disposed as 'Lead'
+    await contactsCollection.updateMany(
+      { batchId: req.params.batchId, disposition: { $ne: 'Lead' } }, 
+      { $set: { isDeleted: true, deletedAt: new Date() } }
+    );
     const batchesCollection = getCollection('batches');
     await batchesCollection.deleteOne({ _id: req.params.batchId });
     res.json({ success: true });
@@ -212,7 +301,11 @@ router.post('/bulk-delete-batches', verify, authorize(['admin']), async (req, re
     const { batchIds } = req.body;
     const contactsCollection = getCollection('contacts');
     const batchesCollection = getCollection('batches');
-    await contactsCollection.updateMany({ batchId: { $in: batchIds } }, { $set: { isDeleted: true, deletedAt: new Date() } });
+    // Preservation Logic: Skip contacts that have been disposed as 'Lead'
+    await contactsCollection.updateMany(
+      { batchId: { $in: batchIds }, disposition: { $ne: 'Lead' } }, 
+      { $set: { isDeleted: true, deletedAt: new Date() } }
+    );
     await batchesCollection.deleteMany({ _id: { $in: batchIds } });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
@@ -224,7 +317,11 @@ router.post('/bulk-delete', verify, authorize(['admin']), async (req, res) => {
     const { ids } = req.body;
     const contactsCollection = getCollection('contacts');
     const objectIds = ids.map(id => new ObjectId(id));
-    await contactsCollection.updateMany({ _id: { $in: objectIds } }, { $set: { isDeleted: true, deletedAt: new Date() } });
+    // Preservation Logic: Skip contacts that have been disposed as 'Lead'
+    await contactsCollection.updateMany(
+      { _id: { $in: objectIds }, disposition: { $ne: 'Lead' } }, 
+      { $set: { isDeleted: true, deletedAt: new Date() } }
+    );
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
@@ -255,7 +352,37 @@ router.post('/:id/requeue', verify, authorize(['admin', 'tl', 'agent']), async (
 
     if (!canUpdate) return res.status(403).json({ error: 'Forbidden' });
 
-    await contactsCollection.updateOne({ _id: contactId }, { $set: { disposition: null, queueOrder: 0, lastModified: new Date() } });
+    if (contact.disposition === 'Lead') {
+      // Duplication Logic: Create a fresh copy for re-contacting
+      const { _id, ...contactData } = contact;
+      const newContact = {
+        ...contactData,
+        disposition: null,
+        queueOrder: 0,
+        remarks: `[Re-contact copy of previous lead]`,
+        lastModified: new Date(),
+        createdAt: new Date(),
+        // Reset lead/disposition specific fields
+        leadAmount: null,
+        conversionDate: null,
+        status: null,
+        statusDetails: null,
+        transactionId: null,
+        callBackDt: null,
+        appointmentDt: null,
+        reminderSent: false,
+        lateNotified: false,
+        cbReminderSent: false,
+        rechurnCount: 0
+      };
+      await contactsCollection.insertOne(newContact);
+    } else {
+      // Standard Logic: Just reset the existing record
+      await contactsCollection.updateOne(
+        { _id: contactId }, 
+        { $set: { disposition: null, queueOrder: 0, lastModified: new Date() } }
+      );
+    }
     
     const io = req.app.get('io');
     if (io) {
