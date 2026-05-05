@@ -96,15 +96,6 @@ class AppointmentService {
 
         // Cleanup: Remove from callbacks table since it's now in the workflow
         await getCollection('callbacks').deleteMany({ contactId: callback._id });
-
-        if (this.io) {
-          this.io.emit('callback_due', {
-            contactId: callback._id,
-            contactName: callback.fields?.Name || callback.fields?.name || 'Unknown',
-            agentId: callback.assignedTo,
-            callBackDt: callback.callBackDt
-          });
-        }
       }
 
       // 2. Pre-notification (2 minutes before)
@@ -147,17 +138,26 @@ class AppointmentService {
 
       await contactsCollection.updateOne({ _id: appointment._id }, { $set: update });
 
-      if (this.io) {
-        this.io.emit('appointment_reminder', {
-          appointmentId: appointment._id,
-          contactName: appointment.fields?.Name || appointment.fields?.name || 'Unknown',
-          appointmentTime: appointment.appointmentDt,
-          minutesUntil,
-          type, // 'upcoming' or 'late'
-          agentId: agent._id,
-          agentName: agent.name,
-          contactPhone: appointment.fields?.Phone || appointment.fields?.Mobile || 'N/A'
-        });
+        if (this.io) {
+          this.io.emit('appointment_reminder', {
+            appointmentId: appointment._id,
+            contactName: appointment.fields?.Name || appointment.fields?.name || 'Unknown',
+            appointmentTime: appointment.appointmentDt,
+            minutesUntil,
+            type, // 'upcoming' or 'late'
+            agentId: agent._id,
+            agentName: agent.name,
+            contactPhone: appointment.fields?.Phone || appointment.fields?.Mobile || 'N/A'
+          });
+        }
+
+        // Update database flags so it only rings ONCE
+        const contactsCollection = getCollection('contacts');
+        if (type === 'upcoming') {
+          await contactsCollection.updateOne({ _id: appointment._id }, { $set: { reminderSent: true } });
+        } else if (type === 'late') {
+          await contactsCollection.updateOne({ _id: appointment._id }, { $set: { lateNotified: true } });
+        }
       }
     } catch (error) {
       console.error('Send reminder error:', error);
