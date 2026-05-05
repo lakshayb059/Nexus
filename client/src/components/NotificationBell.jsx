@@ -74,12 +74,26 @@ const NotificationBell = () => {
 
     socket.on('callback_due', (data) => {
       if (data.agentId === user._id) {
-        playSound();
+        // No sound for due - only for reminder
         addNotification({
           id: `cb_${Date.now()}`,
           type: 'callback',
-          title: data.isLead ? 'Lead Callback Due' : 'Callback Due Now',
-          message: data.contactName + (data.isLead ? ' (Lead)' : ''),
+          title: 'Callback Due Now',
+          message: data.contactName,
+          time: new Date(),
+          path: '/callbacks'
+        });
+      }
+    });
+
+    socket.on('callback_reminder', (data) => {
+      if (data.agentId === user._id) {
+        playSound();
+        addNotification({
+          id: `cbr_${Date.now()}`,
+          type: 'callback',
+          title: 'Callback in 2 min',
+          message: `${data.contactName} - Prepare for call`,
           time: new Date(),
           path: '/callbacks'
         });
@@ -88,7 +102,7 @@ const NotificationBell = () => {
 
     socket.on('requeue_notification', (data) => {
       if (data.agentId === user._id) {
-        playSound();
+        // No sound for requeue
         addNotification({
           id: `rq_${Date.now()}`,
           type: 'callback',
@@ -102,7 +116,7 @@ const NotificationBell = () => {
 
     socket.on('batch_uploaded', (data) => {
       if (data.agentId === user._id) {
-        playSound();
+        // No sound for batch
         addNotification({
           id: `wf_${Date.now()}`,
           type: 'workflow',
@@ -118,6 +132,7 @@ const NotificationBell = () => {
     return () => {
       socket.off('appointment_reminder');
       socket.off('callback_due');
+      socket.off('callback_reminder');
       socket.off('requeue_notification');
       socket.off('batch_uploaded');
     };

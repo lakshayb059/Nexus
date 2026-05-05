@@ -51,19 +51,7 @@ class AppointmentService {
         await this.sendReminder(app, mins, 'upcoming');
       }
 
-      // 2. Check for "LATE" appointments (missed by ~1 minute)
-      const late = await contactsCollection.find({
-        disposition: 'Appointment',
-        appointmentDt: {
-          $lte: new Date(now.getTime() - 60 * 1000),
-          $gte: new Date(now.getTime() - 10 * 60 * 1000)
-        },
-        lateNotified: { $ne: true }
-      }).toArray();
-
-      for (const app of late) {
-        await this.sendReminder(app, -1, 'late');
-      }
+      // 2. Removed "LATE" appointments check to ensure ONLY 2-min before ring
 
     } catch (error) {
       console.error('Appointment check error:', error);
