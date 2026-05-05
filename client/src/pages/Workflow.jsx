@@ -86,9 +86,9 @@ const Workflow = () => {
 
     setSubmitting(true);
     try {
-      const payload = { ...dispForm };
+      let payload = { ...dispForm };
       
-      // Convert local date strings to ISO strings to preserve the exact moment across timezones
+      // Convert local date strings to ISO strings
       if (payload.appointmentDt) {
         payload.appointmentDt = new Date(payload.appointmentDt).toISOString();
       }
@@ -100,7 +100,38 @@ const Workflow = () => {
       setDispForm({ disposition: '', remarks: '', appointmentDt: '', leadAmount: '', callBackDt: '', status: '', statusDetails: '', transactionId: '' });
       fetchNext();
     } catch (err) {
-      alert(err.response?.data?.error || 'Disposition failed');
+      if (err.response?.status === 409 && err.response?.data?.error === 'EXISTING_LEAD') {
+        const targetSection = dispForm.status === 'Call Back' ? 'Callback' : 'Appointment';
+        const confirmRedirect = window.confirm(
+          `A lead record already exists for this contact.\n\nWould you like to save this update in the ${targetSection} section instead?`
+        );
+        
+        if (confirmRedirect) {
+          // Change disposition based on the status and retry
+          let retryPayload = { ...dispForm };
+          if (retryPayload.status === 'Call Back') {
+            retryPayload.disposition = 'CallBack';
+          } else {
+            retryPayload.disposition = 'Appointment';
+            if (!retryPayload.appointmentDt) retryPayload.appointmentDt = retryPayload.callBackDt || new Date().toISOString();
+          }
+          
+          // Format dates for retry
+          if (retryPayload.appointmentDt) retryPayload.appointmentDt = new Date(retryPayload.appointmentDt).toISOString();
+          if (retryPayload.callBackDt) retryPayload.callBackDt = new Date(retryPayload.callBackDt).toISOString();
+          
+          try {
+            await api.post(`/contacts/${data.contact._id}/dispose`, retryPayload);
+            setDispForm({ disposition: '', remarks: '', appointmentDt: '', leadAmount: '', callBackDt: '', status: '', statusDetails: '', transactionId: '' });
+            fetchNext();
+            return;
+          } catch (retryErr) {
+            alert('Failed to save redirected task');
+          }
+        }
+      } else {
+        alert(err.response?.data?.error || 'Disposition failed');
+      }
     } finally {
       setSubmitting(false);
     }

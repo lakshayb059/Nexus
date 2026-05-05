@@ -20,6 +20,11 @@ const MyLeads = () => {
   const [modalLead,       setModalLead]       = useState(null);
   const [modalStatus,     setModalStatus]     = useState(null);
   const [modalSubmitting, setModalSubmitting] = useState(false);
+  
+  // History Modal State
+  const [historyContact, setHistoryContact] = useState(null);
+  const [historyData,    setHistoryData]    = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -34,6 +39,19 @@ const MyLeads = () => {
       console.error('Fetch leads failed', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchHistory = async (phone, name) => {
+    try {
+      setHistoryLoading(true);
+      setHistoryContact({ phone, name });
+      const res = await api.get(`/leads/history/${phone}`);
+      setHistoryData(res.data);
+    } catch (err) {
+      console.error('Fetch history failed', err);
+    } finally {
+      setHistoryLoading(false);
     }
   };
 
@@ -53,7 +71,7 @@ const MyLeads = () => {
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this lead? This will remove all associated data.')) return;
     try {
-      await api.delete(`/contacts/${id}`);
+      await api.delete(`/leads/${id}`);
       fetchData();
       setSelectedIds(prev => prev.filter(i => i !== id));
     } catch (err) {
@@ -64,7 +82,7 @@ const MyLeads = () => {
   const handleBulkDelete = async () => {
     if (!window.confirm(`Are you sure you want to delete ${selectedIds.length} selected leads?`)) return;
     try {
-      await api.post('/contacts/bulk-delete', { ids: selectedIds });
+      await api.post('/leads/bulk-delete', { ids: selectedIds });
       setSelectedIds([]);
       fetchData();
     } catch (err) {
@@ -72,17 +90,24 @@ const MyLeads = () => {
     }
   };
 
-  const handleStatusChange = async (lead, newStatus) => {
+  const handleStatusChange = async (target, newStatus, type = 'contact') => {
     // If it's a special status requiring input, show modal
     if (['Converted', 'Call Back', 'Others'].includes(newStatus)) {
-      setModalLead(lead);
+      setModalLead({ ...target, type });
       setModalStatus(newStatus);
       return;
     }
 
     // Simple status update
     try {
-      await api.put(`/contacts/${lead._id}/status`, { status: newStatus });
+      if (type === 'lead') {
+        await api.put(`/leads/${target._id}`, { status: newStatus });
+        fetchHistory(historyContact.phone, historyContact.name);
+      } else {
+        // Main dashboard updates use contactId
+        const cid = target.contactId || target._id;
+        await api.put(`/contacts/${cid}/status`, { status: newStatus });
+      }
       fetchData();
     } catch (err) {
       alert(err.response?.data?.error || 'Update failed');
@@ -92,10 +117,20 @@ const MyLeads = () => {
   const handleModalSave = async (formData) => {
     setModalSubmitting(true);
     try {
-      await api.put(`/contacts/${modalLead._id}/status`, { 
-        status: modalStatus, 
-        ...formData 
-      });
+      if (modalLead.type === 'lead') {
+        await api.put(`/leads/${modalLead._id}`, { 
+          status: modalStatus, 
+          ...formData 
+        });
+        fetchHistory(historyContact.phone, historyContact.name);
+      } else {
+        // Main dashboard updates use contactId
+        const cid = modalLead.contactId || modalLead._id;
+        await api.put(`/contacts/${cid}/status`, { 
+          status: modalStatus, 
+          ...formData 
+        });
+      }
       setModalLead(null);
       setModalStatus(null);
       fetchData();
@@ -264,9 +299,13 @@ const MyLeads = () => {
                         <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Calendar size={13} /> {new Date(lead.lastModified || lead.createdAt).toLocaleDateString()}</span>
                         {lead.agentName && <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>by {lead.agentName}</span>}
                         {lead.leadsCount > 1 && (
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#8b5cf6', fontWeight: 700 }}>
+                          <button 
+                            onClick={() => fetchHistory(phone, name)}
+                            className="badge-link"
+                            style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#8b5cf6', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                          >
                             <TrendingUp size={13} /> {lead.leadsCount} Total Conversions
-                          </span>
+                          </button>
                         )}
                       </div>
                       
@@ -277,7 +316,7 @@ const MyLeads = () => {
                           value={lead.status || ''}
                           disabled={isLocked}
                           title={isLocked ? "This lead is locked and cannot be modified by agents." : ""}
-                          onChange={(e) => handleStatusChange(lead, e.target.value)}
+                          onChange={(e) => handleStatusChange(lead, e.target.value, 'contact')}
                         >
                           <option value="">Set Status</option>
                           <option value="Converted">Converted</option>
@@ -355,6 +394,13 @@ const MyLeads = () => {
         .lead-list-item.selected {
           background-color: var(--primary-light-alpha);
         }
+        .badge-link {
+          transition: transform 0.2s;
+        }
+        .badge-link:hover {
+          transform: scale(1.05);
+          text-decoration: underline;
+        }
       `}</style>
 
       {modalLead && (
@@ -365,6 +411,99 @@ const MyLeads = () => {
           onSave={handleModalSave}
           submitting={modalSubmitting}
         />
+      )}
+
+      {/* History Modal */}
+      {historyContact && (
+        <div className="status-modal-overlay animate-fade-in">
+          <div className="status-modal-content animate-scale-up" style={{ maxWidth: 600 }}>
+            <div className="status-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div className="status-icon-wrapper" style={{ background: '#8b5cf615', color: '#8b5cf6' }}>
+                  <TrendingUp size={24} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900 }}>Conversion History</h3>
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>{historyContact.name} ({historyContact.phone})</p>
+                </div>
+              </div>
+              <button onClick={() => setHistoryContact(null)} className="status-modal-close">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="status-modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+              {historyLoading ? (
+                <div style={{ padding: '40px', textAlign: 'center' }}><RotateCw className="animate-spin" size={32} /></div>
+              ) : historyData.length === 0 ? (
+                <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>No historical records found.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {historyData.map((h, i) => (
+                    <div key={h._id} style={{ 
+                      padding: 16, 
+                      borderRadius: 16, 
+                      background: 'var(--bg-surface-2)', 
+                      borderLeft: `4px solid ${h.status === 'Converted' ? '#10b981' : h.status === 'Not Interested' ? '#ef4444' : 'var(--border)'}` 
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                        <select 
+                          className="input-field" 
+                          style={{ marginBottom: 0, padding: '2px 8px', fontSize: '0.7rem', height: 28, width: 'auto', minWidth: 120 }}
+                          value={h.status || ''}
+                          disabled={h.status === 'Converted' && h.transactionId && user?.role !== 'admin'}
+                          title={h.status === 'Converted' && h.transactionId && user?.role !== 'admin' ? "Locked conversions cannot be modified by agents." : ""}
+                          onChange={(e) => handleStatusChange(h, e.target.value, 'lead')}
+                        >
+                          <option value="">Set Status</option>
+                          <option value="Converted">Converted</option>
+                          <option value="Not Interested">Not Interested</option>
+                          <option value="DNC/DND">DNC/DND</option>
+                          <option value="Call Back">Call Back</option>
+                          <option value="Others">Others</option>
+                        </select>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{new Date(h.createdAt).toLocaleString()}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                        <div>
+                          <div style={{ fontSize: '1.1rem', fontWeight: 900, color: 'var(--text-primary)' }}>₹{(h.leadAmount || 0).toLocaleString()}</div>
+                          {h.agentName && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>Handled by: {h.agentName}</div>}
+                          
+                          {/* Specific Details - Conditional based on current record status */}
+                          {h.status === 'Call Back' && h.callBackDt && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--cyan)', fontWeight: 700, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <Calendar size={12} /> Callback: {new Date(h.callBackDt).toLocaleString()}
+                            </div>
+                          )}
+                          {h.status === 'Appointment' && h.appointmentDt && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--violet)', fontWeight: 700, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <Calendar size={12} /> Appointment: {new Date(h.appointmentDt).toLocaleString()}
+                            </div>
+                          )}
+                        </div>
+                        {h.status === 'Converted' && h.transactionId && (
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>UTR / Trans ID</div>
+                            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--success)' }}>{h.transactionId}</div>
+                          </div>
+                        )}
+                      </div>
+                      {h.remarks && (
+                        <div style={{ marginTop: 12, fontSize: '0.8rem', fontStyle: 'italic', color: 'var(--text-secondary)', background: 'rgba(0,0,0,0.03)', padding: '8px 12px', borderRadius: 8 }}>
+                          "{h.remarks}"
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <div className="status-modal-footer">
+              <button onClick={() => setHistoryContact(null)} className="btn btn-primary" style={{ width: '100%' }}>Close History</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

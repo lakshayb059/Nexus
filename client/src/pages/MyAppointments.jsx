@@ -11,6 +11,7 @@ const MyAppointments = () => {
   const [loading,      setLoading]      = useState(true);
   const [showModal,    setShowModal]    = useState(false);
   const [selectedApp,  setSelectedApp]  = useState(null);
+  const [selectedIds,  setSelectedIds]  = useState([]);
 
   const fetchAppointments = async () => {
     try {
@@ -42,6 +43,40 @@ const MyAppointments = () => {
       // Time in the future -> show modal
       setSelectedApp(app);
       setShowModal(true);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this appointment record?')) return;
+    try {
+      await api.delete(`/leads/appointments/${id}`);
+      fetchAppointments();
+      setSelectedIds(prev => prev.filter(i => i !== id));
+    } catch (err) {
+      alert('Delete failed');
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!window.confirm(`Are you sure you want to delete ${selectedIds.length} selected appointments?`)) return;
+    try {
+      await api.post('/leads/appointments/bulk-delete', { ids: selectedIds });
+      setSelectedIds([]);
+      fetchAppointments();
+    } catch (err) {
+      alert('Bulk delete failed');
+    }
+  };
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === appointments.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(appointments.map(a => a._id));
     }
   };
 
@@ -84,6 +119,27 @@ const MyAppointments = () => {
           {appointments.length} Scheduled
         </span>
       </div>
+
+      {user?.role === 'admin' && appointments.length > 0 && (
+        <div className="glass-panel" style={{ padding: '12px 20px', marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: 'var(--r-md)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <input 
+              type="checkbox" 
+              checked={selectedIds.length === appointments.length && appointments.length > 0} 
+              onChange={toggleSelectAll}
+              style={{ width: 18, height: 18, cursor: 'pointer' }}
+            />
+            <span style={{ fontSize: '0.9rem', fontWeight: 700 }}>
+              {selectedIds.length > 0 ? `${selectedIds.length} Selected` : 'Select All'}
+            </span>
+          </div>
+          {selectedIds.length > 0 && (
+            <button className="btn btn-danger" onClick={handleBulkDelete} style={{ padding: '8px 16px', fontSize: '0.8rem' }}>
+              <X size={14} /> Bulk Delete
+            </button>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -135,6 +191,15 @@ const MyAppointments = () => {
                   </div>
                   <div style={{ fontSize: '2rem', fontWeight: 900, lineHeight: 1.1 }}>{day}</div>
                   <div style={{ fontSize: '0.8rem', fontWeight: 600, marginTop: 2, opacity: 0.9 }}>{time}</div>
+                  {user?.role === 'admin' && (
+                    <input 
+                      type="checkbox" 
+                      checked={selectedIds.includes(app._id)}
+                      onChange={() => toggleSelect(app._id)}
+                      onClick={e => e.stopPropagation()}
+                      style={{ marginTop: 12, width: 18, height: 18, cursor: 'pointer' }}
+                    />
+                  )}
                 </div>
 
                 {/* Content */}
@@ -166,6 +231,11 @@ const MyAppointments = () => {
                     <button className="btn btn-primary appt-action-btn" onClick={() => handleContactNow(app)} style={{ padding: '10px 20px', flexShrink: 0 }}>
                       <span className="hide-mobile">Contact Now</span>
                       <ChevronRight size={16} />
+                    </button>
+                  )}
+                  {user?.role === 'admin' && (
+                    <button className="btn btn-danger appt-action-btn" onClick={() => handleDelete(app._id)} style={{ padding: '10px 20px', flexShrink: 0 }}>
+                      <X size={16} />
                     </button>
                   )}
                 </div>

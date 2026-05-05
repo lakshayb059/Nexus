@@ -11,6 +11,7 @@ const MyCallbacks = () => {
   const [loading,   setLoading]   = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedCb, setSelectedCb] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
 
   const fetchCallbacks = async () => {
     try {
@@ -42,6 +43,40 @@ const MyCallbacks = () => {
       // Time in the future -> show modal
       setSelectedCb(cb);
       setShowModal(true);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this callback record?')) return;
+    try {
+      await api.delete(`/leads/callbacks/${id}`);
+      fetchCallbacks();
+      setSelectedIds(prev => prev.filter(i => i !== id));
+    } catch (err) {
+      alert('Delete failed');
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!window.confirm(`Are you sure you want to delete ${selectedIds.length} selected callbacks?`)) return;
+    try {
+      await api.post('/leads/callbacks/bulk-delete', { ids: selectedIds });
+      setSelectedIds([]);
+      fetchCallbacks();
+    } catch (err) {
+      alert('Bulk delete failed');
+    }
+  };
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === callbacks.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(callbacks.map(c => c._id));
     }
   };
 
@@ -91,6 +126,27 @@ const MyCallbacks = () => {
           {callbacks.length} Scheduled
         </span>
       </div>
+
+      {user?.role === 'admin' && callbacks.length > 0 && (
+        <div className="glass-panel" style={{ padding: '12px 20px', marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: 'var(--r-md)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <input 
+              type="checkbox" 
+              checked={selectedIds.length === callbacks.length && callbacks.length > 0} 
+              onChange={toggleSelectAll}
+              style={{ width: 18, height: 18, cursor: 'pointer' }}
+            />
+            <span style={{ fontSize: '0.9rem', fontWeight: 700 }}>
+              {selectedIds.length > 0 ? `${selectedIds.length} Selected` : 'Select All'}
+            </span>
+          </div>
+          {selectedIds.length > 0 && (
+            <button className="btn btn-danger" onClick={handleBulkDelete} style={{ padding: '8px 16px', fontSize: '0.8rem' }}>
+              <X size={14} /> Bulk Delete
+            </button>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -142,6 +198,15 @@ const MyCallbacks = () => {
                   </div>
                   <div style={{ fontSize: '2rem', fontWeight: 900, lineHeight: 1.1 }}>{day}</div>
                   <div style={{ fontSize: '0.8rem', fontWeight: 600, marginTop: 2, opacity: 0.9 }}>{time}</div>
+                  {user?.role === 'admin' && (
+                    <input 
+                      type="checkbox" 
+                      checked={selectedIds.includes(cb._id)}
+                      onChange={() => toggleSelect(cb._id)}
+                      onClick={e => e.stopPropagation()}
+                      style={{ marginTop: 12, width: 18, height: 18, cursor: 'pointer' }}
+                    />
+                  )}
                 </div>
 
                 {/* Content */}
@@ -184,6 +249,11 @@ const MyCallbacks = () => {
                     <button className="btn btn-primary appt-action-btn" onClick={() => handleContactNow(cb)} style={{ padding: '10px 20px', flexShrink: 0 }}>
                       <span className="hide-mobile">Contact Now</span>
                       <ChevronRight size={16} />
+                    </button>
+                  )}
+                  {user?.role === 'admin' && (
+                    <button className="btn btn-danger appt-action-btn" onClick={() => handleDelete(cb._id)} style={{ padding: '10px 20px', flexShrink: 0 }}>
+                      <X size={16} />
                     </button>
                   )}
                 </div>

@@ -165,10 +165,25 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
 
     await contactsCollection.updateOne({ _id: new ObjectId(req.params.id) }, { $set: update });
 
-    // Permanent Lead Storage
+    // Permanent Lead Storage Logic
     if (disposition === 'Lead') {
+      const leadsCollection = getCollection('leads');
+      const isFinalStatus = status === 'Converted' || status === 'Not Interested';
+      
+      // Check if lead already exists for this contact
+      const existingLead = await leadsCollection.findOne({ contactId: new ObjectId(req.params.id) });
+
+      if (!isFinalStatus && existingLead) {
+        // If not a final status and lead already exists, block and ask agent to use CallBack/Appointment
+        return res.status(409).json({ 
+          error: 'EXISTING_LEAD', 
+          message: 'A lead record already exists for this contact. Please save as Callback or Appointment.' 
+        });
+      }
+
+      // If no lead exists OR if it's a final status update (we can allow multiple final records or update?)
+      // User said "if dont then save the lead in my leads"
       try {
-        const leadsCollection = getCollection('leads');
         const leadRecord = {
           contactId: new ObjectId(req.params.id),
           fields: contact.fields,
@@ -176,7 +191,7 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
           assignedTo: new ObjectId(req.user._id),
           agentName: req.user.name,
           leadAmount: parseFloat(leadAmount) || 0,
-          status: status || 'Converted',
+          status: status || 'Pending',
           statusDetails: statusDetails || '',
           transactionId: transactionId || '',
           remarks: remarks || '',
@@ -190,38 +205,34 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
     } else if (disposition === 'Appointment') {
       try {
         const appointmentsCollection = getCollection('appointments');
-        await appointmentsCollection.updateOne(
-          { contactId: new ObjectId(req.params.id) },
-          { $set: {
-              contactId: new ObjectId(req.params.id),
-              fields: contact.fields,
-              assignedTo: new ObjectId(req.user._id),
-              agentName: req.user.name,
-              appointmentDt: appointmentDt ? new Date(appointmentDt) : null,
-              remarks: remarks || '',
-              lastModified: new Date(),
-              createdAt: new Date()
-          }},
-          { upsert: true }
-        );
+        const appointmentRecord = {
+          contactId: new ObjectId(req.params.id),
+          fields: contact.fields,
+          batchId: contact.batchId,
+          assignedTo: new ObjectId(req.user._id),
+          agentName: req.user.name,
+          appointmentDt: appointmentDt ? new Date(appointmentDt) : null,
+          remarks: remarks || '',
+          createdAt: new Date(),
+          lastModified: new Date()
+        };
+        await appointmentsCollection.insertOne(appointmentRecord);
       } catch (err) { console.error('Appointment save error:', err); }
     } else if (disposition === 'CallBack') {
       try {
         const callbacksCollection = getCollection('callbacks');
-        await callbacksCollection.updateOne(
-          { contactId: new ObjectId(req.params.id) },
-          { $set: {
-              contactId: new ObjectId(req.params.id),
-              fields: contact.fields,
-              assignedTo: new ObjectId(req.user._id),
-              agentName: req.user.name,
-              callBackDt: callBackDt ? new Date(callBackDt) : null,
-              remarks: remarks || '',
-              lastModified: new Date(),
-              createdAt: new Date()
-          }},
-          { upsert: true }
-        );
+        const callbackRecord = {
+          contactId: new ObjectId(req.params.id),
+          fields: contact.fields,
+          batchId: contact.batchId,
+          assignedTo: new ObjectId(req.user._id),
+          agentName: req.user.name,
+          callBackDt: callBackDt ? new Date(callBackDt) : null,
+          remarks: remarks || '',
+          createdAt: new Date(),
+          lastModified: new Date()
+        };
+        await callbacksCollection.insertOne(callbackRecord);
       } catch (err) { console.error('Callback save error:', err); }
     }
 
@@ -380,7 +391,7 @@ router.post('/:id/requeue', verify, authorize(['admin', 'tl', 'agent']), async (
       // Standard Logic: Just reset the existing record
       await contactsCollection.updateOne(
         { _id: contactId }, 
-        { $set: { disposition: null, queueOrder: 0, lastModified: new Date() } }
+        { $set: { disposition: null, queueOrder: 0, isDeleted: false, deletedAt: null, lastModified: new Date() } }
       );
     }
     
