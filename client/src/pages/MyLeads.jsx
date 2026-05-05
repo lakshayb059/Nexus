@@ -6,24 +6,24 @@ import { Star, TrendingUp, Users, Calendar, Search, PhoneCall, Award, Target, Tr
 import LeadStatusModal from '../components/LeadStatusModal';
 
 const MyLeads = () => {
-  const { user }   = useAuth();
+  const { user } = useAuth();
   const { socket } = useSocket();
-  const [leads,      setLeads]      = useState([]);
-  const [loading,    setLoading]    = useState(true);
-  const [searchTerm,   setSearchTerm]   = useState('');
+  const [leads, setLeads] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
   const [sourceFilter, setSourceFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [stats,        setStats]        = useState({ totalLeads: 0, totalAmount: 0 });
-  const [selectedIds,  setSelectedIds]  = useState([]);
-  
+  const [stats, setStats] = useState({ totalLeads: 0, totalAmount: 0 });
+  const [selectedIds, setSelectedIds] = useState([]);
+
   // Modal State
-  const [modalLead,       setModalLead]       = useState(null);
-  const [modalStatus,     setModalStatus]     = useState(null);
+  const [modalLead, setModalLead] = useState(null);
+  const [modalStatus, setModalStatus] = useState(null);
   const [modalSubmitting, setModalSubmitting] = useState(false);
-  
+
   // History Modal State
   const [historyContact, setHistoryContact] = useState(null);
-  const [historyData,    setHistoryData]    = useState([]);
+  const [historyData, setHistoryData] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
   const fetchData = async () => {
@@ -118,17 +118,17 @@ const MyLeads = () => {
     setModalSubmitting(true);
     try {
       if (modalLead.type === 'lead') {
-        await api.put(`/leads/${modalLead._id}`, { 
-          status: modalStatus, 
-          ...formData 
+        await api.put(`/leads/${modalLead._id}`, {
+          status: modalStatus,
+          ...formData
         });
         fetchHistory(historyContact.phone, historyContact.name);
       } else {
         // Main dashboard updates use contactId
         const cid = modalLead.contactId || modalLead._id;
-        await api.put(`/contacts/${cid}/status`, { 
-          status: modalStatus, 
-          ...formData 
+        await api.put(`/contacts/${cid}/status`, {
+          status: modalStatus,
+          ...formData
         });
       }
       setModalLead(null);
@@ -157,7 +157,7 @@ const MyLeads = () => {
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
       const match = Object.values(l.fields || {}).some(v => String(v).toLowerCase().includes(q)) ||
-                    (l.agentName && l.agentName.toLowerCase().includes(q));
+        (l.agentName && l.agentName.toLowerCase().includes(q));
       if (!match) return false;
     }
     if (sourceFilter === 'created' && l.batchId) return false;
@@ -211,7 +211,7 @@ const MyLeads = () => {
           <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
           <input type="text" className="input-field" placeholder="Search by name, phone…" style={{ paddingLeft: 36, marginBottom: 0 }} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
         </div>
-        
+
         <select className="input-field" style={{ width: 'auto', flex: 1, minWidth: 140, marginBottom: 0 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
           <option value="all">All Status</option>
           <option value="Converted">Converted</option>
@@ -242,26 +242,26 @@ const MyLeads = () => {
             const name = fields.Name || fields.name || 'Unknown';
             const phone = fields.Phone || fields.phone || fields.Mobile || 'N/A';
             const isSelected = selectedIds.includes(lead._id);
-            
+
             const isNegative = lead.status === 'Not Interested' || lead.status === 'DNC/DND';
             const isConverted = lead.status === 'Converted';
             const isLocked = isConverted && lead.transactionId && user?.role !== 'admin';
 
             return (
-              <div key={lead._id} className={`glass-panel lead-list-item ${isSelected ? 'selected' : ''}`} style={{ 
-                padding: 'var(--card-p)', 
-                borderLeft: isSelected ? '4px solid var(--primary)' : `4px solid ${isConverted ? '#10b981' : isNegative ? '#ef4444' : lead.status === 'Call Back' ? '#06b6d4' : 'var(--border)'}`, 
+              <div key={lead._id} className={`glass-panel lead-list-item ${isSelected ? 'selected' : ''}`} style={{
+                padding: 'var(--card-p)',
+                borderLeft: isSelected ? '4px solid var(--primary)' : `4px solid ${isConverted ? '#10b981' : isNegative ? '#ef4444' : lead.status === 'Call Back' ? '#06b6d4' : 'var(--border)'}`,
                 position: 'relative',
                 opacity: isLocked ? 0.8 : 1
               }}>
-                
+
                 {user?.role === 'admin' && (
                   <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10 }}>
-                    <input 
-                      type="checkbox" 
-                      checked={isSelected} 
-                      onChange={() => toggleSelect(lead._id)} 
-                      style={{ width: 18, height: 18, cursor: 'pointer', accentColor: 'var(--primary)' }} 
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelect(lead._id)}
+                      style={{ width: 18, height: 18, cursor: 'pointer', accentColor: 'var(--primary)' }}
                     />
                   </div>
                 )}
@@ -270,14 +270,17 @@ const MyLeads = () => {
                 <div className="lead-card-container">
                   <div className="lead-card-main">
                     <div style={{ display: 'flex', gap: 'var(--gap)', alignItems: 'center', flex: 1, minWidth: 0 }}>
-                      <div className="lead-card-icon" style={{ 
-                        background: isConverted ? 'linear-gradient(135deg,var(--success),#059669)' : isNegative ? 'linear-gradient(135deg,var(--danger),#b91c1c)' : 'var(--bg-surface-2)', 
+                      <div className="lead-card-icon" style={{
+                        background: isConverted ? 'linear-gradient(135deg,var(--success),#059669)' : isNegative ? 'linear-gradient(135deg,var(--danger),#b91c1c)' : 'var(--bg-surface-2)',
                         color: (isConverted || isNegative) ? '#fff' : 'var(--text-muted)'
                       }}>
                         <Star size={22} fill={(isConverted || isNegative) ? "white" : "none"} />
                       </div>
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>{name}</h3>
+                        <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>
+                          {name}
+                          {lead.status === 'Call Back' && <span className="badge badge-cyan" style={{ fontSize: '0.6rem', marginLeft: 8 }}>Lead Callback</span>}
+                        </h3>
                         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 500 }}>
                           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><PhoneCall size={12} /> {phone}</span>
                           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={12} /> {new Date(lead.lastModified || lead.createdAt).toLocaleDateString()}</span>
@@ -287,7 +290,7 @@ const MyLeads = () => {
                             </button>
                           )}
                         </div>
-                        
+
                         <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                           <select className="input-field" style={{ marginBottom: 0, padding: '2px 8px', fontSize: '0.7rem', height: 28, width: 'auto', minWidth: 110, cursor: isLocked ? 'not-allowed' : 'pointer' }} value={lead.status || ''} disabled={isLocked} onChange={(e) => handleStatusChange(lead, e.target.value, 'contact')}>
                             <option value="">Set Status</option>
@@ -315,7 +318,7 @@ const MyLeads = () => {
                       <div style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--success)', lineHeight: 1, margin: '2px 0' }}>₹{(lead.leadAmount || 0).toLocaleString()}</div>
                       {lead.totalAmount > lead.leadAmount && <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--violet)' }}>Total: ₹{lead.totalAmount.toLocaleString()}</div>}
                     </div>
-                    
+
                     <div style={{ display: 'flex', gap: 6 }}>
                       {user?.role !== 'admin' && phone !== 'N/A' && (
                         <a href={`tel:${phone}`} className="btn btn-primary btn-icon" style={{ width: 36, height: 36, borderRadius: 10 }}>
@@ -335,7 +338,7 @@ const MyLeads = () => {
           })}
         </div>
       )}
-      
+
       <style>{`
         .lead-list-item { transition: all 0.2s; }
         .lead-list-item:hover { transform: translateX(4px); box-shadow: var(--shadow-lg); }
@@ -353,9 +356,9 @@ const MyLeads = () => {
       `}</style>
 
       {modalLead && (
-        <LeadStatusModal 
-          lead={modalLead} 
-          newStatus={modalStatus} 
+        <LeadStatusModal
+          lead={modalLead}
+          newStatus={modalStatus}
           onClose={() => { setModalLead(null); setModalStatus(null); }}
           onSave={handleModalSave}
           submitting={modalSubmitting}
@@ -380,7 +383,7 @@ const MyLeads = () => {
                 <X size={20} />
               </button>
             </div>
-            
+
             <div className="status-modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
               {historyLoading ? (
                 <div style={{ padding: '40px', textAlign: 'center' }}><RotateCw className="animate-spin" size={32} /></div>
@@ -389,15 +392,15 @@ const MyLeads = () => {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   {historyData.map((h, i) => (
-                    <div key={h._id} style={{ 
-                      padding: 16, 
-                      borderRadius: 16, 
-                      background: 'var(--bg-surface-2)', 
-                      borderLeft: `4px solid ${h.status === 'Converted' ? '#10b981' : h.status === 'Not Interested' ? '#ef4444' : 'var(--border)'}` 
+                    <div key={h._id} style={{
+                      padding: 16,
+                      borderRadius: 16,
+                      background: 'var(--bg-surface-2)',
+                      borderLeft: `4px solid ${h.status === 'Converted' ? '#10b981' : h.status === 'Not Interested' ? '#ef4444' : 'var(--border)'}`
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-                        <select 
-                          className="input-field" 
+                        <select
+                          className="input-field"
                           style={{ marginBottom: 0, padding: '2px 8px', fontSize: '0.7rem', height: 28, width: 'auto', minWidth: 120 }}
                           value={h.status || ''}
                           disabled={h.status === 'Converted' && h.transactionId && user?.role !== 'admin'}
@@ -417,7 +420,7 @@ const MyLeads = () => {
                         <div>
                           <div style={{ fontSize: '1.1rem', fontWeight: 900, color: 'var(--text-primary)' }}>₹{(h.leadAmount || 0).toLocaleString()}</div>
                           {h.agentName && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>Handled by: {h.agentName}</div>}
-                          
+
                           {/* Specific Details - Conditional based on current record status */}
                           {h.status === 'Call Back' && h.callBackDt && (
                             <div style={{ fontSize: '0.75rem', color: 'var(--cyan)', fontWeight: 700, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -447,7 +450,7 @@ const MyLeads = () => {
                 </div>
               )}
             </div>
-            
+
             <div className="status-modal-footer">
               <button onClick={() => setHistoryContact(null)} className="btn btn-primary" style={{ width: '100%' }}>Close History</button>
             </div>

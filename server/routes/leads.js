@@ -8,7 +8,7 @@ router.get('/my-leads', verify, authorize(['agent', 'tl', 'admin']), async (req,
   try {
     const leadsCollection = getCollection('leads');
     const usersCollection = getCollection('users');
-    
+
     let matchQuery = {};
     if (req.user.role === 'agent') {
       matchQuery.assignedTo = new ObjectId(req.user._id);
@@ -25,7 +25,8 @@ router.get('/my-leads', verify, authorize(['agent', 'tl', 'admin']), async (req,
       // Agents and TLs see aggregated view (one card per contact with total stats)
       const pipeline = [
         { $match: matchQuery },
-        { $addFields: { 
+        {
+          $addFields: {
             normPhone: { $ifNull: ["$fields.Phone", { $ifNull: ["$fields.phone", { $ifNull: ["$fields.Mobile", "N/A"] }] }] },
             sortPriority: {
               $cond: {
@@ -34,20 +35,25 @@ router.get('/my-leads', verify, authorize(['agent', 'tl', 'admin']), async (req,
                 else: 0
               }
             }
-        }},
+          }
+        },
         { $sort: { sortPriority: 1, createdAt: -1 } },
-        { $group: {
+        {
+          $group: {
             _id: "$normPhone",
             latestLead: { $first: "$$ROOT" },
             totalAmount: { $sum: "$leadAmount" },
             leadsCount: { $sum: 1 }
-        }},
-        { $replaceRoot: { 
-            newRoot: { $mergeObjects: ["$latestLead", { totalAmount: "$totalAmount", leadsCount: "$leadsCount" }] } 
-        }},
+          }
+        },
+        {
+          $replaceRoot: {
+            newRoot: { $mergeObjects: ["$latestLead", { totalAmount: "$totalAmount", leadsCount: "$leadsCount" }] }
+          }
+        },
         { $sort: { lastModified: -1 } } // For the final list of unique contacts
       ];
-      
+
       const aggregatedLeads = await leadsCollection.aggregate(pipeline).toArray();
       res.json(aggregatedLeads);
     }
@@ -62,7 +68,7 @@ router.get('/appointments', verify, authorize(['agent', 'tl', 'admin']), async (
   try {
     const appointmentsCollection = getCollection('appointments');
     const usersCollection = getCollection('users');
-    
+
     let matchQuery = {};
     if (req.user.role === 'agent') {
       matchQuery.assignedTo = new ObjectId(req.user._id);
@@ -78,14 +84,18 @@ router.get('/appointments', verify, authorize(['agent', 'tl', 'admin']), async (
       // Aggregate view for Agents/TLs
       const pipeline = [
         { $match: matchQuery },
-        { $addFields: { 
-            normPhone: { $ifNull: ["$fields.Phone", { $ifNull: ["$fields.phone", { $ifNull: ["$fields.Mobile", "N/A"] }] }] } 
-        }},
+        {
+          $addFields: {
+            normPhone: { $ifNull: ["$fields.Phone", { $ifNull: ["$fields.phone", { $ifNull: ["$fields.Mobile", "N/A"] }] }] }
+          }
+        },
         { $sort: { appointmentDt: -1 } },
-        { $group: {
+        {
+          $group: {
             _id: "$normPhone",
             latestApp: { $first: "$$ROOT" }
-        }},
+          }
+        },
         { $replaceRoot: { newRoot: "$latestApp" } },
         { $sort: { appointmentDt: 1 } }
       ];
@@ -103,7 +113,7 @@ router.get('/callbacks', verify, authorize(['agent', 'tl', 'admin']), async (req
   try {
     const callbacksCollection = getCollection('callbacks');
     const usersCollection = getCollection('users');
-    
+
     let matchQuery = {};
     if (req.user.role === 'agent') {
       matchQuery.assignedTo = new ObjectId(req.user._id);
@@ -113,25 +123,48 @@ router.get('/callbacks', verify, authorize(['agent', 'tl', 'admin']), async (req
     }
 
     if (req.user.role === 'admin') {
-      const callbacks = await callbacksCollection.find(matchQuery).sort({ callBackDt: 1 }).toArray();
-      res.json(callbacks);
+      const [callbacks, leads] = await Promise.all([
+        callbacksCollection.find(matchQuery).sort({ callBackDt: 1 }).toArray(),
+        getCollection('leads').find({ ...matchQuery, status: 'Call Back' }).sort({ callBackDt: 1 }).toArray()
+      ]);
+      const merged = [
+        ...callbacks.map(c => ({ ...c, isLeadCallback: false })),
+        ...leads.map(l => ({ ...l, isLeadCallback: true }))
+      ].sort((a, b) => new Date(a.callBackDt) - new Date(b.callBackDt));
+      res.json(merged);
     } else {
       // Aggregate view for Agents/TLs
       const pipeline = [
         { $match: matchQuery },
-        { $addFields: { 
-            normPhone: { $ifNull: ["$fields.Phone", { $ifNull: ["$fields.phone", { $ifNull: ["$fields.Mobile", "N/A"] }] }] } 
-        }},
+        {
+          $addFields: {
+            normPhone: { $ifNull: ["$fields.Phone", { $ifNull: ["$fields.phone", { $ifNull: ["$fields.Mobile", "N/A"] }] }] }
+          }
+        },
         { $sort: { callBackDt: -1 } },
-        { $group: {
+        {
+          $group: {
             _id: "$normPhone",
             latestCb: { $first: "$$ROOT" }
-        }},
-        { $replaceRoot: { newRoot: "$latestCb" } },
-        { $sort: { callBackDt: 1 } }
+          }
+        },
+        { $replaceRoot: { newRoot: "$latestCb" } }
       ];
-      const aggregated = await callbacksCollection.aggregate(pipeline).toArray();
-      res.json(aggregated);
+
+      const [aggregatedCbs, aggregatedLeads] = await Promise.all([
+        callbacksCollection.aggregate(pipeline).toArray(),
+        getCollection('leads').aggregate([
+          { $match: { ...matchQuery, status: 'Call Back' } },
+          ...pipeline.slice(1) // reuse addFields, sort, group, replaceRoot
+        ]).toArray()
+      ]);
+
+      const merged = [
+        ...aggregatedCbs.map(c => ({ ...c, isLeadCallback: false })),
+        ...aggregatedLeads.map(l => ({ ...l, isLeadCallback: true }))
+      ].sort((a, b) => new Date(a.callBackDt) - new Date(b.callBackDt));
+      
+      res.json(merged);
     }
   } catch (err) {
     console.error(err);
@@ -144,7 +177,7 @@ router.get('/stats', verify, authorize(['agent', 'tl', 'admin']), async (req, re
   try {
     const leadsCollection = getCollection('leads');
     let query = {};
-    
+
     if (req.user.role === 'agent') {
       query.assignedTo = new ObjectId(req.user._id);
     } else if (req.user.role === 'tl') {
@@ -156,12 +189,12 @@ router.get('/stats', verify, authorize(['agent', 'tl', 'admin']), async (req, re
 
     const stats = await leadsCollection.aggregate([
       { $match: query },
-      { 
-        $group: { 
-          _id: null, 
-          totalLeads: { $sum: 1 }, 
-          totalAmount: { $sum: '$leadAmount' } 
-        } 
+      {
+        $group: {
+          _id: null,
+          totalLeads: { $sum: 1 },
+          totalAmount: { $sum: '$leadAmount' }
+        }
       }
     ]).toArray();
 
@@ -177,7 +210,7 @@ router.delete('/:id', verify, authorize(['admin']), async (req, res) => {
   try {
     const leadsCollection = getCollection('leads');
     const lead = await leadsCollection.findOne({ _id: new ObjectId(req.params.id) });
-    
+
     if (lead && lead.contactId) {
       const contactsCollection = getCollection('contacts');
       await contactsCollection.deleteOne({ _id: new ObjectId(lead.contactId) });
@@ -197,11 +230,11 @@ router.post('/bulk-delete', verify, authorize(['admin']), async (req, res) => {
     const { ids } = req.body;
     const leadsCollection = getCollection('leads');
     const objectIds = ids.map(id => new ObjectId(id));
-    
+
     // Find all lead records to get contact IDs
     const leads = await leadsCollection.find({ _id: { $in: objectIds } }).toArray();
     const contactIds = leads.map(l => l.contactId).filter(Boolean);
-    
+
     if (contactIds.length > 0) {
       const contactsCollection = getCollection('contacts');
       await contactsCollection.deleteMany({ _id: { $in: contactIds.map(id => new ObjectId(id)) } });
@@ -220,7 +253,7 @@ router.delete('/appointments/:id', verify, authorize(['admin']), async (req, res
   try {
     const appointmentsCollection = getCollection('appointments');
     const app = await appointmentsCollection.findOne({ _id: new ObjectId(req.params.id) });
-    
+
     if (app && app.contactId) {
       const contactsCollection = getCollection('contacts');
       await contactsCollection.deleteOne({ _id: new ObjectId(app.contactId) });
@@ -240,7 +273,7 @@ router.post('/appointments/bulk-delete', verify, authorize(['admin']), async (re
     const { ids } = req.body;
     const appointmentsCollection = getCollection('appointments');
     const objectIds = ids.map(id => new ObjectId(id));
-    
+
     const apps = await appointmentsCollection.find({ _id: { $in: objectIds } }).toArray();
     const contactIds = apps.map(a => a.contactId).filter(Boolean);
 
@@ -262,7 +295,7 @@ router.delete('/callbacks/:id', verify, authorize(['admin']), async (req, res) =
   try {
     const callbacksCollection = getCollection('callbacks');
     const cb = await callbacksCollection.findOne({ _id: new ObjectId(req.params.id) });
-    
+
     if (cb && cb.contactId) {
       const contactsCollection = getCollection('contacts');
       await contactsCollection.deleteOne({ _id: new ObjectId(cb.contactId) });
@@ -282,7 +315,7 @@ router.post('/callbacks/bulk-delete', verify, authorize(['admin']), async (req, 
     const { ids } = req.body;
     const callbacksCollection = getCollection('callbacks');
     const objectIds = ids.map(id => new ObjectId(id));
-    
+
     const cbs = await callbacksCollection.find({ _id: { $in: objectIds } }).toArray();
     const contactIds = cbs.map(c => c.contactId).filter(Boolean);
 
@@ -304,13 +337,13 @@ router.put('/:id', verify, authorize(['agent', 'tl', 'admin']), async (req, res)
   try {
     const { status, remarks, leadAmount, statusDetails, transactionId, callBackDt, appointmentDt } = req.body;
     const leadsCollection = getCollection('leads');
-    
+
     const update = {
       status,
       remarks,
       lastModified: new Date()
     };
-    
+
     if (leadAmount !== undefined) update.leadAmount = parseFloat(leadAmount) || 0;
     if (statusDetails !== undefined) update.statusDetails = statusDetails;
     if (transactionId !== undefined) update.transactionId = transactionId;
@@ -323,7 +356,7 @@ router.put('/:id', verify, authorize(['agent', 'tl', 'admin']), async (req, res)
     );
 
     if (result.matchedCount === 0) return res.status(404).json({ error: 'Lead not found' });
-    
+
     res.json({ success: true });
   } catch (err) {
     console.error(err);
@@ -340,16 +373,17 @@ router.get('/history/:phone', verify, authorize(['agent', 'tl', 'admin']), async
     const rawPhone = req.params.phone;
     // Normalize: get last 10 digits and create a flexible regex
     const last10 = rawPhone.replace(/\D/g, '').slice(-10);
-    
+
     if (!last10) return res.json([]);
 
     // Create a regex that allows non-digit characters between numbers
     // e.g. 9876543210 -> 9[^0-9]*8[^0-9]*7...
     const regexPattern = last10.split('').join('[^0-9]*');
     const phoneRegex = new RegExp(regexPattern);
-    
+
     const history = await leadsCollection.aggregate([
-      { $match: {
+      {
+        $match: {
           $or: [
             { "fields.Phone": { $regex: phoneRegex } },
             { "fields.phone": { $regex: phoneRegex } },
@@ -358,8 +392,10 @@ router.get('/history/:phone', verify, authorize(['agent', 'tl', 'admin']), async
             { "fields.phone": { $regex: new RegExp(last10) } },
             { "fields.Mobile": { $regex: new RegExp(last10) } }
           ]
-      }},
-      { $addFields: {
+        }
+      },
+      {
+        $addFields: {
           sortPriority: {
             $cond: {
               if: { $in: ["$status", ["Converted", "Not Interested"]] },
@@ -367,10 +403,11 @@ router.get('/history/:phone', verify, authorize(['agent', 'tl', 'admin']), async
               else: 0
             }
           }
-      }},
+        }
+      },
       { $sort: { sortPriority: 1, createdAt: -1 } }
     ]).toArray();
-    
+
     res.json(history);
   } catch (err) {
     console.error(err);

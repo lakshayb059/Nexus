@@ -5,10 +5,10 @@ import api from '../utils/api';
 import { Phone, Clock, ChevronRight, Bell, User, AlertTriangle, X, Check, Award } from 'lucide-react';
 
 const MyCallbacks = () => {
-  const { user }   = useAuth();
-  const navigate   = useNavigate();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [callbacks, setCallbacks] = useState([]);
-  const [loading,   setLoading]   = useState(true);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedCb, setSelectedCb] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -28,14 +28,22 @@ const MyCallbacks = () => {
   useEffect(() => { fetchCallbacks(); }, []);
 
   const handleContactNow = async (cb) => {
+    // If it's a Lead Callback, we do NOT re-queue. We just view/update it.
+    if (cb.isLeadCallback) {
+      setSelectedCb(cb);
+      setShowModal(true);
+      return;
+    }
+
     const cbTime = new Date(cb.callBackDt).getTime();
     const now = new Date().getTime();
+    const targetId = cb.contactId || cb._id;
 
     if (now >= cbTime) {
       // Time has passed -> auto requeue and navigate
       try {
-        await api.post(`/contacts/${cb._id}/requeue`);
-        navigate(`/workflow?contactId=${cb._id}`);
+        await api.post(`/contacts/${targetId}/requeue`);
+        navigate(`/workflow?contactId=${targetId}`);
       } catch (err) {
         alert('Failed to add to workflow queue');
       }
@@ -82,12 +90,34 @@ const MyCallbacks = () => {
 
   const confirmContactNow = async () => {
     if (!selectedCb) return;
+    const targetId = selectedCb.contactId || selectedCb._id;
     try {
-      await api.post(`/contacts/${selectedCb._id}/requeue`);
+      await api.post(`/contacts/${targetId}/requeue`);
       setShowModal(false);
-      navigate(`/workflow?contactId=${selectedCb._id}`);
+      // Removed from list because backend deletes the record
+      setCallbacks(prev => prev.filter(c => c._id !== selectedCb._id));
+      setSelectedIds(prev => prev.filter(i => i !== selectedCb._id));
+      navigate(`/workflow?contactId=${targetId}`);
     } catch (err) {
       alert('Failed to add to workflow queue');
+    }
+  };
+
+  const handleBulkRequeue = async () => {
+    if (!window.confirm(`Add ${selectedIds.length} selected contacts to workflow?`)) return;
+    try {
+      // Map selected IDs to contact IDs
+      const targetContactIds = callbacks
+        .filter(c => selectedIds.includes(c._id))
+        .map(c => c.contactId || c._id);
+
+      await api.post('/contacts/bulk-requeue', { ids: targetContactIds });
+      // Remove from list
+      setCallbacks(prev => prev.filter(c => !selectedIds.includes(c._id)));
+      setSelectedIds([]);
+      alert('Successfully added to workflow');
+    } catch (err) {
+      alert('Bulk re-queue failed');
     }
   };
 
@@ -108,8 +138,8 @@ const MyCallbacks = () => {
     const d = new Date(dateStr);
     return {
       month: d.toLocaleDateString('en-IN', { month: 'short' }).toUpperCase(),
-      day:   d.getDate(),
-      time:  formatTime(dateStr),
+      day: d.getDate(),
+      time: formatTime(dateStr),
     };
   };
 
@@ -127,7 +157,7 @@ const MyCallbacks = () => {
         </span>
       </div>
 
-      {user?.role === 'admin' && callbacks.length > 0 && (
+      {callbacks.length > 0 && (
         <div className="glass-panel" style={{ padding: '12px 20px', marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: 'var(--r-md)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <input 
@@ -140,11 +170,20 @@ const MyCallbacks = () => {
               {selectedIds.length > 0 ? `${selectedIds.length} Selected` : 'Select All'}
             </span>
           </div>
-          {selectedIds.length > 0 && (
-            <button className="btn btn-danger" onClick={handleBulkDelete} style={{ padding: '8px 16px', fontSize: '0.8rem' }}>
-              <X size={14} /> Bulk Delete
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: 10 }}>
+            {selectedIds.length > 0 && (
+              <>
+                <button className="btn btn-primary" onClick={handleBulkRequeue} style={{ padding: '8px 16px', fontSize: '0.8rem' }}>
+                  <Check size={14} /> Add to Workflow
+                </button>
+                {user?.role === 'admin' && (
+                  <button className="btn btn-danger" onClick={handleBulkDelete} style={{ padding: '8px 16px', fontSize: '0.8rem' }}>
+                    <X size={14} /> Bulk Delete
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         </div>
       )}
 
@@ -171,10 +210,10 @@ const MyCallbacks = () => {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {callbacks.map(cb => {
-            const fields  = cb.fields || {};
-            const name    = fields.Name || fields.name || 'Unknown Client';
-            const phone   = fields.Phone || fields.phone || fields.Mobile || 'N/A';
-            const today   = isToday(cb.callBackDt);
+            const fields = cb.fields || {};
+            const name = fields.Name || fields.name || 'Unknown Client';
+            const phone = fields.Phone || fields.phone || fields.Mobile || 'N/A';
+            const today = isToday(cb.callBackDt);
             const { month, day, time } = formatMonthDay(cb.callBackDt);
 
             return (
@@ -199,8 +238,8 @@ const MyCallbacks = () => {
                   <div style={{ fontSize: '2rem', fontWeight: 900, lineHeight: 1.1 }}>{day}</div>
                   <div style={{ fontSize: '0.8rem', fontWeight: 600, marginTop: 2, opacity: 0.9 }}>{time}</div>
                   {user?.role === 'admin' && (
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       checked={selectedIds.includes(cb._id)}
                       onChange={() => toggleSelect(cb._id)}
                       onClick={e => e.stopPropagation()}
@@ -214,6 +253,7 @@ const MyCallbacks = () => {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {name}
+                      {cb.isLeadCallback && <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>Lead Callback</span>}
                       {today && <Bell size={16} style={{ color: 'var(--primary)', flexShrink: 0 }} className="animate-bounce" />}
                     </h3>
                     <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
@@ -225,7 +265,7 @@ const MyCallbacks = () => {
                         <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>"{cb.remarks}"</span>
                       )}
                     </div>
-                    
+
                     <div style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                       {cb.disposition === 'Lead' && (
                         <span className="badge badge-success" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -267,34 +307,60 @@ const MyCallbacks = () => {
       {showModal && selectedCb && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 }}>
           <div className="glass-panel animate-fade-up" style={{ maxWidth: 450, padding: '30px 24px', textAlign: 'center', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
-            <div style={{ width: 64, height: 64, borderRadius: '50%', backgroundColor: '#f59e0b20', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
-              <AlertTriangle size={32} />
-            </div>
-            <h3 style={{ marginBottom: 12, color: '#f59e0b' }}>Callback Time Validation</h3>
-            <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: 24, lineHeight: 1.6 }}>
-              <strong style={{ color: 'var(--text-primary)' }}>{selectedCb?.fields?.Name || selectedCb?.fields?.name || 'This lead'}</strong> has a callback scheduled for:
-              <br/><br/>
-              <div style={{ backgroundColor: 'var(--bg-surface-2)', padding: '12px', borderRadius: '8px', margin: '12px 0', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--primary)' }}>
-                  {new Date(selectedCb.callBackDt).toLocaleString('en-IN', { 
-                    weekday: 'short',
-                    day: 'numeric', 
-                    month: 'short', 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                  })}
+            {selectedCb.isLeadCallback ? (
+              <>
+                <div style={{ width: 64, height: 64, borderRadius: '50%', backgroundColor: 'var(--success-light)', color: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+                  <Award size={32} />
                 </div>
-              </div>
-              The callback time has not yet arrived. Do you want to add this contact back to your workflow queue anyway?
-            </div>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowModal(false)}>
-                <X size={16} /> No, Cancel
-              </button>
-              <button className="btn btn-primary" style={{ flex: 1 }} onClick={confirmContactNow}>
-                <Check size={16} /> Yes, Add to Workflow
-              </button>
-            </div>
+                <h3 style={{ marginBottom: 12, color: 'var(--success)' }}>Lead Callback Management</h3>
+                <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: 24, lineHeight: 1.6 }}>
+                  You are managing a <strong style={{ color: 'var(--text-primary)' }}>Lead Callback</strong> for {selectedCb?.fields?.Name || 'this client'}.
+                  <br /><br />
+                  Leads in callback status remain in your Leads section and do not go back to the general workflow queue.
+                  <br /><br />
+                  <div style={{ backgroundColor: 'var(--bg-surface-2)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                    Scheduled: <strong>{new Date(selectedCb.callBackDt).toLocaleString()}</strong>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowModal(false)}>Close</button>
+                  <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => navigate('/leads')}>
+                    Go to My Leads
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ width: 64, height: 64, borderRadius: '50%', backgroundColor: '#f59e0b20', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+                  <AlertTriangle size={32} />
+                </div>
+                <h3 style={{ marginBottom: 12, color: '#f59e0b' }}>Callback Time Validation</h3>
+                <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: 24, lineHeight: 1.6 }}>
+                  <strong style={{ color: 'var(--text-primary)' }}>{selectedCb?.fields?.Name || selectedCb?.fields?.name || 'This lead'}</strong> has a callback scheduled for:
+                  <br /><br />
+                  <div style={{ backgroundColor: 'var(--bg-surface-2)', padding: '12px', borderRadius: '8px', margin: '12px 0', border: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--primary)' }}>
+                      {new Date(selectedCb.callBackDt).toLocaleString('en-IN', {
+                        weekday: 'short',
+                        day: 'numeric',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </div>
+                  </div>
+                  The callback time has not yet arrived. Do you want to add this contact back to your workflow queue anyway?
+                </div>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowModal(false)}>
+                    <X size={16} /> No, Cancel
+                  </button>
+                  <button className="btn btn-primary" style={{ flex: 1 }} onClick={confirmContactNow}>
+                    <Check size={16} /> Yes, Add to Workflow
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

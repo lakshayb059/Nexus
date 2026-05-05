@@ -30,12 +30,13 @@ const MyAppointments = () => {
   const handleContactNow = async (app) => {
     const appTime = new Date(app.appointmentDt).getTime();
     const now = new Date().getTime();
+    const targetId = app.contactId || app._id;
 
     if (now >= appTime) {
       // Time has passed -> auto requeue and navigate
       try {
-        await api.post(`/contacts/${app._id}/requeue`);
-        navigate(`/workflow?contactId=${app._id}`);
+        await api.post(`/contacts/${targetId}/requeue`);
+        navigate(`/workflow?contactId=${targetId}`);
       } catch (err) {
         alert('Failed to add to workflow queue');
       }
@@ -82,12 +83,34 @@ const MyAppointments = () => {
 
   const confirmContactNow = async () => {
     if (!selectedApp) return;
+    const targetId = selectedApp.contactId || selectedApp._id;
     try {
-      await api.post(`/contacts/${selectedApp._id}/requeue`);
+      await api.post(`/contacts/${targetId}/requeue`);
       setShowModal(false);
-      navigate(`/workflow?contactId=${selectedApp._id}`);
+      // Removed from list because backend deletes the record
+      setAppointments(prev => prev.filter(a => a._id !== selectedApp._id));
+      setSelectedIds(prev => prev.filter(i => i !== selectedApp._id));
+      navigate(`/workflow?contactId=${targetId}`);
     } catch (err) {
       alert('Failed to add to workflow queue');
+    }
+  };
+
+  const handleBulkRequeue = async () => {
+    if (!window.confirm(`Add ${selectedIds.length} selected contacts to workflow?`)) return;
+    try {
+      // We need to map selected appointment IDs to their respective contact IDs
+      const targetContactIds = appointments
+        .filter(a => selectedIds.includes(a._id))
+        .map(a => a.contactId || a._id);
+
+      await api.post('/contacts/bulk-requeue', { ids: targetContactIds });
+      // Remove from list
+      setAppointments(prev => prev.filter(a => !selectedIds.includes(a._id)));
+      setSelectedIds([]);
+      alert('Successfully added to workflow');
+    } catch (err) {
+      alert('Bulk re-queue failed');
     }
   };
 
@@ -120,7 +143,7 @@ const MyAppointments = () => {
         </span>
       </div>
 
-      {user?.role === 'admin' && appointments.length > 0 && (
+      {appointments.length > 0 && (
         <div className="glass-panel" style={{ padding: '12px 20px', marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: 'var(--r-md)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <input 
@@ -133,11 +156,20 @@ const MyAppointments = () => {
               {selectedIds.length > 0 ? `${selectedIds.length} Selected` : 'Select All'}
             </span>
           </div>
-          {selectedIds.length > 0 && (
-            <button className="btn btn-danger" onClick={handleBulkDelete} style={{ padding: '8px 16px', fontSize: '0.8rem' }}>
-              <X size={14} /> Bulk Delete
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: 10 }}>
+            {selectedIds.length > 0 && (
+              <>
+                <button className="btn btn-primary" onClick={handleBulkRequeue} style={{ padding: '8px 16px', fontSize: '0.8rem' }}>
+                  <Check size={14} /> Add to Workflow
+                </button>
+                {user?.role === 'admin' && (
+                  <button className="btn btn-danger" onClick={handleBulkDelete} style={{ padding: '8px 16px', fontSize: '0.8rem' }}>
+                    <X size={14} /> Bulk Delete
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         </div>
       )}
 

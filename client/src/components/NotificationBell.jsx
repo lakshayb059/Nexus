@@ -32,16 +32,16 @@ const NotificationBell = () => {
   useEffect(() => {
     if (user) {
       const sessionKey = `welcomed_${user._id}_${new Date().toDateString()}`;
-    if (!sessionStorage.getItem(sessionKey)) {
-      addNotification({
-        id: `welcome_${Date.now()}`,
-        type: 'welcome',
-        title: 'Welcome Back!',
-        message: `Hello ${user.name}, welcome to your dashboard.`,
-        time: new Date(),
-        path: '/dashboard'
-      });
-      sessionStorage.setItem(sessionKey, 'true');
+      if (!sessionStorage.getItem(sessionKey)) {
+        addNotification({
+          id: `welcome_${Date.now()}`,
+          type: 'welcome',
+          title: 'Welcome Back!',
+          message: `Hello ${user.name}, welcome to your dashboard.`,
+          time: new Date(),
+          path: '/dashboard'
+        });
+        sessionStorage.setItem(sessionKey, 'true');
       }
     }
   }, [user?._id]);
@@ -78,8 +78,8 @@ const NotificationBell = () => {
         addNotification({
           id: `cb_${Date.now()}`,
           type: 'callback',
-          title: 'Callback Due Now',
-          message: data.contactName,
+          title: data.isLead ? 'Lead Callback Due' : 'Callback Due Now',
+          message: data.contactName + (data.isLead ? ' (Lead)' : ''),
           time: new Date(),
           path: '/callbacks'
         });
@@ -138,7 +138,7 @@ const NotificationBell = () => {
 
   const handleNotifClick = async (notif) => {
     if (notif.path) navigate(notif.path);
-    
+
 
 
     setNotifications(prev => prev.filter(n => n.id !== notif.id));
@@ -152,8 +152,8 @@ const NotificationBell = () => {
 
   return (
     <div style={{ position: 'relative' }} ref={dropdownRef}>
-      <button 
-        className="btn btn-ghost btn-icon bell-btn-responsive" 
+      <button
+        className="btn btn-ghost btn-icon bell-btn-responsive"
         onClick={() => setIsOpen(!isOpen)}
         style={{ position: 'relative' }}
       >
@@ -178,11 +178,11 @@ const NotificationBell = () => {
           padding: 0,
           boxShadow: 'var(--shadow-xl)'
         }}>
-          <div style={{ 
-            padding: '12px 16px', 
-            borderBottom: '1px solid var(--border)', 
-            display: 'flex', 
-            justifyContent: 'space-between', 
+          <div style={{
+            padding: '12px 16px',
+            borderBottom: '1px solid var(--border)',
+            display: 'flex',
+            justifyContent: 'space-between',
             alignItems: 'center',
             background: 'var(--bg-surface-2)'
           }}>
@@ -202,9 +202,9 @@ const NotificationBell = () => {
           ) : (
             <div>
               {notifications.map(n => (
-                <div 
-                  key={n.id} 
-                  className="notif-item" 
+                <div
+                  key={n.id}
+                  className="notif-item"
                   onClick={() => handleNotifClick(n)}
                 >
                   <div style={{

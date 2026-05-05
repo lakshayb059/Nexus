@@ -165,6 +165,13 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
 
     await contactsCollection.updateOne({ _id: new ObjectId(req.params.id) }, { $set: update });
 
+    // Cleanup: Remove any existing appointment/callback records for this contact before potentially adding new ones
+    const contactId = new ObjectId(req.params.id);
+    await Promise.all([
+      getCollection('appointments').deleteMany({ contactId }),
+      getCollection('callbacks').deleteMany({ contactId })
+    ]);
+
     // Permanent Lead Storage Logic
     if (disposition === 'Lead') {
       const leadsCollection = getCollection('leads');
@@ -267,6 +274,14 @@ router.put('/:id/status', verify, authorize(['agent', 'tl', 'admin']), async (re
       update.conversionDate = new Date();
     }
     await contactsCollection.updateOne({ _id: contactId }, { $set: update });
+
+    // Cleanup: If status is NOT Call Back or Appointment, remove from those tables
+    if (status !== 'Call Back' && status !== 'Appointment') {
+      await Promise.all([
+        getCollection('appointments').deleteMany({ contactId }),
+        getCollection('callbacks').deleteMany({ contactId })
+      ]);
+    }
 
     // Sync with Permanent Leads
     try {
@@ -394,6 +409,12 @@ router.post('/:id/requeue', verify, authorize(['admin', 'tl', 'agent']), async (
         { $set: { disposition: null, queueOrder: 0, isDeleted: false, deletedAt: null, lastModified: new Date() } }
       );
     }
+
+    // Cleanup: Remove from appointments and callbacks tables
+    await Promise.all([
+      getCollection('appointments').deleteMany({ contactId }),
+      getCollection('callbacks').deleteMany({ contactId })
+    ]);
     
     const io = req.app.get('io');
     if (io) {
@@ -504,6 +525,40 @@ router.get('/agent-queues', verify, authorize(['admin', 'tl']), async (req, res)
     res.json(stats);
   } catch (err) {
     res.status(500).json({ error: 'Queue status fetch failed' });
+  }
+});
+
+// POST /api/contacts/bulk-requeue - Re-queue multiple contacts at once
+router.post('/bulk-requeue', verify, authorize(['admin', 'tl', 'agent']), async (req, res) => {
+  try {
+    const { ids } = req.body; // These should be contact IDs
+    if (!ids || !Array.isArray(ids)) return res.status(400).json({ error: 'Invalid IDs' });
+
+    const contactsCollection = getCollection('contacts');
+    const objectIds = ids.map(id => new ObjectId(id));
+
+    // Reset all selected contacts to the front of the queue
+    await contactsCollection.updateMany(
+      { _id: { $in: objectIds } },
+      { $set: { disposition: null, queueOrder: 0, isDeleted: false, deletedAt: null, lastModified: new Date() } }
+    );
+
+    // Cleanup: Remove from appointments and callbacks tables
+    await Promise.all([
+      getCollection('appointments').deleteMany({ contactId: { $in: objectIds } }),
+      getCollection('callbacks').deleteMany({ contactId: { $in: objectIds } })
+    ]);
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('contacts_updated');
+      io.emit('dashboard_update');
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Bulk requeue error:', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

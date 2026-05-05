@@ -10,11 +10,11 @@ class AppointmentService {
 
   start() {
     console.log('📅 Appointment service started');
-    
+
     // Check immediately on start
     this.checkAppointments();
     this.checkCallbacks();
-    
+
     // Set up recurring checks
     this.reminderInterval = setInterval(() => {
       this.checkAppointments();
@@ -34,11 +34,11 @@ class AppointmentService {
     try {
       const contactsCollection = getCollection('contacts');
       const now = new Date();
-      
+
       // 1. Check for upcoming appointments (within next 2 minutes)
       const upcoming = await contactsCollection.find({
         disposition: 'Appointment',
-        appointmentDt: { 
+        appointmentDt: {
           $gte: now,
           $lte: new Date(now.getTime() + 2 * 60 * 1000)
         },
@@ -54,9 +54,9 @@ class AppointmentService {
       // 2. Check for "LATE" appointments (missed by ~1 minute)
       const late = await contactsCollection.find({
         disposition: 'Appointment',
-        appointmentDt: { 
-          $lte: new Date(now.getTime() - 60 * 1000), 
-          $gte: new Date(now.getTime() - 10 * 60 * 1000) 
+        appointmentDt: {
+          $lte: new Date(now.getTime() - 60 * 1000),
+          $gte: new Date(now.getTime() - 10 * 60 * 1000)
         },
         lateNotified: { $ne: true }
       }).toArray();
@@ -74,10 +74,10 @@ class AppointmentService {
     try {
       const contactsCollection = getCollection('contacts');
       const now = new Date();
-      
-      // 1. Auto-requeue when DUE
+
+      // 1. Auto-requeue when DUE (ONLY for standard workflow callbacks)
       const dueCallbacks = await contactsCollection.find({
-        $or: [{ disposition: 'CallBack' }, { status: 'Call Back' }],
+        disposition: 'CallBack',
         callBackDt: { $lte: now },
         queueOrder: 999999
       }).toArray();
@@ -85,21 +85,44 @@ class AppointmentService {
       for (const callback of dueCallbacks) {
         await contactsCollection.updateOne(
           { _id: callback._id },
-          { 
-            $set: { 
-              queueOrder: 0, 
+          {
+            $set: {
+              queueOrder: 0,
               lastModified: new Date(),
               remarks: (callback.remarks || '') + ' [Callback due - auto re-queued]'
-            } 
+            }
           }
         );
+
+        // Cleanup: Remove from callbacks table since it's now in the workflow
+        await getCollection('callbacks').deleteMany({ contactId: callback._id });
 
         if (this.io) {
           this.io.emit('callback_due', {
             contactId: callback._id,
             contactName: callback.fields?.Name || callback.fields?.name || 'Unknown',
             agentId: callback.assignedTo,
-            callBackDt: callback.callBackDt
+            callBackDt: callback.callBackDt,
+            isLead: false // Standard callback
+          });
+        }
+      }
+
+      // 1b. Notifications only for LEAD callbacks (NO RE-QUEUE)
+      const dueLeadCallbacks = await contactsCollection.find({
+        disposition: 'Lead',
+        status: 'Call Back',
+        callBackDt: { $lte: now }
+      }).toArray();
+
+      for (const leadCb of dueLeadCallbacks) {
+        if (this.io) {
+          this.io.emit('callback_due', {
+            contactId: leadCb._id,
+            contactName: leadCb.fields?.Name || leadCb.fields?.name || 'Unknown',
+            agentId: leadCb.assignedTo,
+            callBackDt: leadCb.callBackDt,
+            isLead: true // Lead callback
           });
         }
       }
@@ -107,7 +130,7 @@ class AppointmentService {
       // 2. Pre-notification (2 minutes before)
       const upcoming = await contactsCollection.find({
         $or: [{ disposition: 'CallBack' }, { status: 'Call Back' }],
-        callBackDt: { 
+        callBackDt: {
           $gte: now,
           $lte: new Date(now.getTime() + 2 * 60 * 1000)
         },
@@ -121,7 +144,8 @@ class AppointmentService {
             contactName: cb.fields?.Name || cb.fields?.name || 'Unknown',
             agentId: cb.assignedTo,
             callBackDt: cb.callBackDt,
-            minutesUntil: 2
+            minutesUntil: 2,
+            isLead: cb.disposition === 'Lead'
           });
         }
         await contactsCollection.updateOne({ _id: cb._id }, { $set: { cbReminderSent: true } });
@@ -136,7 +160,7 @@ class AppointmentService {
     try {
       const contactsCollection = getCollection('contacts');
       const usersCollection = getCollection('users');
-      
+
       const agent = await usersCollection.findOne({ _id: appointment.assignedTo });
       if (!agent) return;
 
