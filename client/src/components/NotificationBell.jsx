@@ -324,6 +324,14 @@ const NotificationBell = () => {
 
         /* Mobile: full-height side panel */
         @media (max-width: 640px) {
+          .bell-btn-responsive {
+            width: 48px !important;
+            height: 48px !important;
+          }
+          .bell-icon-responsive {
+            width: 30px !important;
+            height: 30px !important;
+          }
           .notif-backdrop {
             display: block;
             position: fixed;
@@ -336,9 +344,9 @@ const NotificationBell = () => {
             border-left: 1px solid var(--border);
           }
           .bell-badge-responsive {
-            top: 4px; right: 4px;
-            font-size: 10px;
-            min-width: 17px; height: 17px;
+            top: 2px; right: 2px;
+            font-size: 11px;
+            min-width: 20px; height: 20px;
             border-width: 2px;
             z-index: 10;
           }
