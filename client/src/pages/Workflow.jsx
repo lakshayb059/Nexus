@@ -74,9 +74,16 @@ const Workflow = () => {
     if (!data?.contact) return;
 
     // Validation
+    const now = new Date();
     if (dispForm.disposition === 'Lead') {
       if (!dispForm.leadAmount) { alert('Amount is required'); return; }
       if (!dispForm.status) { alert('Lead Status is required'); return; }
+    } else if (dispForm.disposition === 'Appointment') {
+      if (!dispForm.appointmentDt) { alert('Appointment date is required'); return; }
+      if (new Date(dispForm.appointmentDt) < now) { alert('Appointment cannot be scheduled for a past date/time'); return; }
+    } else if (dispForm.disposition === 'CallBack') {
+      if (!dispForm.callBackDt) { alert('Callback date is required'); return; }
+      if (new Date(dispForm.callBackDt) < now) { alert('Callback cannot be scheduled for a past date/time'); return; }
     }
 
     const remarkWords = dispForm.remarks.trim().split(/\s+/).filter(w => w.length > 0);
@@ -161,49 +168,59 @@ const Workflow = () => {
 
     return (
       <div className="animate-fade-in">
-        <div className="glass-panel" style={{ padding: '60px', textAlign: 'center', maxWidth: 800, margin: '20px auto', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 6, background: '#e5e7eb' }}>
+        <div className="glass-panel" style={{ padding: 'clamp(30px, 8vw, 60px)', textAlign: 'center', maxWidth: 800, margin: '20px auto', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 6, background: 'var(--border)' }}>
             <div style={{ width: '100%', height: '100%', background: 'var(--success)', transition: 'width 1s ease' }} />
           </div>
-          <CheckCircle2 size={64} style={{ color: 'var(--success)', marginBottom: 20 }} />
-          <h2 style={{ fontSize: '2.2rem', fontWeight: 900 }}>All Done!</h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', marginBottom: 30 }}>You've successfully processed all assigned contacts. Great job!</p>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 20, marginBottom: 30 }}>
-            <div className="stat-pill"><strong>{total}</strong> Total</div>
-            <div className="stat-pill" style={{ background: 'var(--success-light)', color: 'var(--success)' }}><strong>{disposed}</strong> Disposed</div>
+          <CheckCircle2 size={56} style={{ color: 'var(--success)', marginBottom: 20 }} />
+          <h2 style={{ fontSize: 'clamp(1.5rem, 5vw, 2.2rem)', fontWeight: 900, color: 'var(--text-primary)' }}>Queue Complete!</h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: '1rem', marginBottom: 24 }}>You've successfully processed all assigned contacts. Great job!</p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
+            <div className="badge badge-primary" style={{ padding: '8px 16px' }}><strong>{total}</strong> Total</div>
+            <div className="badge badge-success" style={{ padding: '8px 16px' }}><strong>{disposed}</strong> Disposed</div>
           </div>
-          <button className="btn btn-primary" onClick={() => fetchNext()}><RotateCw size={16} /> Refresh Queue</button>
+          <button className="btn btn-primary" onClick={() => fetchNext()} style={{ padding: '12px 24px' }}>
+            <RotateCw size={16} /> Refresh Queue
+          </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginTop: 40 }}>
-          <div className="glass-panel" style={{ padding: '24px', borderTop: '4px solid #8b5cf6' }}>
-            <h3 style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#8b5cf6', marginBottom: 20 }}><Calendar size={20} /> My Appointments <span className="badge badge-violet">{appts.length}</span></h3>
-            <div className="scheduled-list">
+        <div className="grid-2" style={{ marginTop: 32 }}>
+          <div className="glass-panel" style={{ padding: 'var(--card-p)', borderTop: '4px solid var(--violet)' }}>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--violet)', marginBottom: 16, fontSize: '1rem' }}>
+              <Calendar size={18} /> Appointments <span className="badge badge-violet">{appts.length}</span>
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {appts.map(c => (
-                <div key={c._id} className="scheduled-item">
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 800 }}>{c.fields?.Name || 'Unknown'}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{new Date(c.appointmentDt).toLocaleString()}</div>
+                <div key={c._id} style={{ padding: 12, background: 'var(--bg-surface-2)', borderRadius: 'var(--r-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)' }}>{c.fields?.Name || 'Unknown'}</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{new Date(c.appointmentDt).toLocaleString()}</div>
                   </div>
-                  <button className="btn btn-primary btn-icon" onClick={() => handleRequeue(c._id)} disabled={requeuing === c._id} title="Re-queue now"><ArrowRight size={14} /></button>
+                  <button className="btn btn-primary btn-icon" onClick={() => handleRequeue(c._id)} disabled={requeuing === c._id} style={{ width: 28, height: 28 }}>
+                    <ArrowRight size={14} />
+                  </button>
                 </div>
               ))}
-              {appts.length === 0 && <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>No appointments scheduled.</div>}
+              {appts.length === 0 && <div style={{ textAlign: 'center', padding: '16px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>No appointments.</div>}
             </div>
           </div>
-          <div className="glass-panel" style={{ padding: '24px', borderTop: '4px solid #06b6d4' }}>
-            <h3 style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#06b6d4', marginBottom: 20 }}><Clock size={20} /> My Callbacks <span className="badge badge-cyan">{cbs.length}</span></h3>
-            <div className="scheduled-list">
+          <div className="glass-panel" style={{ padding: 'var(--card-p)', borderTop: '4px solid var(--cyan)' }}>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--cyan)', marginBottom: 16, fontSize: '1rem' }}>
+              <Clock size={18} /> Callbacks <span className="badge badge-cyan">{cbs.length}</span>
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {cbs.map(c => (
-                <div key={c._id} className="scheduled-item">
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 800 }}>{c.fields?.Name || 'Unknown'}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{new Date(c.callBackDt).toLocaleString()}</div>
+                <div key={c._id} style={{ padding: 12, background: 'var(--bg-surface-2)', borderRadius: 'var(--r-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)' }}>{c.fields?.Name || 'Unknown'}</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{new Date(c.callBackDt).toLocaleString()}</div>
                   </div>
-                  <button className="btn btn-primary btn-icon" onClick={() => handleRequeue(c._id)} disabled={requeuing === c._id} title="Re-queue now"><ArrowRight size={14} /></button>
+                  <button className="btn btn-primary btn-icon" onClick={() => handleRequeue(c._id)} disabled={requeuing === c._id} style={{ width: 28, height: 28 }}>
+                    <ArrowRight size={14} />
+                  </button>
                 </div>
               ))}
-              {cbs.length === 0 && <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>No pending callbacks.</div>}
+              {cbs.length === 0 && <div style={{ textAlign: 'center', padding: '16px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>No callbacks.</div>}
             </div>
           </div>
         </div>
@@ -215,53 +232,55 @@ const Workflow = () => {
   const fields = contact.fields || {};
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-reveal">
       {/* Dynamic Progress Header */}
-      <div className="workflow-header">
+      <div className="workflow-header" style={{ marginBottom: 20 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 10, gap: 12, flexWrap: 'wrap' }}>
             <div>
-              <h1 className="page-title" style={{ marginBottom: 0 }}><PhoneCall size={24} /> Calling Workflow</h1>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Processing batch contacts...</p>
+              <h1 style={{ fontSize: 'var(--h1)', fontWeight: 900, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <PhoneCall size={20} color="var(--primary)" /> Calling Queue
+              </h1>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--primary)' }}>{progressPercent}% Complete</span>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{disposed} / {total} Contacts</div>
+              <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--primary)' }}>{progressPercent}% Complete</span>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{disposed} / {total} Contacts</div>
             </div>
           </div>
-          <div className="progress-container">
-            <div className="progress-fill" style={{ width: `${progressPercent}%` }} />
+          <div className="progress-bar-track">
+            <div className="progress-bar-fill" style={{ width: `${progressPercent}%` }} />
           </div>
         </div>
       </div>
 
       <div className="workflow-grid" style={{ marginTop: 24 }}>
         {/* Contact Info Card */}
-        <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <h3 style={{ margin: 0 }}>{fields.Name || 'Contact'} Info</h3>
-            {type === 'rechurn' && (
-              <div className="badge badge-warning" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px' }}>
-                <RefreshCw size={12} className="animate-spin-slow" />
-                Recurring Attempt: {rechurnNum} of 3
-              </div>
-            )}
-            {type === 'callback_due' && <div className="badge badge-cyan">Scheduled Callback Due</div>}
+        <div className="glass-panel" style={{ padding: 'var(--card-p)', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, gap: 10, flexWrap: 'wrap' }}>
+            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{fields.Name || 'Contact'} Info</h3>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {type === 'rechurn' && (
+                <div className="badge badge-warning">
+                  <RefreshCw size={12} className="animate-spin" /> {rechurnNum}/3 Attempt
+                </div>
+              )}
+              {type === 'callback_due' && <div className="badge badge-cyan">Callback Due</div>}
+            </div>
           </div>
 
-          <div className="detail-grid">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
             {Object.entries(fields).map(([k, v]) => {
               const isPhone = k.toLowerCase().includes('phone') || k.toLowerCase().includes('mobile');
               return (
-                <div key={k} className="detail-item">
+                <div key={k} style={{ padding: 12, background: 'var(--bg-surface-2)', borderRadius: 'var(--r-md)', border: '1px solid var(--border)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                    <div>
-                      <span className="detail-label">{k}</span>
-                      <span className="detail-value">{String(v) || '—'}</span>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.05em', marginBottom: 2 }}>{k}</span>
+                      <span style={{ display: 'block', fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', wordBreak: 'break-all' }}>{String(v) || '—'}</span>
                     </div>
                     {isPhone && v && (
-                      <a href={`tel:${v}`} className="call-action-btn" title={`Call ${v}`}>
-                        <Phone size={18} fill="currentColor" />
+                      <a href={`tel:${v}`} style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--success)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: 10, flexShrink: 0, boxShadow: 'var(--shadow-sm)' }}>
+                        <Phone size={16} fill="currentColor" />
                       </a>
                     )}
                   </div>

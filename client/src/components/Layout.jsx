@@ -64,7 +64,7 @@ const Layout = () => {
       >
         {/* ── Top Bar ── */}
         <header className="topbar">
-          {/* Mobile: hamburger + logo */}
+          {/* Mobile: hamburger */}
           <div className="topbar-left">
             <button
               className="btn btn-ghost btn-icon topbar-hamburger"
@@ -73,14 +73,8 @@ const Layout = () => {
             >
               <Menu size={22} />
             </button>
-            <div className="topbar-brand-mobile">
-              <div className="topbar-logo" style={{ background: '#fff', padding: '4px' }}>
-                <img src="/favicon.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-              </div>
-              <span>SPIKE CRM</span>
-            </div>
-            {/* Desktop: page title */}
-            <h1 className="topbar-page-title hide-mobile">{pageTitle}</h1>
+            {/* Page title (visible on all screens now) */}
+            <h1 className="topbar-page-title">{pageTitle}</h1>
           </div>
 
           <div className="topbar-right">
@@ -165,15 +159,14 @@ const Layout = () => {
         /* ── Top Bar ── */
         .topbar {
           height: var(--header-height);
-          background: rgba(255,255,255,0.85);
-          backdrop-filter: blur(20px) saturate(180%);
-          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          background: rgba(255,255,255,0.7);
+          backdrop-filter: blur(24px) saturate(200%);
+          -webkit-backdrop-filter: blur(24px) saturate(200%);
           border-bottom: 1px solid var(--border);
-          box-shadow: 0 1px 12px rgba(37,99,235,0.07);
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 0 20px;
+          padding: 0 24px;
           flex-shrink: 0;
           z-index: 100;
         }
@@ -254,6 +247,7 @@ const Layout = () => {
           max-width: 1600px;
           margin: 0 auto;
           padding: var(--page-py) var(--page-px);
+          animation: revealUp var(--t-slow) var(--ease) forwards;
         }
 
         /* ── Bottom Navigation (mobile only) ── */

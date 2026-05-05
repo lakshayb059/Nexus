@@ -168,52 +168,52 @@ const MyLeads = () => {
 
   return (
     <div className="animate-fade-in">
-      <div className="page-header" style={{ marginBottom: 30 }}>
+      <div className="page-header" style={{ marginBottom: 24 }}>
         <div>
-          <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Award size={32} style={{ color: '#10b981' }} /> My Leads
+          <h1 style={{ fontSize: 'var(--h1)', fontWeight: 900, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Award size={20} color="var(--success)" /> My Leads
           </h1>
-          <p className="page-subtitle">Track and manage your successful conversions</p>
+          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 4 }}>Track and manage your successful conversions</p>
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           {user?.role === 'admin' && filtered.length > 0 && (
             <>
-              <button className="btn btn-outline" onClick={toggleSelectAll} style={{ fontSize: '0.8rem', padding: '8px 16px' }}>
-                {selectedIds.length === filtered.length ? <CheckSquare size={16} /> : <Square size={16} />}
-                {selectedIds.length === filtered.length ? 'Deselect All' : 'Select All'}
+              <button className="btn btn-outline" onClick={toggleSelectAll} style={{ fontSize: '0.75rem', padding: '6px 12px' }}>
+                {selectedIds.length === filtered.length ? <CheckSquare size={14} /> : <Square size={14} />}
+                {selectedIds.length === filtered.length ? 'Deselect' : 'Select All'}
               </button>
               {selectedIds.length > 0 && (
-                <button className="btn btn-danger" onClick={handleBulkDelete} style={{ boxShadow: '0 4px 12px rgba(239,68,68,0.2)' }}>
-                  <Trash2 size={16} /> Delete Selected ({selectedIds.length})
+                <button className="btn btn-danger" onClick={handleBulkDelete} style={{ fontSize: '0.75rem', padding: '6px 12px' }}>
+                  <Trash2 size={14} /> Delete ({selectedIds.length})
                 </button>
               )}
             </>
           )}
-          <div className="badge badge-primary" style={{ padding: '8px 16px', fontSize: '0.9rem' }}>
-            {filtered.length} Leads Found
+          <div className="badge badge-primary">
+            {filtered.length} Leads
           </div>
         </div>
       </div>
 
-      <div className="grid-stats" style={{ marginBottom: 'var(--gap)' }}>
-        <div className="glass-panel" style={{ padding: 'var(--card-p)', display: 'flex', alignItems: 'center', gap: 20 }}>
-          <div style={{ padding: 14, background: '#10b98118', color: '#10b981', borderRadius: 'var(--r-md)' }}><Target size={24} /></div>
-          <div><div style={{ fontSize: '1.8rem', fontWeight: 900 }}>{stats.totalLeads}</div><div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600 }}>Total Leads</div></div>
+      <div className="grid-stats" style={{ marginBottom: 20 }}>
+        <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ width: 44, height: 44, background: 'var(--success-light)', color: 'var(--success)', borderRadius: 'var(--r-md)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Target size={20} /></div>
+          <div><div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--text-primary)' }}>{stats.totalLeads}</div><div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase' }}>Total Leads</div></div>
         </div>
-        <div className="glass-panel" style={{ padding: 'var(--card-p)', display: 'flex', alignItems: 'center', gap: 20 }}>
-          <div style={{ padding: 14, background: '#8b5cf618', color: '#8b5cf6', borderRadius: 'var(--r-md)' }}><TrendingUp size={24} /></div>
-          <div><div style={{ fontSize: '1.8rem', fontWeight: 900 }}>₹{stats.totalAmount.toLocaleString()}</div><div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600 }}>Total Revenue</div></div>
+        <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ width: 44, height: 44, background: 'var(--violet-light)', color: 'var(--violet)', borderRadius: 'var(--r-md)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><TrendingUp size={20} /></div>
+          <div><div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--text-primary)' }}>₹{stats.totalAmount.toLocaleString()}</div><div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase' }}>Total Revenue</div></div>
         </div>
       </div>
 
-      <div className="glass-panel" style={{ marginBottom: 'var(--gap)', padding: '12px 18px', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+      <div className="glass-panel" style={{ marginBottom: 20, padding: 12, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
-          <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-          <input type="text" className="input-field" placeholder="Search leads by name, phone…" style={{ paddingLeft: 42, marginBottom: 0 }} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+          <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+          <input type="text" className="input-field" placeholder="Search by name, phone…" style={{ paddingLeft: 36, marginBottom: 0 }} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
         </div>
         
-        <select className="input-field" style={{ width: 'auto', minWidth: 160, marginBottom: 0 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-          <option value="all">All Statuses</option>
+        <select className="input-field" style={{ width: 'auto', flex: 1, minWidth: 140, marginBottom: 0 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+          <option value="all">All Status</option>
           <option value="Converted">Converted</option>
           <option value="Not Interested">Not Interested</option>
           <option value="DNC/DND">DNC/DND</option>
@@ -221,10 +221,10 @@ const MyLeads = () => {
           <option value="Others">Others</option>
         </select>
 
-        <select className="input-field" style={{ width: 'auto', minWidth: 160, marginBottom: 0 }} value={sourceFilter} onChange={e => setSourceFilter(e.target.value)}>
+        <select className="input-field" style={{ width: 'auto', flex: 1, minWidth: 140, marginBottom: 0 }} value={sourceFilter} onChange={e => setSourceFilter(e.target.value)}>
           <option value="all">All Sources</option>
-          <option value="created">Created by Agent</option>
-          <option value="uploaded">Uploaded Directly</option>
+          <option value="created">Agent Added</option>
+          <option value="uploaded">Uploaded</option>
         </select>
       </div>
 
@@ -266,113 +266,66 @@ const MyLeads = () => {
                   </div>
                 )}
 
-                {user?.role === 'admin' && (
-                  <button 
-                    className="btn btn-ghost btn-icon" 
-                    onClick={() => handleDelete(lead._id)}
-                    style={{ position: 'absolute', top: 12, right: 12, color: 'var(--danger)' }}
-                    title="Delete Lead"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                )}
 
-                <div className="lead-list-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, paddingLeft: user?.role === 'admin' ? 32 : 0 }}>
-                  <div style={{ display: 'flex', gap: 18, alignItems: 'center', flex: 1, minWidth: 0 }}>
-                    <div style={{ 
-                      width: 56, 
-                      height: 56, 
-                      borderRadius: 'var(--r-md)', 
-                      background: isConverted ? 'linear-gradient(135deg,#10b981,#059669)' : isNegative ? 'linear-gradient(135deg,#ef4444,#b91c1c)' : 'var(--bg-surface-2)', 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center', 
-                      color: (isConverted || isNegative) ? '#fff' : 'var(--text-muted)', 
-                      flexShrink: 0 
-                    }}>
-                      <Star size={24} fill={(isConverted || isNegative) ? "white" : "none"} />
-                    </div>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: 6 }}>{name}</h3>
-                      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><PhoneCall size={13} /> {phone}</span>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Calendar size={13} /> {new Date(lead.lastModified || lead.createdAt).toLocaleDateString()}</span>
-                        {lead.agentName && <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>by {lead.agentName}</span>}
-                        {lead.leadsCount > 1 && (
-                          <button 
-                            onClick={() => fetchHistory(phone, name)}
-                            className="badge-link"
-                            style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#8b5cf6', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                          >
-                            <TrendingUp size={13} /> {lead.leadsCount} Total Conversions
-                          </button>
-                        )}
+                <div className="lead-card-container">
+                  <div className="lead-card-main">
+                    <div style={{ display: 'flex', gap: 'var(--gap)', alignItems: 'center', flex: 1, minWidth: 0 }}>
+                      <div className="lead-card-icon" style={{ 
+                        background: isConverted ? 'linear-gradient(135deg,var(--success),#059669)' : isNegative ? 'linear-gradient(135deg,var(--danger),#b91c1c)' : 'var(--bg-surface-2)', 
+                        color: (isConverted || isNegative) ? '#fff' : 'var(--text-muted)'
+                      }}>
+                        <Star size={22} fill={(isConverted || isNegative) ? "white" : "none"} />
                       </div>
-                      
-                      <div style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <select 
-                          className="input-field" 
-                          style={{ marginBottom: 0, padding: '4px 10px', fontSize: '0.75rem', height: 32, width: 'auto', minWidth: 140, cursor: isLocked ? 'not-allowed' : 'pointer' }}
-                          value={lead.status || ''}
-                          disabled={isLocked}
-                          title={isLocked ? "This lead is locked and cannot be modified by agents." : ""}
-                          onChange={(e) => handleStatusChange(lead, e.target.value, 'contact')}
-                        >
-                          <option value="">Set Status</option>
-                          <option value="Converted">Converted</option>
-                          <option value="Not Interested">Not Interested</option>
-                          <option value="DNC/DND">DNC/DND</option>
-                          <option value="Call Back">Call Back</option>
-                          <option value="Others">Others</option>
-                        </select>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>{name}</h3>
+                        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 500 }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><PhoneCall size={12} /> {phone}</span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={12} /> {new Date(lead.lastModified || lead.createdAt).toLocaleDateString()}</span>
+                          {lead.leadsCount > 1 && (
+                            <button onClick={() => fetchHistory(phone, name)} style={{ color: 'var(--violet)', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                              <TrendingUp size={12} /> {lead.leadsCount} Conv.
+                            </button>
+                          )}
+                        </div>
+                        
+                        <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <select className="input-field" style={{ marginBottom: 0, padding: '2px 8px', fontSize: '0.7rem', height: 28, width: 'auto', minWidth: 110, cursor: isLocked ? 'not-allowed' : 'pointer' }} value={lead.status || ''} disabled={isLocked} onChange={(e) => handleStatusChange(lead, e.target.value, 'contact')}>
+                            <option value="">Set Status</option>
+                            <option value="Converted">Converted</option>
+                            <option value="Not Interested">Not Interested</option>
+                            <option value="DNC/DND">DNC/DND</option>
+                            <option value="Call Back">Call Back</option>
+                            <option value="Others">Others</option>
+                          </select>
 
-                        {lead.status === 'Call Back' && lead.callBackDt ? (
-                          <span className="badge" style={{ backgroundColor: '#06b6d415', color: '#06b6d4', display: 'flex', alignItems: 'center', gap: 5 }}>
-                            <Calendar size={12} /> Callback: {new Date(lead.callBackDt).toLocaleString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        ) : lead.status === 'Others' && lead.statusDetails ? (
-                          <span className="badge" style={{ backgroundColor: 'var(--primary-light)', color: 'var(--primary)' }}>
-                            Info: {lead.statusDetails}
-                          </span>
-                        ) : lead.transactionId ? (
-                          <span className="badge" style={{ backgroundColor: '#10b98115', color: '#10b981' }}>UTR: {lead.transactionId}</span>
-                        ) : null}
-                        {lead.remarks && (
-                          <div style={{ width: '100%', fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 8 }}>
-                            "{lead.remarks}"
-                          </div>
-                        )}
+                          {lead.status === 'Call Back' && lead.callBackDt && (
+                            <span className="badge badge-cyan" style={{ fontSize: '0.65rem' }}>
+                              <Calendar size={10} /> {new Date(lead.callBackDt).toLocaleDateString()}
+                            </span>
+                          )}
+                          {lead.transactionId && <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>UTR: {lead.transactionId}</span>}
+                        </div>
                       </div>
                     </div>
                   </div>
-                  <div className="lead-actions-col" style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end', minWidth: 120 }}>
+
+                  <div className="lead-card-actions">
                     <div className="lead-amount-box" style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)' }}>Latest Amount</div>
-                      <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#10b981' }}>₹{(lead.leadAmount || 0).toLocaleString()}</div>
-                      {lead.totalAmount > lead.leadAmount && (
-                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#8b5cf6', marginTop: 4 }}>
-                          Total: ₹{lead.totalAmount.toLocaleString()}
-                        </div>
-                      )}
+                      <div style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Amount</div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--success)', lineHeight: 1, margin: '2px 0' }}>₹{(lead.leadAmount || 0).toLocaleString()}</div>
+                      {lead.totalAmount > lead.leadAmount && <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--violet)' }}>Total: ₹{lead.totalAmount.toLocaleString()}</div>}
                     </div>
                     
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      {phone !== 'N/A' && (
-                        <a 
-                          href={`tel:${phone}`} 
-                          className="btn btn-primary btn-icon" 
-                          style={{ 
-                            background: 'linear-gradient(135deg, #10b981, #059669)', 
-                            border: 'none',
-                            width: 42,
-                            height: 42,
-                            borderRadius: '12px',
-                            boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
-                          }}
-                          title={`Call ${name}`}
-                        >
-                          <PhoneCall size={18} fill="white" />
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {user?.role !== 'admin' && phone !== 'N/A' && (
+                        <a href={`tel:${phone}`} className="btn btn-primary btn-icon" style={{ width: 36, height: 36, borderRadius: 10 }}>
+                          <PhoneCall size={16} fill="white" />
                         </a>
+                      )}
+                      {user?.role === 'admin' && (
+                        <button className="btn btn-danger btn-icon" onClick={() => handleDelete(lead._id)} style={{ width: 36, height: 36, borderRadius: 10 }}>
+                          <Trash2 size={16} />
+                        </button>
                       )}
                     </div>
                   </div>
@@ -384,22 +337,18 @@ const MyLeads = () => {
       )}
       
       <style>{`
-        .lead-list-item {
-          transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
-        }
-        .lead-list-item:hover {
-          transform: translateX(4px);
-          box-shadow: var(--shadow-lg);
-        }
-        .lead-list-item.selected {
-          background-color: var(--primary-light-alpha);
-        }
-        .badge-link {
-          transition: transform 0.2s;
-        }
-        .badge-link:hover {
-          transform: scale(1.05);
-          text-decoration: underline;
+        .lead-list-item { transition: all 0.2s; }
+        .lead-list-item:hover { transform: translateX(4px); box-shadow: var(--shadow-lg); }
+        
+        .lead-card-container { display: flex; justify-content: space-between; alignItems: center; gap: 20px; padding-left: 32px; }
+        .lead-card-main { display: flex; gap: 18, alignItems: center; flex: 1; minWidth: 0; }
+        .lead-card-icon { width: 50px; height: 50px; border-radius: var(--r-md); display: flex; alignItems: center; justify-content: center; flex-shrink: 0; }
+        .lead-card-actions { display: flex; flex-direction: column; gap: 10px; align-items: flex-end; min-width: 120px; }
+
+        @media (max-width: 768px) {
+          .lead-card-container { flex-direction: column; align-items: stretch; gap: 16px; padding-left: 0; padding-top: 24px; }
+          .lead-card-actions { flex-direction: row; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 12px; }
+          .lead-card-actions .lead-amount-box { text-align: left; }
         }
       `}</style>
 

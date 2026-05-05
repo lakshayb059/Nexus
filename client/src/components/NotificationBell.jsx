@@ -46,11 +46,21 @@ const NotificationBell = () => {
     }
   }, [user?._id]);
 
+  const playSound = () => {
+    try {
+      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+      audio.play().catch(e => console.log('Sound blocked by browser policy'));
+    } catch (e) {
+      console.error('Audio playback failed', e);
+    }
+  };
+
   useEffect(() => {
     if (!socket || !user) return;
 
     socket.on('appointment_reminder', (data) => {
       if (data.agentId === user._id) {
+        playSound();
         addNotification({
           id: `appt_${Date.now()}`,
           type: 'appointment',
@@ -64,6 +74,7 @@ const NotificationBell = () => {
 
     socket.on('callback_due', (data) => {
       if (data.agentId === user._id) {
+        playSound();
         addNotification({
           id: `cb_${Date.now()}`,
           type: 'callback',
@@ -77,6 +88,7 @@ const NotificationBell = () => {
 
     socket.on('requeue_notification', (data) => {
       if (data.agentId === user._id) {
+        playSound();
         addNotification({
           id: `rq_${Date.now()}`,
           type: 'callback',
@@ -88,10 +100,9 @@ const NotificationBell = () => {
       }
     });
 
-
-
     socket.on('batch_uploaded', (data) => {
       if (data.agentId === user._id) {
+        playSound();
         addNotification({
           id: `wf_${Date.now()}`,
           type: 'workflow',

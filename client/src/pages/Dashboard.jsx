@@ -4,54 +4,91 @@ import { useSocket } from '../contexts/SocketContext';
 import api from '../utils/api';
 import {
   Users, PhoneCall, Star, Calendar, Clock,
-  XCircle, TrendingUp, Database, RefreshCw, PhoneOff, AlertCircle
+  XCircle, TrendingUp, Database, RefreshCw, PhoneOff,
+  AlertCircle, ArrowUpRight, Activity, Zap
 } from 'lucide-react';
 
-/* ── Skeleton card ── */
+/* ─────────────────────────────────────────
+   SKELETON LOADER
+───────────────────────────────────────── */
 const SkeletonCard = () => (
-  <div className="glass-panel" style={{ padding: 'var(--card-p)', overflow: 'hidden' }}>
-    <div className="skeleton" style={{ height: 14, width: '60%', marginBottom: 20 }} />
-    <div className="skeleton" style={{ height: 36, width: '45%', marginBottom: 12 }} />
-    <div className="skeleton" style={{ height: 12, width: '70%' }} />
+  <div style={{
+    background: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.8)',
+    borderRadius: 20, padding: 22, overflow: 'hidden',
+    boxShadow: '0 10px 30px -12px rgba(0,0,0,0.06)'
+  }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      <div style={{ width: 54, height: 54, borderRadius: 18, background: 'linear-gradient(90deg,#f0f4ff 25%,#e0e8ff 50%,#f0f4ff 75%)', backgroundSize: '300% 100%', animation: 'shimmer 1.4s infinite' }} />
+      <div style={{ flex: 1 }}>
+        <div style={{ height: 10, width: '55%', background: 'linear-gradient(90deg,#f0f4ff 25%,#e0e8ff 50%,#f0f4ff 75%)', backgroundSize: '300% 100%', animation: 'shimmer 1.4s infinite', borderRadius: 6, marginBottom: 10 }} />
+        <div style={{ height: 28, width: '40%', background: 'linear-gradient(90deg,#f0f4ff 25%,#e0e8ff 50%,#f0f4ff 75%)', backgroundSize: '300% 100%', animation: 'shimmer 1.4s infinite', borderRadius: 6, marginBottom: 8 }} />
+        <div style={{ height: 9, width: '70%', background: 'linear-gradient(90deg,#f0f4ff 25%,#e0e8ff 50%,#f0f4ff 75%)', backgroundSize: '300% 100%', animation: 'shimmer 1.4s infinite', borderRadius: 6 }} />
+      </div>
+    </div>
   </div>
 );
 
-/* ── Stat card ── */
+/* ─────────────────────────────────────────
+   PREMIUM STAT CARD
+───────────────────────────────────────── */
 const StatCard = ({ title, value, subtext, icon: Icon, accent, delay = 0 }) => (
-  <div
-    className="glass-panel stat-card"
-    style={{ padding: 'var(--card-p)', animationDelay: `${delay}ms` }}
-  >
-    <div className="stat-card-top">
-      <span className="stat-card-title">{title}</span>
-      <div className="stat-card-icon" style={{ background: `${accent}18`, color: accent }}>
-        <Icon size={18} />
+  <div className="stat-card-premium" style={{ animationDelay: `${delay}ms` }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(10px, 2vw, 18px)', position: 'relative', zIndex: 2 }}>
+      <div style={{
+        width: 'clamp(40px, 5vw, 52px)', 
+        height: 'clamp(40px, 5vw, 52px)', 
+        borderRadius: 'var(--r-md)', 
+        flexShrink: 0,
+        background: `${accent}14`, color: accent,
+        display: 'flex', alignItems: 'center', justifyContent: 'center'
+      }} className="stat-icon-hover">
+        <Icon size={20} strokeWidth={2.2} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>
+          {title}
+        </div>
+        <div style={{ fontSize: 'clamp(1.4rem, 4vw, 1.9rem)', fontWeight: 900, color: 'var(--text-primary)', lineHeight: 1, letterSpacing: '-0.03em' }}>
+          {value}
+        </div>
+        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500, marginTop: 4 }}>
+          {subtext}
+        </div>
       </div>
     </div>
-    <div className="stat-card-value">{value}</div>
-    <div className="stat-card-sub">{subtext}</div>
-    {/* Decorative glow blob */}
     <div style={{
-      position: 'absolute', bottom: -20, right: -20,
-      width: 100, height: 100,
-      background: accent, opacity: 0.06,
-      borderRadius: '50%', filter: 'blur(24px)',
-      pointerEvents: 'none',
+      position: 'absolute', top: -15, right: -15, width: 80, height: 80,
+      borderRadius: '50%', background: accent, filter: 'blur(30px)', opacity: 0.08, zIndex: 1, pointerEvents: 'none'
     }} />
   </div>
 );
 
+/* ─────────────────────────────────────────
+   SECTION DIVIDER
+───────────────────────────────────────── */
+const SectionLabel = ({ icon: Icon, label, accent = '#2563eb' }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, marginTop: 4 }}>
+    <div style={{ width: 28, height: 28, borderRadius: 8, background: `${accent}14`, color: accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Icon size={14} strokeWidth={2.5} />
+    </div>
+    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</span>
+    <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, rgba(37,99,235,0.1), transparent)' }} />
+  </div>
+);
+
+/* ─────────────────────────────────────────
+   MAIN DASHBOARD
+───────────────────────────────────────── */
 const Dashboard = () => {
   const { user } = useAuth();
   const { socket } = useSocket();
-  const [stats, setStats]   = useState(null);
-  const [queues, setQueues] = useState([]);
+  const [stats, setStats]     = useState(null);
+  const [queues, setQueues]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchDashboardData = async (silent = false) => {
-    if (!silent) setLoading(true);
-    else setRefreshing(true);
+    if (!silent) setLoading(true); else setRefreshing(true);
     try {
       const statsRes = await api.get('/contacts/stats');
       setStats({ ...statsRes.data, totalLeadValue: statsRes.data.totalLeadAmount || 0 });
@@ -70,123 +107,180 @@ const Dashboard = () => {
   useEffect(() => {
     fetchDashboardData();
     if (!socket) return;
-    const events = [
-      'contacts_updated', 'contact_disposed', 'lead_disposed',
-      'dashboard_update', 'batch_uploaded', 'users_updated',
-      'appointment_scheduled', 'appointment_cancelled',
-    ];
+    const events = ['contacts_updated','contact_disposed','lead_disposed','dashboard_update','batch_uploaded','users_updated','appointment_scheduled','appointment_cancelled'];
     const handler = () => fetchDashboardData(true);
     events.forEach(e => socket.on(e, handler));
     return () => events.forEach(e => socket.off(e, handler));
   }, [socket, user]);
 
-  const statCards = stats ? [
-    { title: 'Total Contacts',   value: stats.total || 0,                         subtext: 'In system',               icon: Users,     accent: '#6366f1' },
-    { title: 'Pending Queue',    value: stats.pending || 0,                        subtext: 'Awaiting disposition',    icon: Clock,     accent: '#f59e0b' },
-    { title: 'Leads Converted',  value: stats.lead || 0,                           subtext: 'Total leads',             icon: Star,      accent: '#10b981' },
-    { title: 'Total Revenue',    value: `₹${(stats.totalLeadValue || 0).toLocaleString()}`, subtext: 'Aggregate lead value', icon: TrendingUp, accent: '#8b5cf6' },
-    { title: 'Appointments',     value: stats.appointment || 0,                    subtext: 'Scheduled',               icon: Calendar,  accent: '#a855f7' },
-    { title: 'Call Backs',       value: stats.callBack || 0,                       subtext: 'Follow-up required',      icon: PhoneCall, accent: '#06b6d4' },
-    { title: 'Invalid / Wrong No.', value: stats.invalid || 0,                     subtext: 'Bad contact info',        icon: AlertCircle, accent: '#f97316' },
-    { title: 'Hung Up / Failed', value: stats.hungUp || 0,                         subtext: 'Max attempts reached',    icon: PhoneOff,  accent: '#ef4444' },
-    { title: 'Do Not Call',      value: stats.doNotCall || 0,                      subtext: 'Excluded contacts',       icon: XCircle,   accent: '#64748b' },
+  const primaryCards = stats ? [
+    { title: 'Total Contacts',  value: stats.total || 0,   subtext: 'In system',            icon: Users,     accent: '#6366f1' },
+    { title: 'Pending Queue',   value: stats.pending || 0, subtext: 'Awaiting disposition',  icon: Clock,     accent: '#f59e0b' },
+    { title: 'Leads Converted', value: stats.lead || 0,    subtext: 'Successfully closed',   icon: Star,      accent: '#10b981' },
+    { title: 'Total Revenue',   value: `₹${(stats.totalLeadValue || 0).toLocaleString()}`, subtext: 'Aggregate lead value', icon: TrendingUp, accent: '#8b5cf6' },
   ] : [];
 
+  const activityCards = stats ? [
+    { title: 'Appointments', value: stats.appointment || 0, subtext: 'Scheduled',           icon: Calendar,    accent: '#a855f7' },
+    { title: 'Call Backs',   value: stats.callBack   || 0, subtext: 'Follow-up required',   icon: PhoneCall,   accent: '#06b6d4' },
+  ] : [];
+
+  const negativeCards = stats ? [
+    { title: 'Invalid / Wrong No.', value: stats.invalid   || 0, subtext: 'Bad contact info',     icon: AlertCircle, accent: '#f97316' },
+    { title: 'Hung Up / Failed',    value: stats.hungUp    || 0, subtext: 'Max attempts reached', icon: PhoneOff,    accent: '#ef4444' },
+    { title: 'Do Not Call',         value: stats.doNotCall || 0, subtext: 'Excluded contacts',    icon: XCircle,     accent: '#64748b' },
+  ] : [];
+
+  const skeletonCount = loading ? 9 : 0;
+
   return (
-    <div>
-      {/* Header */}
-      <div className="page-header">
-        <div>
-          <h1 className="page-title" style={{ fontSize: 'var(--h1)' }}>Dashboard</h1>
-          <p className="page-subtitle">
-            Welcome back, <strong style={{ color: 'var(--text-primary)' }}>{user?.name}</strong>. Here's what's happening today.
+    <div style={{ animation: 'revealUp 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards' }}>
+
+      {/* ── PAGE HEADER ── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 200 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg,var(--primary),var(--violet))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Activity size={16} color="#fff" strokeWidth={2.5} />
+            </div>
+            <h1 style={{ fontSize: 'var(--h1)', fontWeight: 900, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.03em' }}>
+              Dashboard
+            </h1>
+          </div>
+          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0, fontWeight: 500 }}>
+            Welcome, <strong style={{ color: 'var(--text-primary)', fontWeight: 800 }}>{user?.name}</strong>
           </p>
         </div>
         <button
-          className="btn btn-outline"
           onClick={() => fetchDashboardData(true)}
           disabled={refreshing || loading}
-          style={{ gap: 7 }}
+          className="btn btn-outline"
+          style={{ 
+            fontSize: '0.8rem', 
+            padding: '8px 14px',
+            opacity: (refreshing || loading) ? 0.6 : 1
+          }}
         >
-          <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
-          <span className="hide-mobile">Refresh</span>
+          <RefreshCw size={14} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+          Refresh
         </button>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid-stats" style={{ marginBottom: 'var(--gap)' }}>
-        {loading
-          ? Array.from({ length: 7 }).map((_, i) => <SkeletonCard key={i} />)
-          : statCards.map((c, i) => (
-              <StatCard key={c.title} {...c} delay={i * 50} />
-            ))
-        }
-      </div>
-
-      {/* Agent queue table */}
-      {!loading && user?.role !== 'agent' && queues.length > 0 && (
-        <div className="glass-panel" style={{ overflow: 'hidden' }}>
-          <div style={{
-            padding: '18px 22px',
-            borderBottom: '1px solid var(--border)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}>
-            <h2 style={{ fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Database size={17} style={{ color: 'var(--primary)' }} /> Agent Queue Status
-            </h2>
-            <span className="badge badge-primary">{queues.length} agents</span>
+      {/* ── PRIMARY KPI SECTION ── */}
+      {loading ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 16, marginBottom: 24 }}>
+          {Array.from({ length: 9 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+      ) : (
+        <>
+          <SectionLabel icon={Zap} label="Key Metrics" accent="var(--primary)" />
+          <div className="grid-stats" style={{ marginBottom: 24 }}>
+            {primaryCards.map((c, i) => <StatCard key={c.title} {...c} delay={i * 60} />)}
           </div>
 
-          <div className="table-responsive">
-            <table className="crm-table">
+          <SectionLabel icon={Calendar} label="Active Follow-Ups" accent="var(--violet)" />
+          <div className="grid-stats" style={{ marginBottom: 24 }}>
+            {activityCards.map((c, i) => <StatCard key={c.title} {...c} delay={240 + i * 60} />)}
+          </div>
+
+          <SectionLabel icon={AlertCircle} label="Unresolved Contacts" accent="var(--danger)" />
+          <div className="grid-stats" style={{ marginBottom: 24 }}>
+            {negativeCards.map((c, i) => <StatCard key={c.title} {...c} delay={360 + i * 60} />)}
+          </div>
+        </>
+      )}
+
+      {/* ── AGENT QUEUE TABLE ── */}
+      {!loading && user?.role !== 'agent' && queues.length > 0 && (
+        <div className="glass-panel" style={{ overflow: 'hidden' }}>
+          {/* Table header */}
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(37,99,235,0.03)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Database size={15} color="var(--primary)" strokeWidth={2.5} />
+              </div>
+              <div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>Agent Performance</div>
+              </div>
+            </div>
+            <div className="badge badge-primary">
+              {queues.length} Agents
+            </div>
+          </div>
+
+          {/* Table */}
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr>
-                  <th>Agent</th>
-                  {user?.role === 'admin' && <th>Team Lead</th>}
-                  <th>Total</th>
-                  <th>Pending</th>
-                  <th>Disposed</th>
-                  <th>Leads</th>
-                  <th>Lead Value</th>
-                  <th>Appts</th>
-                  <th>Progress</th>
+                <tr style={{ background: 'rgba(248,251,255,0.4)' }}>
+                  {['Agent', user?.role === 'admin' && 'Team Lead', 'Total', 'Pending', 'Disposed', 'Leads', 'Revenue', 'Appts', 'Progress'].filter(Boolean).map(h => (
+                    <th key={h} style={{ padding: '13px 20px', textAlign: 'left', fontSize: '0.7rem', fontWeight: 900, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap', borderBottom: '1px solid rgba(37,99,235,0.06)' }}>
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {Array.isArray(queues) && queues.map((q, i) => {
                   const progress = q.total > 0 ? Math.round(((q.total - q.pending) / q.total) * 100) : 0;
+                  const progressColor = progress >= 80 ? '#10b981' : progress >= 50 ? '#f59e0b' : '#ef4444';
                   return (
-                    <tr key={i}>
-                      <td>
+                    <tr key={i} style={{ borderBottom: '1px solid rgba(37,99,235,0.05)', transition: 'background 0.2s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(37,99,235,0.02)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                      <td style={{ padding: '14px 20px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div
-                            className="avatar avatar-sm"
-                            style={{ background: 'var(--primary-light)', color: 'var(--primary)', fontSize: '0.7rem', fontWeight: 800 }}
-                          >
-                            {q.agent?.name?.charAt(0) || 'U'}
+                          <div style={{
+                            width: 34, height: 34, borderRadius: '50%',
+                            background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+                            color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '0.75rem', fontWeight: 800, flexShrink: 0
+                          }}>
+                            {q.agent?.name?.charAt(0)?.toUpperCase() || 'U'}
                           </div>
-                          <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{q.agent?.name || 'Unknown'}</span>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: '0.875rem', color: '#0f172a' }}>{q.agent?.name || 'Unknown'}</div>
+                            <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500 }}>Agent</div>
+                          </div>
                         </div>
                       </td>
                       {user?.role === 'admin' && (
-                        <td>
-                          <span className="badge badge-warning">{q.tlName || '—'}</span>
+                        <td style={{ padding: '14px 20px' }}>
+                          <span style={{ padding: '4px 10px', borderRadius: 999, background: 'rgba(217,119,6,0.1)', color: '#d97706', fontSize: '0.72rem', fontWeight: 800 }}>
+                            {q.tlName || '—'}
+                          </span>
                         </td>
                       )}
-                      <td style={{ fontWeight: 600 }}>{q.total || 0}</td>
-                      <td><span style={{ color: 'var(--warning)', fontWeight: 700 }}>{q.pending || 0}</span></td>
-                      <td>{q.disposed || 0}</td>
-                      <td><span style={{ color: 'var(--success)', fontWeight: 700 }}>{q.lead || 0}</span></td>
-                      <td style={{ fontWeight: 700 }}>₹{(q.totalLeadAmount || 0).toLocaleString()}</td>
-                      <td><span style={{ color: 'var(--violet)', fontWeight: 700 }}>{q.appointment || 0}</span></td>
-                      <td style={{ minWidth: 120 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div className="progress-bar-track" style={{ flex: 1 }}>
-                            <div className="progress-bar-fill" style={{ width: `${progress}%` }} />
+                      <td style={{ padding: '14px 20px', fontWeight: 700, color: '#0f172a', fontSize: '0.9rem' }}>{q.total || 0}</td>
+                      <td style={{ padding: '14px 20px' }}>
+                        <span style={{ padding: '3px 10px', borderRadius: 999, background: 'rgba(245,158,11,0.1)', color: '#f59e0b', fontWeight: 800, fontSize: '0.82rem' }}>
+                          {q.pending || 0}
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px 20px', color: '#475569', fontWeight: 600, fontSize: '0.875rem' }}>{q.disposed || 0}</td>
+                      <td style={{ padding: '14px 20px' }}>
+                        <span style={{ padding: '3px 10px', borderRadius: 999, background: 'rgba(16,185,129,0.1)', color: '#10b981', fontWeight: 800, fontSize: '0.82rem' }}>
+                          {q.lead || 0}
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px 20px', fontWeight: 800, color: '#7c3aed', fontSize: '0.875rem' }}>
+                        ₹{(q.totalLeadAmount || 0).toLocaleString()}
+                      </td>
+                      <td style={{ padding: '14px 20px' }}>
+                        <span style={{ padding: '3px 10px', borderRadius: 999, background: 'rgba(168,85,247,0.1)', color: '#a855f7', fontWeight: 800, fontSize: '0.82rem' }}>
+                          {q.appointment || 0}
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px 20px', minWidth: 160 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{ flex: 1, height: 7, background: 'rgba(37,99,235,0.08)', borderRadius: 999, overflow: 'hidden' }}>
+                            <div style={{
+                              height: '100%', width: `${progress}%`,
+                              background: `linear-gradient(90deg, ${progressColor}, ${progressColor}aa)`,
+                              borderRadius: 999, transition: 'width 0.6s ease'
+                            }} />
                           </div>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', minWidth: 36 }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 800, color: progressColor, minWidth: 36 }}>
                             {progress}%
                           </span>
                         </div>
@@ -200,45 +294,44 @@ const Dashboard = () => {
         </div>
       )}
 
+      {/* ── INLINE STYLES ── */}
       <style>{`
-        .stat-card {
+        @keyframes revealUp {
+          from { opacity: 0; transform: translateY(16px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes shimmer {
+          from { background-position: 200% 0; }
+          to   { background-position: -200% 0; }
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        .stat-card-premium {
           position: relative;
           overflow: hidden;
-          animation: fadeUp var(--t-slow) var(--ease) both;
-          transition: transform var(--t-base), box-shadow var(--t-base);
+          padding: 22px;
+          background: rgba(255,255,255,0.72);
+          backdrop-filter: blur(16px) saturate(180%);
+          -webkit-backdrop-filter: blur(16px) saturate(180%);
+          border: 1px solid rgba(255,255,255,0.85);
+          border-radius: 20px;
+          box-shadow: 0 8px 30px -10px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.04);
+          animation: revealUp 0.5s cubic-bezier(0.34,1.56,0.64,1) both;
+          transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
-        .stat-card:hover {
-          transform: translateY(-3px);
-          box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+        .stat-card-premium:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 20px 50px -15px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.04);
         }
-        .stat-card-top {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 16px;
+        .stat-card-premium:hover .stat-icon-hover {
+          transform: scale(1.12) rotate(-6deg);
         }
-        .stat-card-title {
-          font-size: 0.78rem;
-          font-weight: 700;
-          color: var(--text-secondary);
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
+        .stat-icon-hover {
+          transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1) !important;
         }
-        .stat-card-icon {
-          width: 36px; height: 36px;
-          border-radius: var(--r-sm);
-          display: flex; align-items: center; justify-content: center;
-        }
-        .stat-card-value {
-          font-size: clamp(1.7rem, 4vw, 2.2rem);
-          font-weight: 800;
-          color: var(--text-primary);
-          margin-bottom: 6px;
-          line-height: 1;
-        }
-        .stat-card-sub {
-          font-size: 0.78rem;
-          color: var(--text-muted);
+        @media (max-width: 640px) {
+          .stat-card-premium { padding: 16px; }
         }
       `}</style>
     </div>

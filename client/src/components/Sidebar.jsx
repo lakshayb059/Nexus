@@ -59,8 +59,13 @@ const Sidebar = ({ isOpen, onClose }) => {
         }}
       >
         {/* Header */}
-        <div style={{ padding: '24px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#111827', margin: 0 }}>SPIKE CRM</h2>
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg, var(--primary), var(--violet))', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4 }}>
+              <img src="/favicon.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            </div>
+            <h2 style={{ fontSize: '1.15rem', fontWeight: 900, color: '#111827', margin: 0, letterSpacing: '-0.02em' }}>SPIKE CRM</h2>
+          </div>
           <button className="mobile-close-btn" onClick={onClose} style={{ display: 'none', background: 'none', border: 'none', cursor: 'pointer' }}>
             <X size={20} />
           </button>

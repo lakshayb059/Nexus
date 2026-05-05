@@ -90,7 +90,7 @@ router.get('/queue', verify, authorize(['agent']), async (req, res) => {
     const total = await contactsCollection.countDocuments(commonQuery);
     const finalized = await contactsCollection.countDocuments({ 
       ...commonQuery, 
-      disposition: { $in: ['Lead', 'Invalid', 'DoNotCall'] } 
+      disposition: { $in: ['Lead', 'Invalid', 'DoNotCall', 'Appointment', 'CallBack'] } 
     });
     const pendingCount = total - finalized;
     const disposed = finalized;
