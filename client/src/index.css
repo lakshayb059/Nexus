@@ -21,7 +21,7 @@
   --shadow-lg: 0 10px 30px rgba(15,23,42,0.12);
   --shadow-primary: 0 4px 14px rgba(37,99,235,0.20);
   --sidebar-width: 240px; --sidebar-collapsed-width: 62px;
-  --header-height: 54px; --bottom-nav-height: 56px;
+  --header-height: clamp(54px, 8vw, 64px); --bottom-nav-height: 56px;
   --page-px: clamp(12px,3vw,28px); --page-py: clamp(14px,3vw,26px);
   --card-p: clamp(12px,2vw,18px); --gap: clamp(10px,1.8vw,16px);
   --font: 'Inter', system-ui, sans-serif;

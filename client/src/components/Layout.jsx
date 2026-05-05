@@ -70,11 +70,12 @@ const Layout = () => {
               className="btn btn-ghost btn-icon topbar-hamburger"
               onClick={() => setSidebarOpen(true)}
               aria-label="Open menu"
+              style={{ width: 44, height: 44 }}
             >
-              <Menu size={22} />
+              <Menu size={30} />
             </button>
             {/* Page title (visible on all screens now) */}
-            <h1 className="topbar-page-title">{pageTitle}</h1>
+            <h1 className="topbar-page-title" style={{ fontSize: 'clamp(0.95rem, 4vw, 1.15rem)' }}>{pageTitle}</h1>
           </div>
 
           <div className="topbar-right">
@@ -170,8 +171,8 @@ const Layout = () => {
           flex-shrink: 0;
           z-index: 100;
         }
-        .topbar-left  { display: flex; align-items: center; gap: 12px; }
-        .topbar-right { display: flex; align-items: center; gap: 10px; }
+        .topbar-left  { display: flex; align-items: center; gap: clamp(8px, 3vw, 14px); }
+        .topbar-right { display: flex; align-items: center; gap: clamp(8px, 2.5vw, 12px); }
 
         .topbar-hamburger { display: none; }
         @media (max-width: 1024px) {
@@ -226,11 +227,17 @@ const Layout = () => {
 
         /* Role chip */
         .topbar-role-chip {
-          padding: 4px 10px;
+          padding: 5px 12px;
           border-radius: var(--r-full);
-          font-size: 0.72rem;
-          font-weight: 700;
+          font-size: 0.7rem;
+          font-weight: 800;
           text-transform: capitalize;
+        }
+
+        @media (max-width: 640px) {
+          .topbar { padding: 0 16px; }
+          .topbar-live-pill { padding: 5px 12px; font-size: 0.7rem; }
+          .topbar-role-chip { display: none; }
         }
 
         /* ── Content area ── */

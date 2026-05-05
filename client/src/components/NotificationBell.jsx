@@ -155,25 +155,27 @@ const NotificationBell = () => {
       <button 
         className="btn btn-ghost btn-icon" 
         onClick={() => setIsOpen(!isOpen)}
-        style={{ position: 'relative' }}
+        style={{ position: 'relative', width: 44, height: 44 }}
       >
-        <Bell size={20} style={{ color: unreadCount > 0 ? 'var(--primary)' : 'var(--text-muted)' }} />
+        <Bell size={32} style={{ color: unreadCount > 0 ? 'var(--primary)' : 'var(--text-muted)' }} />
         {unreadCount > 0 && (
           <span style={{
             position: 'absolute',
-            top: 6,
-            right: 6,
+            top: 4,
+            right: 4,
             background: 'var(--danger)',
             color: '#fff',
-            fontSize: '10px',
-            fontWeight: 800,
-            width: 16,
-            height: 16,
+            fontSize: '11px',
+            fontWeight: 900,
+            width: 19,
+            height: 19,
             borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            border: '2px solid #fff'
+            border: '2.5px solid #fff',
+            boxShadow: 'var(--shadow-md)',
+            zIndex: 10
           }}>
             {unreadCount}
           </span>
