@@ -252,21 +252,40 @@ const NotificationBell = () => {
           border: 1px solid var(--border);
           border-radius: var(--r-lg);
           background: #fff;
+          box-shadow: 0 10px 40px rgba(0,0,0,0.15);
         }
-        .notif-item:last-child { border-bottom: none; }
+        
+        .notif-item {
+          display: flex;
+          gap: 12px;
+          padding: 12px 16px;
+          border-bottom: 1px solid var(--border);
+          cursor: pointer;
+          transition: all 0.2s;
+          align-items: center;
+        }
 
-        .bell-icon-responsive { width: 20px; height: 20px; }
+        .notif-item:hover {
+          background: var(--bg-surface-2);
+        }
+
+        .notif-item:last-child {
+          border-bottom: none;
+        }
+
+        .bell-icon-responsive { width: 22px; height: 22px; }
         .bell-badge-responsive {
           position: absolute;
-          top: 6px; right: 6px;
-          background: var(--danger);
+          top: 4px; right: 4px;
+          background: #ef4444;
           color: #fff;
           font-size: 10px;
-          fontWeight: 800;
-          width: 16px; height: 16px;
+          font-weight: 800;
+          min-width: 18px; height: 18px;
           border-radius: 50%;
           display: flex; alignItems: center; justify-content: center;
           border: 2px solid #fff;
+          padding: 0 4px;
         }
 
         @media (max-width: 640px) {
@@ -279,6 +298,10 @@ const NotificationBell = () => {
             border-width: 2.5px;
             box-shadow: var(--shadow-md);
             z-index: 10;
+          }
+          .notification-dropdown {
+            width: calc(100vw - 32px) !important;
+            right: -16px !important;
           }
         }
       `}</style>
