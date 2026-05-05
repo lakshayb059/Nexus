@@ -153,30 +153,13 @@ const NotificationBell = () => {
   return (
     <div style={{ position: 'relative' }} ref={dropdownRef}>
       <button 
-        className="btn btn-ghost btn-icon" 
+        className="btn btn-ghost btn-icon bell-btn-responsive" 
         onClick={() => setIsOpen(!isOpen)}
-        style={{ position: 'relative', width: 44, height: 44 }}
+        style={{ position: 'relative' }}
       >
-        <Bell size={32} style={{ color: unreadCount > 0 ? 'var(--primary)' : 'var(--text-muted)' }} />
+        <Bell className="bell-icon-responsive" style={{ color: unreadCount > 0 ? 'var(--primary)' : 'var(--text-muted)' }} />
         {unreadCount > 0 && (
-          <span style={{
-            position: 'absolute',
-            top: 4,
-            right: 4,
-            background: 'var(--danger)',
-            color: '#fff',
-            fontSize: '11px',
-            fontWeight: 900,
-            width: 19,
-            height: 19,
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            border: '2.5px solid #fff',
-            boxShadow: 'var(--shadow-md)',
-            zIndex: 10
-          }}>
+          <span className="bell-badge-responsive">
             {unreadCount}
           </span>
         )}
@@ -255,17 +238,34 @@ const NotificationBell = () => {
           border-radius: var(--r-lg);
           background: #fff;
         }
-        .notif-item {
-          padding: 12px 16px;
-          display: flex;
-          gap: 12px;
-          align-items: center;
-          cursor: pointer;
-          transition: background 0.2s;
-          border-bottom: 1px solid var(--border-light);
-        }
-        .notif-item:hover { background: var(--bg-surface-2); }
         .notif-item:last-child { border-bottom: none; }
+
+        .bell-icon-responsive { width: 20px; height: 20px; }
+        .bell-badge-responsive {
+          position: absolute;
+          top: 6px; right: 6px;
+          background: var(--danger);
+          color: #fff;
+          font-size: 10px;
+          fontWeight: 800;
+          width: 16px; height: 16px;
+          border-radius: 50%;
+          display: flex; alignItems: center; justify-content: center;
+          border: 2px solid #fff;
+        }
+
+        @media (max-width: 640px) {
+          .bell-btn-responsive { width: 44px!important; height: 44px!important; }
+          .bell-icon-responsive { width: 32px!important; height: 32px!important; }
+          .bell-badge-responsive {
+            top: 4px; right: 4px;
+            font-size: 11px;
+            width: 19px; height: 19px;
+            border-width: 2.5px;
+            box-shadow: var(--shadow-md);
+            z-index: 10;
+          }
+        }
       `}</style>
     </div>
   );

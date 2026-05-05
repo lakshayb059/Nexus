@@ -70,9 +70,9 @@ const Layout = () => {
               className="btn btn-ghost btn-icon topbar-hamburger"
               onClick={() => setSidebarOpen(true)}
               aria-label="Open menu"
-              style={{ width: 44, height: 44 }}
+              style={{ position: 'relative' }}
             >
-              <Menu size={30} />
+              <Menu className="hamburger-icon-responsive" />
             </button>
             {/* Page title (visible on all screens now) */}
             <h1 className="topbar-page-title" style={{ fontSize: 'clamp(0.95rem, 4vw, 1.15rem)' }}>{pageTitle}</h1>
@@ -160,7 +160,7 @@ const Layout = () => {
         /* ── Top Bar ── */
         .topbar {
           height: var(--header-height);
-          background: rgba(255,255,255,0.7);
+          background: rgba(255,255,255,0.8);
           backdrop-filter: blur(24px) saturate(200%);
           -webkit-backdrop-filter: blur(24px) saturate(200%);
           border-bottom: 1px solid var(--border);
@@ -169,14 +169,21 @@ const Layout = () => {
           justify-content: space-between;
           padding: 0 24px;
           flex-shrink: 0;
-          z-index: 100;
+          z-index: 1000;
+          position: sticky;
+          top: 0;
         }
         .topbar-left  { display: flex; align-items: center; gap: clamp(8px, 3vw, 14px); }
         .topbar-right { display: flex; align-items: center; gap: clamp(8px, 2.5vw, 12px); }
 
         .topbar-hamburger { display: none; }
+        .hamburger-icon-responsive { width: 22px; height: 22px; }
         @media (max-width: 1024px) {
           .topbar-hamburger { display: flex; }
+        }
+        @media (max-width: 640px) {
+          .topbar-hamburger { width: 44px!important; height: 44px!important; }
+          .hamburger-icon-responsive { width: 30px!important; height: 30px!important; }
         }
 
         .topbar-brand-mobile {
