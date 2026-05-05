@@ -163,8 +163,19 @@ const Workflow = () => {
   const progressPercent = total > 0 ? Math.round(((total - (data?.pending || 0)) / total) * 100) : 0;
 
   if (!data?.contact) {
-    const appts = emptyStateContacts?.filter(c => c.disposition === 'Appointment') || [];
-    const cbs = emptyStateContacts?.filter(c => c.disposition === 'CallBack') || [];
+    const getDeduplicated = (contacts, type, dateField) => {
+      const map = new Map();
+      contacts.filter(c => c.disposition === type).forEach(c => {
+        const phone = c.fields?.Phone || c.fields?.phone || c.fields?.Mobile || c._id;
+        if (!map.has(phone) || new Date(c[dateField]) < new Date(map.get(phone)[dateField])) {
+          map.set(phone, c);
+        }
+      });
+      return Array.from(map.values());
+    };
+
+    const appts = getDeduplicated(emptyStateContacts || [], 'Appointment', 'appointmentDt');
+    const cbs = getDeduplicated(emptyStateContacts || [], 'CallBack', 'callBackDt');
 
     return (
       <div className="animate-fade-in">

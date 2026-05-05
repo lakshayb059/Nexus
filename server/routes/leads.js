@@ -77,31 +77,25 @@ router.get('/appointments', verify, authorize(['agent', 'tl', 'admin']), async (
       matchQuery.assignedTo = { $in: agents.map(a => a._id) };
     }
 
-    if (req.user.role === 'admin') {
-      const appointments = await appointmentsCollection.find(matchQuery).sort({ appointmentDt: 1 }).toArray();
-      res.json(appointments);
-    } else {
-      // Aggregate view for Agents/TLs
-      const pipeline = [
-        { $match: matchQuery },
-        {
-          $addFields: {
-            normPhone: { $ifNull: ["$fields.Phone", { $ifNull: ["$fields.phone", { $ifNull: ["$fields.Mobile", "N/A"] }] }] }
-          }
-        },
-        { $sort: { appointmentDt: -1 } },
-        {
-          $group: {
-            _id: "$normPhone",
-            latestApp: { $first: "$$ROOT" }
-          }
-        },
-        { $replaceRoot: { newRoot: "$latestApp" } },
-        { $sort: { appointmentDt: 1 } }
-      ];
-      const aggregated = await appointmentsCollection.aggregate(pipeline).toArray();
-      res.json(aggregated);
-    }
+    const pipeline = [
+      { $match: matchQuery },
+      {
+        $addFields: {
+          normPhone: { $ifNull: ["$fields.Phone", { $ifNull: ["$fields.phone", { $ifNull: ["$fields.Mobile", "N/A"] }] }] }
+        }
+      },
+      { $sort: { appointmentDt: 1 } }, // Earliest first
+      {
+        $group: {
+          _id: "$normPhone",
+          earliestApp: { $first: "$$ROOT" }
+        }
+      },
+      { $replaceRoot: { newRoot: "$earliestApp" } },
+      { $sort: { appointmentDt: 1 } }
+    ];
+    const aggregated = await appointmentsCollection.aggregate(pipeline).toArray();
+    res.json(aggregated);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -122,32 +116,26 @@ router.get('/callbacks', verify, authorize(['agent', 'tl', 'admin']), async (req
       matchQuery.assignedTo = { $in: agents.map(a => a._id) };
     }
 
-    if (req.user.role === 'admin') {
-      const callbacks = await callbacksCollection.find(matchQuery).sort({ callBackDt: 1 }).toArray();
-      res.json(callbacks.map(c => ({ ...c, isLeadCallback: false })));
-    } else {
-      // Aggregate view for Agents/TLs
-      const pipeline = [
-        { $match: matchQuery },
-        {
-          $addFields: {
-            normPhone: { $ifNull: ["$fields.Phone", { $ifNull: ["$fields.phone", { $ifNull: ["$fields.Mobile", "N/A"] }] }] }
-          }
-        },
-        { $sort: { callBackDt: -1 } },
-        {
-          $group: {
-            _id: "$normPhone",
-            latestCb: { $first: "$$ROOT" }
-          }
-        },
-        { $replaceRoot: { newRoot: "$latestCb" } },
-        { $sort: { callBackDt: 1 } }
-      ];
+    const pipeline = [
+      { $match: matchQuery },
+      {
+        $addFields: {
+          normPhone: { $ifNull: ["$fields.Phone", { $ifNull: ["$fields.phone", { $ifNull: ["$fields.Mobile", "N/A"] }] }] }
+        }
+      },
+      { $sort: { callBackDt: 1 } }, // Earliest first
+      {
+        $group: {
+          _id: "$normPhone",
+          earliestCb: { $first: "$$ROOT" }
+        }
+      },
+      { $replaceRoot: { newRoot: "$earliestCb" } },
+      { $sort: { callBackDt: 1 } }
+    ];
 
-      const aggregated = await callbacksCollection.aggregate(pipeline).toArray();
-      res.json(aggregated.map(c => ({ ...c, isLeadCallback: false })));
-    }
+    const aggregated = await callbacksCollection.aggregate(pipeline).toArray();
+    res.json(aggregated.map(c => ({ ...c, isLeadCallback: false })));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
