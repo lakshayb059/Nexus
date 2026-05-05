@@ -4,7 +4,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'crm-super-secret-jwt-key-2024-chan
 
 // Sign JWT token
 function sign(user) {
-  const expiresIn = '15m';
+  const expiresIn = '2h';
   return jwt.sign(
     { 
       _id: user._id, 

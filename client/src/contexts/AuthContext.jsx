@@ -19,11 +19,11 @@ export const AuthProvider = ({ children }) => {
   const checkSession = React.useCallback(() => {
     const loginTime = localStorage.getItem('crm_login_time');
     if (loginTime) {
-      const fifteenMinutes = 15 * 60 * 1000;
+      const twoHours = 2 * 60 * 60 * 1000;
       const elapsed = Date.now() - parseInt(loginTime);
       
-      if (elapsed >= fifteenMinutes) {
-        console.log('Session expired due to 15m limit');
+      if (elapsed >= twoHours) {
+        console.log('Session expired due to 2h limit');
         logout();
         window.location.href = '/login?expired=true';
       }
@@ -53,12 +53,27 @@ export const AuthProvider = ({ children }) => {
   const login = async (username, password) => {
     try {
       const response = await api.post('/auth/login', { username, password });
-      const { token, user } = response.data;
+      const { token, user, pastDueAlerts } = response.data;
       
       localStorage.setItem('crm_token', token);
       localStorage.setItem('crm_user', JSON.stringify(user));
       localStorage.setItem('crm_login_time', Date.now().toString());
-      
+
+      // Store past-due alerts so NotificationBell picks them up immediately
+      if (pastDueAlerts && pastDueAlerts.length > 0) {
+        const existing = JSON.parse(localStorage.getItem(`notifications_${user._id}`) || '[]');
+        const newAlerts = pastDueAlerts.map((a, i) => ({
+          id: `pastdue_${Date.now()}_${i}`,
+          type: a.type,
+          title: a.title,
+          message: a.message,
+          time: new Date(),
+          path: a.path
+        }));
+        const merged = [...newAlerts, ...existing].slice(0, 20);
+        localStorage.setItem(`notifications_${user._id}`, JSON.stringify(merged));
+      }
+
       setUser(user);
       return { success: true };
     } catch (error) {
