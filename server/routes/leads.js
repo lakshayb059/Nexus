@@ -123,15 +123,8 @@ router.get('/callbacks', verify, authorize(['agent', 'tl', 'admin']), async (req
     }
 
     if (req.user.role === 'admin') {
-      const [callbacks, leads] = await Promise.all([
-        callbacksCollection.find(matchQuery).sort({ callBackDt: 1 }).toArray(),
-        getCollection('leads').find({ ...matchQuery, status: 'Call Back' }).sort({ callBackDt: 1 }).toArray()
-      ]);
-      const merged = [
-        ...callbacks.map(c => ({ ...c, isLeadCallback: false })),
-        ...leads.map(l => ({ ...l, isLeadCallback: true }))
-      ].sort((a, b) => new Date(a.callBackDt) - new Date(b.callBackDt));
-      res.json(merged);
+      const callbacks = await callbacksCollection.find(matchQuery).sort({ callBackDt: 1 }).toArray();
+      res.json(callbacks.map(c => ({ ...c, isLeadCallback: false })));
     } else {
       // Aggregate view for Agents/TLs
       const pipeline = [
@@ -148,23 +141,12 @@ router.get('/callbacks', verify, authorize(['agent', 'tl', 'admin']), async (req
             latestCb: { $first: "$$ROOT" }
           }
         },
-        { $replaceRoot: { newRoot: "$latestCb" } }
+        { $replaceRoot: { newRoot: "$latestCb" } },
+        { $sort: { callBackDt: 1 } }
       ];
 
-      const [aggregatedCbs, aggregatedLeads] = await Promise.all([
-        callbacksCollection.aggregate(pipeline).toArray(),
-        getCollection('leads').aggregate([
-          { $match: { ...matchQuery, status: 'Call Back' } },
-          ...pipeline.slice(1) // reuse addFields, sort, group, replaceRoot
-        ]).toArray()
-      ]);
-
-      const merged = [
-        ...aggregatedCbs.map(c => ({ ...c, isLeadCallback: false })),
-        ...aggregatedLeads.map(l => ({ ...l, isLeadCallback: true }))
-      ].sort((a, b) => new Date(a.callBackDt) - new Date(b.callBackDt));
-      
-      res.json(merged);
+      const aggregated = await callbacksCollection.aggregate(pipeline).toArray();
+      res.json(aggregated.map(c => ({ ...c, isLeadCallback: false })));
     }
   } catch (err) {
     console.error(err);

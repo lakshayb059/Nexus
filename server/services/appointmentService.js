@@ -102,34 +102,14 @@ class AppointmentService {
             contactId: callback._id,
             contactName: callback.fields?.Name || callback.fields?.name || 'Unknown',
             agentId: callback.assignedTo,
-            callBackDt: callback.callBackDt,
-            isLead: false // Standard callback
-          });
-        }
-      }
-
-      // 1b. Notifications only for LEAD callbacks (NO RE-QUEUE)
-      const dueLeadCallbacks = await contactsCollection.find({
-        disposition: 'Lead',
-        status: 'Call Back',
-        callBackDt: { $lte: now }
-      }).toArray();
-
-      for (const leadCb of dueLeadCallbacks) {
-        if (this.io) {
-          this.io.emit('callback_due', {
-            contactId: leadCb._id,
-            contactName: leadCb.fields?.Name || leadCb.fields?.name || 'Unknown',
-            agentId: leadCb.assignedTo,
-            callBackDt: leadCb.callBackDt,
-            isLead: true // Lead callback
+            callBackDt: callback.callBackDt
           });
         }
       }
 
       // 2. Pre-notification (2 minutes before)
       const upcoming = await contactsCollection.find({
-        $or: [{ disposition: 'CallBack' }, { status: 'Call Back' }],
+        disposition: 'CallBack',
         callBackDt: {
           $gte: now,
           $lte: new Date(now.getTime() + 2 * 60 * 1000)
@@ -144,8 +124,7 @@ class AppointmentService {
             contactName: cb.fields?.Name || cb.fields?.name || 'Unknown',
             agentId: cb.assignedTo,
             callBackDt: cb.callBackDt,
-            minutesUntil: 2,
-            isLead: cb.disposition === 'Lead'
+            minutesUntil: 2
           });
         }
         await contactsCollection.updateOne({ _id: cb._id }, { $set: { cbReminderSent: true } });

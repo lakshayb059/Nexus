@@ -149,6 +149,8 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
       if (status) update.status = status;
       if (statusDetails) update.statusDetails = statusDetails;
       if (transactionId) update.transactionId = transactionId;
+      if (callBackDt) update.callBackDt = new Date(callBackDt);
+      if (appointmentDt) update.appointmentDt = new Date(appointmentDt);
     } else if (disposition === 'Appointment') {
       update.appointmentDt = appointmentDt ? new Date(appointmentDt) : null;
       update.queueOrder = 999999;
@@ -202,6 +204,8 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
           statusDetails: statusDetails || '',
           transactionId: transactionId || '',
           remarks: remarks || '',
+          callBackDt: callBackDt ? new Date(callBackDt) : null,
+          appointmentDt: appointmentDt ? new Date(appointmentDt) : null,
           createdAt: new Date(),
           lastModified: new Date()
         };
