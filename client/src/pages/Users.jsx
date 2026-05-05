@@ -102,42 +102,37 @@ const Users = () => {
   return (
     <div>
       {/* Header */}
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: 24 }}>
         <div>
-          <h1 className="page-title" style={{ fontSize: 'var(--h1)' }}>
-            <UsersIcon size={24} style={{ color: 'var(--primary)' }} /> User Management
+          <h1 style={{ fontSize: 'var(--h1)', fontWeight: 900, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <UsersIcon size={20} color="var(--primary)" /> User Management
           </h1>
-          <p className="page-subtitle">Manage team leads and agents across your organization</p>
+          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 4 }}>Manage team leads and agents</p>
         </div>
-        <button id="add-user-btn" className="btn btn-primary" onClick={() => openModal()}>
+        <button id="add-user-btn" className="btn btn-primary" onClick={() => openModal()} style={{ padding: '10px 20px' }}>
           <Plus size={16} /> Add User
         </button>
       </div>
 
-      {/* Stat pills */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 'var(--gap)', flexWrap: 'wrap' }}>
-        <div className="glass-panel" style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Shield size={16} style={{ color: '#f59e0b' }} />
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Admins</span>
-          <span style={{ fontWeight: 800, fontSize: '1.1rem' }}>{admins.length}</span>
+      <div className="grid-stats" style={{ marginBottom: 20 }}>
+        <div className="glass-panel" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ width: 36, height: 36, background: 'rgba(245,158,11,0.12)', color: '#f59e0b', borderRadius: 'var(--r-md)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Shield size={16} /></div>
+          <div><div style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--text-primary)' }}>{admins.length}</div><div style={{ color: 'var(--text-muted)', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase' }}>Admins</div></div>
         </div>
-        <div className="glass-panel" style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <UserCheck size={16} style={{ color: 'var(--primary)' }} />
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Team Leads</span>
-          <span style={{ fontWeight: 800, fontSize: '1.1rem' }}>{tls.length}</span>
+        <div className="glass-panel" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ width: 36, height: 36, background: 'var(--primary-light)', color: 'var(--primary)', borderRadius: 'var(--r-md)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><UserCheck size={16} /></div>
+          <div><div style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--text-primary)' }}>{tls.length}</div><div style={{ color: 'var(--text-muted)', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase' }}>Team Leads</div></div>
         </div>
-        <div className="glass-panel" style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <UsersIcon size={16} style={{ color: 'var(--success)' }} />
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Agents</span>
-          <span style={{ fontWeight: 800, fontSize: '1.1rem' }}>{agents.length}</span>
+        <div className="glass-panel" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ width: 36, height: 36, background: 'var(--success-light)', color: 'var(--success)', borderRadius: 'var(--r-md)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><UsersIcon size={16} /></div>
+          <div><div style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--text-primary)' }}>{agents.length}</div><div style={{ color: 'var(--text-muted)', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase' }}>Agents</div></div>
         </div>
       </div>
 
-      {/* Search */}
-      <div className="glass-panel" style={{ marginBottom: 'var(--gap)', padding: '12px 18px' }}>
+      <div className="glass-panel" style={{ marginBottom: 20, padding: 12 }}>
         <div style={{ position: 'relative' }}>
-          <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-          <input type="text" className="input-field" placeholder="Search by name or username…" style={{ paddingLeft: 42, marginBottom: 0 }}
+          <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+          <input type="text" className="input-field" placeholder="Search by name or username…" style={{ paddingLeft: 36, marginBottom: 0 }}
             value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
         </div>
       </div>
@@ -173,15 +168,15 @@ const Users = () => {
                   <tr key={u._id}>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div className="avatar avatar-md" style={{
+                        <div className="avatar avatar-sm" style={{
                           background: u.role === 'admin' ? 'rgba(245,158,11,0.15)' : u.role === 'tl' ? 'var(--primary-light)' : 'var(--success-light)',
                           color: u.role === 'admin' ? '#f59e0b' : u.role === 'tl' ? 'var(--primary)' : 'var(--success)',
                         }}>
                           {u.name.charAt(0).toUpperCase()}
                         </div>
-                        <div>
-                          <div style={{ fontWeight: 700, fontSize: '0.875rem' }}>{u.name}</div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>@{u.username}</div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 800, fontSize: '0.82rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name}</div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>@{u.username}</div>
                         </div>
                       </div>
                     </td>

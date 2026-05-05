@@ -115,50 +115,48 @@ const Reports = () => {
   return (
     <div className="animate-fade-in">
       {/* Header */}
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: 24 }}>
         <div>
-          <h1 className="page-title" style={{ fontSize: 'var(--h1)' }}>
-            <BarChart2 size={24} style={{ color: 'var(--primary)' }} /> {reportType === 'workflow' ? 'Workflow Analytics' : 'Lead Intelligence'}
+          <h1 style={{ fontSize: 'var(--h1)', fontWeight: 900, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <BarChart2 size={20} color="var(--primary)" /> {reportType === 'workflow' ? 'Analytics' : 'Leads'}
           </h1>
-          <p className="page-subtitle">
-            {reportType === 'workflow' 
-              ? 'Tracking productivity, dispositions, and funnel efficiency' 
-              : 'Detailed analysis of lead generation, revenue, and success rates'}
-          </p>
+          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 4 }}>Tracking performance and funnel efficiency</p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           <select 
             className="input-field" 
-            style={{ marginBottom: 0, minWidth: 160, height: 38 }}
+            style={{ marginBottom: 0, minWidth: 140, height: 36, fontSize: '0.8rem' }}
             value={reportType} 
             onChange={e => setReportType(e.target.value)}
           >
-            <option value="workflow">Workflow Report</option>
+            <option value="workflow">Workflow</option>
             <option value="lead">Lead Report</option>
           </select>
-          <button className="btn btn-outline" onClick={() => handleExport('csv')} disabled={isExporting} style={{ height: 38 }}>
-            <Download size={15} /> <span className="hide-mobile">{isExporting ? 'Exporting…' : 'CSV'}</span>
-          </button>
-          <button className="btn btn-primary" onClick={() => handleExport('xlsx')} disabled={isExporting} style={{ height: 38 }}>
-            <FileSpreadsheet size={15} /> <span className="hide-mobile">{isExporting ? 'Exporting…' : 'Excel'}</span>
-          </button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className="btn btn-outline" onClick={() => handleExport('csv')} disabled={isExporting} style={{ height: 36, padding: '0 12px' }}>
+              <Download size={14} /> <span className="hide-mobile">CSV</span>
+            </button>
+            <button className="btn btn-primary" onClick={() => handleExport('xlsx')} disabled={isExporting} style={{ height: 36, padding: '0 12px' }}>
+              <FileSpreadsheet size={14} /> <span className="hide-mobile">Excel</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Filter bar */}
       {user.role !== 'agent' && (
-        <div className="glass-panel" style={{ marginBottom: 'var(--gap)', padding: '12px 18px', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-secondary)', fontSize: '0.85rem', fontWeight: 600 }}>
-            <User size={16} /> Filter by Agent:
+        <div className="glass-panel" style={{ marginBottom: 20, padding: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 700 }}>
+            <User size={14} /> <span className="hide-mobile">Filter by Agent:</span>
           </div>
-          <select className="input-field" style={{ marginBottom: 0, minWidth: 200, flex: 1, maxWidth: 320 }}
+          <select className="input-field" style={{ marginBottom: 0, minWidth: 180, flex: 1, maxWidth: 300, height: 34, fontSize: '0.8rem' }}
             value={selectedAgent} onChange={e => setSelectedAgent(e.target.value)}>
             <option value="">Full Team Overview</option>
             {agents.map(a => <option key={a._id} value={a._id}>{a.name}</option>)}
           </select>
           {selectedAgent && (
-            <button className="btn btn-ghost" style={{ fontSize: '0.8rem' }} onClick={() => setSelectedAgent('')}>
-              Clear Filter
+            <button className="btn btn-ghost" style={{ fontSize: '0.75rem', padding: '4px 8px' }} onClick={() => setSelectedAgent('')}>
+              Clear
             </button>
           )}
         </div>
@@ -166,11 +164,11 @@ const Reports = () => {
 
       {/* Summary pills */}
       {!loading && stats && (
-        <div style={{ display: 'flex', gap: 10, marginBottom: 'var(--gap)', flexWrap: 'wrap' }}>
+        <div className="grid-stats" style={{ marginBottom: 20 }}>
           {summaryPills.map(p => (
-            <div key={p.label} className="glass-panel" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 6, flex: '1 1 200px', borderTop: `4px solid ${p.color}` }}>
-              <span style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{p.label}</span>
-              <span style={{ fontWeight: 900, fontSize: '1.5rem', color: 'var(--text-primary)' }}>{p.value}</span>
+            <div key={p.label} className="glass-panel" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 4, borderTop: `4px solid ${p.color}` }}>
+              <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{p.label}</span>
+              <span style={{ fontWeight: 900, fontSize: '1.4rem', color: 'var(--text-primary)', lineHeight: 1 }}>{p.value}</span>
             </div>
           ))}
         </div>
