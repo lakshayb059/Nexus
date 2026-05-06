@@ -28,7 +28,27 @@ router.get('/my-leads', verify, authorize(['agent', 'tl', 'admin']), async (req,
         { $match: matchQuery },
         {
           $addFields: {
-            normPhone: { $ifNull: ["$fields.Phone", { $ifNull: ["$fields.phone", { $ifNull: ["$fields.Mobile", "N/A"] }] }] },
+            normPhone: {
+              $let: {
+                vars: {
+                  rawP: { $ifNull: ["$fields.Phone", { $ifNull: ["$fields.phone", { $ifNull: ["$fields.Mobile", "N/A"] }] }] }
+                },
+                in: {
+                  $let: {
+                    vars: {
+                      strP: { $toString: "$$rawP" }
+                    },
+                    in: {
+                      $cond: {
+                        if: { $eq: ["$$strP", "N/A"] },
+                        then: "N/A",
+                        else: { $substr: ["$$strP", { $max: [0, { $subtract: [{ $strLenCP: "$$strP" }, 10] }] }, 10] }
+                      }
+                    }
+                  }
+                }
+              }
+            },
             sortPriority: {
               $cond: {
                 if: { $in: ["$status", ["Converted", "Not Interested"]] },
@@ -458,49 +478,36 @@ router.put('/:id', verify, authorize(['agent', 'tl', 'admin']), async (req, res)
 router.get('/history/:phone', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
   try {
     const leadsCollection = getCollection('leads');
-    // Find all leads that match the phone number (or normalized phone)
-    // For simplicity, we search for leads where any field in fields contains the phone
     const rawPhone = req.params.phone;
-    // Normalize: get last 10 digits and create a flexible regex
-    const last10 = rawPhone.replace(/\D/g, '').slice(-10);
+    console.log(`[HISTORY] Fetching history for phone: ${rawPhone} | User: ${req.user.name} (${req.user.role})`);
 
+    // Normalize: get last 10 digits
+    const last10 = rawPhone.replace(/\D/g, '').slice(-10);
     if (!last10) return res.json([]);
 
     // Create a regex that allows non-digit characters between numbers
-    // e.g. 9876543210 -> 9[^0-9]*8[^0-9]*7...
     const regexPattern = last10.split('').join('[^0-9]*');
     const phoneRegex = new RegExp(regexPattern);
 
-    const history = await leadsCollection.aggregate([
-      {
-        $match: {
-          $or: [
-            { "fields.Phone": { $regex: phoneRegex } },
-            { "fields.phone": { $regex: phoneRegex } },
-            { "fields.Mobile": { $regex: phoneRegex } },
-            { "fields.Phone": { $regex: new RegExp(last10) } },
-            { "fields.phone": { $regex: new RegExp(last10) } },
-            { "fields.Mobile": { $regex: new RegExp(last10) } }
-          ]
-        }
-      },
-      {
-        $addFields: {
-          sortPriority: {
-            $cond: {
-              if: { $in: ["$status", ["Converted", "Not Interested"]] },
-              then: 1,
-              else: 0
-            }
-          }
-        }
-      },
-      { $sort: { sortPriority: 1, createdAt: -1 } }
-    ]).toArray();
+    // Build match query that handles both string regex and exact numeric match
+    const phoneNum = parseInt(last10);
+    let matchQuery = {
+      $or: [
+        { "fields.Phone": { $regex: phoneRegex } },
+        { "fields.phone": { $regex: phoneRegex } },
+        { "fields.Mobile": { $regex: phoneRegex } },
+        { "fields.Phone": phoneNum },
+        { "fields.phone": phoneNum },
+        { "fields.Mobile": phoneNum }
+      ]
+    };
 
+    const history = await leadsCollection.find(matchQuery).sort({ createdAt: -1 }).toArray();
+    
+    console.log(`[HISTORY] Found ${history.length} records for ${rawPhone}`);
     res.json(history);
   } catch (err) {
-    console.error(err);
+    console.error('[HISTORY] Error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
