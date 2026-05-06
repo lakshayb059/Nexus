@@ -355,6 +355,12 @@ const MyLeads = () => {
                           )}
                         </div>
 
+                        {lead.agentName && (
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4, fontWeight: 700 }}>
+                            Agent: <span style={{ color: 'var(--primary)' }}>{lead.agentName}</span>
+                          </div>
+                        )}
+
                         <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                           <select className="input-field" style={{ marginBottom: 0, padding: '2px 8px', fontSize: '0.7rem', height: 28, width: 'auto', minWidth: 110, cursor: isLocked ? 'not-allowed' : 'pointer' }} value={lead.status || ''} disabled={isLocked} onChange={(e) => handleStatusChange(lead, e.target.value, 'contact')}>
                             <option value="">Set Status</option>

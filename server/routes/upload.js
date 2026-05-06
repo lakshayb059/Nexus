@@ -5,6 +5,7 @@ const XLSX = require('xlsx');
 const { getCollection } = require('../mongodb');
 const { authorize, verify } = require('../middleware/auth');
 const { ObjectId } = require('mongodb');
+const { normalizePhone } = require('../utils/callbackUtils');
 
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -84,7 +85,47 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
     }
 
     const contactsCollection = getCollection('contacts');
+    const leadsCollection = getCollection('leads');
     const queueStarts = {};
+
+    // Duplicate Check Logic (Admin only, Lead upload only)
+    if (req.user.role === 'admin' && (isLeadUpload === 'true' || isLeadUpload === true)) {
+      const phonesToCheck = records.map(r => {
+        const p = r.Phone || r.phone || r.Mobile || r.MOBILE || r.PHONE;
+        return normalizePhone(p);
+      }).filter(Boolean);
+
+      if (phonesToCheck.length > 0) {
+        const duplicatePhones = [];
+        // Check in batches of 50 to avoid massive $or queries or slow loops
+        for (let i = 0; i < phonesToCheck.length; i += 50) {
+          const batch = phonesToCheck.slice(i, i + 50);
+          const orConditions = batch.flatMap(phone => [
+            { "fields.Phone": { $regex: new RegExp(phone + '$') } },
+            { "fields.phone": { $regex: new RegExp(phone + '$') } },
+            { "fields.Mobile": { $regex: new RegExp(phone + '$') } },
+            { "fields.MOBILE": { $regex: new RegExp(phone + '$') } },
+            { "fields.PHONE": { $regex: new RegExp(phone + '$') } }
+          ]);
+
+          const existing = await leadsCollection.find({ $or: orConditions }).toArray();
+          if (existing.length > 0) {
+            existing.forEach(e => {
+              const ep = normalizePhone(e.fields?.Phone || e.fields?.phone || e.fields?.Mobile || e.fields?.MOBILE || e.fields?.PHONE);
+              if (batch.includes(ep) && !duplicatePhones.includes(ep)) {
+                duplicatePhones.push(ep);
+              }
+            });
+          }
+        }
+
+        if (duplicatePhones.length > 0) {
+          return res.status(400).json({ 
+            error: `Duplicate leads detected! The following phone numbers already exist in the system: ${duplicatePhones.join(', ')}. Please remove them and try again.` 
+          });
+        }
+      }
+    }
     
     const getNextQueueOrder = async (assignedId) => {
       const idStr = assignedId.toString();
@@ -166,7 +207,7 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
         }
       }
 
-      contacts.push({
+      const contactData = {
         assignedTo: rowAgentObjectId,
         uploadedBy: new ObjectId(req.user._id),
         batchId,
@@ -182,10 +223,42 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
         lastModified: now,
         createdAt: now,
         queueOrder,
-      });
+      };
+
+      contacts.push(contactData);
     }
 
-    await contactsCollection.insertMany(contacts);
+    const insertResult = await contactsCollection.insertMany(contacts);
+
+    // If it's a lead upload, also insert into the leads collection
+    if (isLeadUpload === 'true' || isLeadUpload === true) {
+      const leads = contacts.map((c, index) => {
+        const contactId = insertResult.insertedIds[index];
+        // Get agent name for the lead record
+        let agentName = 'Unknown';
+        const agentIdStr = c.assignedTo.toString();
+        const agentObj = allAgents.find(a => a._id.toString() === agentIdStr);
+        if (agentObj) agentName = agentObj.name;
+
+        return {
+          contactId,
+          fields: c.fields,
+          batchId: c.batchId,
+          assignedTo: c.assignedTo,
+          agentName: agentName,
+          leadAmount: c.leadAmount || 0,
+          status: c.status || 'Pending',
+          statusDetails: c.statusDetails || '',
+          transactionId: c.transactionId || '',
+          remarks: c.remarks || '[Uploaded via Excel]',
+          callBackDt: c.callBackDt,
+          appointmentDt: null,
+          createdAt: new Date(now),
+          lastModified: new Date(now)
+        };
+      });
+      await leadsCollection.insertMany(leads);
+    }
 
     const batchesCollection = getCollection('batches');
     await batchesCollection.insertOne({
