@@ -4,6 +4,7 @@ import { useSocket } from '../contexts/SocketContext';
 import api from '../utils/api';
 import { Star, TrendingUp, Users, Calendar, Search, PhoneCall, Award, Target, Trash2, X, CheckSquare, Square, RotateCw } from 'lucide-react';
 import LeadStatusModal from '../components/LeadStatusModal';
+import CallActionModal from '../components/CallActionModal';
 
 const MyLeads = () => {
   const { user } = useAuth();
@@ -20,6 +21,9 @@ const MyLeads = () => {
   const [modalLead, setModalLead] = useState(null);
   const [modalStatus, setModalStatus] = useState(null);
   const [modalSubmitting, setModalSubmitting] = useState(false);
+  
+  // Call Action Modal State
+  const [callActionLead, setCallActionLead] = useState(null);
 
   // History Modal State
   const [historyContact, setHistoryContact] = useState(null);
@@ -143,6 +147,17 @@ const MyLeads = () => {
 
   const toggleSelect = (id) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
+  const handleCallActionSubmit = async (payload) => {
+    try {
+      await api.post(`/leads/${callActionLead._id}/clone-and-dispose`, payload);
+      setCallActionLead(null);
+      fetchData(); // Refresh the list
+      alert('Action logged successfully on a new clone of this contact!');
+    } catch (err) {
+      alert(err.response?.data?.error || 'Action failed');
+    }
   };
 
   const toggleSelectAll = () => {
@@ -321,9 +336,16 @@ const MyLeads = () => {
 
                     <div style={{ display: 'flex', gap: 6 }}>
                       {user?.role !== 'admin' && phone !== 'N/A' && (
-                        <a href={`tel:${phone}`} className="btn btn-primary btn-icon" style={{ width: 36, height: 36, borderRadius: 10 }}>
+                        <button 
+                          className="btn btn-primary btn-icon" 
+                          style={{ width: 36, height: 36, borderRadius: 10 }}
+                          onClick={() => {
+                            window.location.href = `tel:${phone}`;
+                            setCallActionLead(lead);
+                          }}
+                        >
                           <PhoneCall size={16} fill="white" />
-                        </a>
+                        </button>
                       )}
                       {user?.role === 'admin' && (
                         <button className="btn btn-danger btn-icon" onClick={() => handleDelete(lead._id)} style={{ width: 36, height: 36, borderRadius: 10 }}>
@@ -362,6 +384,14 @@ const MyLeads = () => {
           onClose={() => { setModalLead(null); setModalStatus(null); }}
           onSave={handleModalSave}
           submitting={modalSubmitting}
+        />
+      )}
+
+      {callActionLead && (
+        <CallActionModal
+          lead={callActionLead}
+          onClose={() => setCallActionLead(null)}
+          onSubmit={handleCallActionSubmit}
         />
       )}
 

@@ -75,28 +75,8 @@ class AppointmentService {
       const contactsCollection = getCollection('contacts');
       const now = new Date();
 
-      // 1. Auto-requeue when DUE (ONLY for standard workflow callbacks)
-      const dueCallbacks = await contactsCollection.find({
-        disposition: 'CallBack',
-        callBackDt: { $lte: now },
-        queueOrder: 999999
-      }).toArray();
-
-      for (const callback of dueCallbacks) {
-        await contactsCollection.updateOne(
-          { _id: callback._id },
-          {
-            $set: {
-              queueOrder: 0,
-              lastModified: new Date(),
-              remarks: (callback.remarks || '') + ' [Callback due - auto re-queued]'
-            }
-          }
-        );
-
-        // Cleanup: Remove from callbacks table since it's now in the workflow
-        await getCollection('callbacks').deleteMany({ contactId: callback._id });
-      }
+      // 1. Auto-requeue is DISABLED by user request. 
+      // Callbacks will now remain on the Callbacks page until explicitly added to the workflow by an agent.
 
       // 2. Pre-notification (2 minutes before)
       const upcoming = await contactsCollection.find({

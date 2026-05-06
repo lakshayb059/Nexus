@@ -40,8 +40,8 @@ const Sidebar = ({ isOpen, onClose }) => {
     <>
       {/* Backdrop for mobile devices */}
       {isOpen && (
-        <div 
-          className="mobile-backdrop" 
+        <div
+          className="mobile-backdrop"
           onClick={onClose}
           style={{
             position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000
@@ -49,7 +49,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         />
       )}
 
-      <aside 
+      <aside
         className={`simple-sidebar ${isOpen ? 'open' : ''}`}
         style={{
           width: '260px', height: '100vh', background: '#ffffff',

@@ -35,9 +35,9 @@ const StatCard = ({ title, value, subtext, icon: Icon, accent, delay = 0 }) => (
   <div className="stat-card-premium" style={{ animationDelay: `${delay}ms` }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(10px, 2vw, 18px)', position: 'relative', zIndex: 2 }}>
       <div style={{
-        width: 'clamp(40px, 5vw, 52px)', 
-        height: 'clamp(40px, 5vw, 52px)', 
-        borderRadius: 'var(--r-md)', 
+        width: 'clamp(40px, 5vw, 52px)',
+        height: 'clamp(40px, 5vw, 52px)',
+        borderRadius: 'var(--r-md)',
         flexShrink: 0,
         background: `${accent}14`, color: accent,
         display: 'flex', alignItems: 'center', justifyContent: 'center'
@@ -82,23 +82,16 @@ const SectionLabel = ({ icon: Icon, label, accent = '#2563eb' }) => (
 const Dashboard = () => {
   const { user } = useAuth();
   const { socket } = useSocket();
-  const [stats, setStats]     = useState(null);
-  const [queues, setQueues]   = useState([]);
+  const [stats, setStats] = useState(null);
+  const [queues, setQueues] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchDashboardData = async (silent = false) => {
     if (!silent) setLoading(true); else setRefreshing(true);
     try {
-      const [statsRes, callbacksRes] = await Promise.all([
-        api.get('/contacts/stats'),
-        api.get('/leads/callbacks')
-      ]);
-      setStats({ 
-        ...statsRes.data, 
-        totalLeadValue: statsRes.data.totalLeadAmount || 0,
-        callbacksPageCount: callbacksRes.data ? callbacksRes.data.length : 0
-      });
+      const statsRes = await api.get('/contacts/stats');
+      setStats({ ...statsRes.data, totalLeadValue: statsRes.data.totalLeadAmount || 0 });
       if (user?.role !== 'agent') {
         const queuesRes = await api.get('/contacts/agent-queues');
         setQueues(queuesRes.data || []);
@@ -114,28 +107,28 @@ const Dashboard = () => {
   useEffect(() => {
     fetchDashboardData();
     if (!socket) return;
-    const events = ['contacts_updated','contact_disposed','lead_disposed','dashboard_update','batch_uploaded','users_updated','appointment_scheduled','appointment_cancelled'];
+    const events = ['contacts_updated', 'contact_disposed', 'lead_disposed', 'dashboard_update', 'batch_uploaded', 'users_updated', 'appointment_scheduled', 'appointment_cancelled'];
     const handler = () => fetchDashboardData(true);
     events.forEach(e => socket.on(e, handler));
     return () => events.forEach(e => socket.off(e, handler));
   }, [socket, user]);
 
   const primaryCards = stats ? [
-    { title: 'Total Contacts',  value: stats.total || 0,   subtext: 'In system',            icon: Users,     accent: '#6366f1' },
-    { title: 'Pending Queue',   value: stats.pending || 0, subtext: 'Awaiting disposition',  icon: Clock,     accent: '#f59e0b' },
-    { title: 'Leads Converted', value: stats.lead || 0,    subtext: 'Successfully closed',   icon: Star,      accent: '#10b981' },
-    { title: 'Total Revenue',   value: `₹${(stats.totalLeadValue || 0).toLocaleString()}`, subtext: 'Aggregate lead value', icon: TrendingUp, accent: '#8b5cf6' },
+    { title: 'Total Contacts', value: stats.total || 0, subtext: 'In system', icon: Users, accent: '#6366f1' },
+    { title: 'Pending Queue', value: stats.pending || 0, subtext: 'Awaiting disposition', icon: Clock, accent: '#f59e0b' },
+    { title: 'Leads Converted', value: stats.lead || 0, subtext: 'Successfully closed', icon: Star, accent: '#10b981' },
+    { title: 'Total Revenue', value: `₹${(stats.totalLeadValue || 0).toLocaleString()}`, subtext: 'Aggregate lead value', icon: TrendingUp, accent: '#8b5cf6' },
   ] : [];
 
   const activityCards = stats ? [
-    { title: 'Appointments', value: stats.appointment || 0, subtext: 'Scheduled',           icon: Calendar,    accent: '#a855f7' },
-    { title: 'Call Backs',   value: stats.callbacksPageCount || 0, subtext: 'Follow-up required',   icon: PhoneCall,   accent: '#06b6d4' },
+    { title: 'Appointments', value: stats.appointment || 0, subtext: 'Scheduled', icon: Calendar, accent: '#a855f7' },
+    { title: 'Call Backs', value: stats.callBack || 0, subtext: 'Follow-up required', icon: PhoneCall, accent: '#06b6d4' },
   ] : [];
 
   const negativeCards = stats ? [
-    { title: 'Invalid / Wrong No.', value: stats.invalid   || 0, subtext: 'Bad contact info',     icon: AlertCircle, accent: '#f97316' },
-    { title: 'Hung Up / Failed',    value: stats.hungUp    || 0, subtext: 'Max attempts reached', icon: PhoneOff,    accent: '#ef4444' },
-    { title: 'Do Not Call',         value: stats.doNotCall || 0, subtext: 'Excluded contacts',    icon: XCircle,     accent: '#64748b' },
+    { title: 'Invalid / Wrong No.', value: stats.invalid || 0, subtext: 'Bad contact info', icon: AlertCircle, accent: '#f97316' },
+    { title: 'Hung Up / Failed', value: stats.hungUp || 0, subtext: 'Max attempts reached', icon: PhoneOff, accent: '#ef4444' },
+    { title: 'Do Not Call', value: stats.doNotCall || 0, subtext: 'Excluded contacts', icon: XCircle, accent: '#64748b' },
   ] : [];
 
   const skeletonCount = loading ? 9 : 0;
@@ -162,8 +155,8 @@ const Dashboard = () => {
           onClick={() => fetchDashboardData(true)}
           disabled={refreshing || loading}
           className="btn btn-outline"
-          style={{ 
-            fontSize: '0.8rem', 
+          style={{
+            fontSize: '0.8rem',
             padding: '8px 14px',
             opacity: (refreshing || loading) ? 0.6 : 1
           }}

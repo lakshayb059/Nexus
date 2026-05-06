@@ -302,6 +302,99 @@ router.post('/callbacks/bulk-delete', verify, authorize(['admin']), async (req, 
   }
 });
 
+// POST /api/leads/:id/clone-and-dispose - Clone contact and perform a call action
+router.post('/:id/clone-and-dispose', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
+  try {
+    const { action, leadAmount, status, transactionId, callBackDt, remarks, statusDetails } = req.body;
+    const leadsCollection = getCollection('leads');
+    const contactsCollection = getCollection('contacts');
+
+    // 1. Find the existing lead to get contact fields
+    const existingLead = await leadsCollection.findOne({ _id: new ObjectId(req.params.id) });
+    if (!existingLead) return res.status(404).json({ error: 'Original lead not found' });
+
+    // 2. Create the cloned contact record (clean state)
+    const newContact = {
+      fields: existingLead.fields,
+      batchId: existingLead.batchId,
+      assignedTo: new ObjectId(req.user._id),
+      createdAt: new Date(),
+      lastModified: new Date(),
+      isDeleted: false,
+      queueOrder: 999999, // Push it out of the main queue since we are immediately disposing it
+      disposition: null,
+      disposedBy: new ObjectId(req.user._id),
+      disposedAt: new Date(),
+      agentName: req.user.name,
+      agentId: new ObjectId(req.user._id),
+      remarks: remarks || `[Call Action: ${action}]`
+    };
+
+    if (action === 'Followup') {
+      newContact.disposition = 'CallBack';
+      newContact.callBackDt = new Date(callBackDt);
+    } else {
+      newContact.disposition = 'Lead';
+      newContact.leadAmount = parseFloat(leadAmount) || 0;
+      newContact.conversionDate = new Date();
+      newContact.status = action === 'Not Interested' ? 'Not Interested' : status;
+      newContact.transactionId = transactionId || '';
+      newContact.statusDetails = statusDetails || '';
+    }
+
+    const insertResult = await contactsCollection.insertOne(newContact);
+    const newContactId = insertResult.insertedId;
+
+    // 3. Perform specific disposition logic
+    if (action === 'Followup') {
+      const callbacksCollection = getCollection('callbacks');
+      await callbacksCollection.insertOne({
+        contactId: newContactId,
+        fields: newContact.fields,
+        batchId: newContact.batchId,
+        assignedTo: new ObjectId(req.user._id),
+        agentName: req.user.name,
+        callBackDt: new Date(callBackDt),
+        remarks: remarks || '[Follow-up scheduled from My Leads]',
+        source: 'lead',
+        createdAt: new Date(),
+        lastModified: new Date()
+      });
+    } else if (action === 'Lead' || action === 'Not Interested') {
+      const leadRecord = {
+        contactId: newContactId,
+        fields: newContact.fields,
+        batchId: newContact.batchId,
+        assignedTo: new ObjectId(req.user._id),
+        agentName: req.user.name,
+        leadAmount: parseFloat(leadAmount) || 0,
+        status: action === 'Not Interested' ? 'Not Interested' : status,
+        statusDetails: statusDetails || '',
+        transactionId: transactionId || '',
+        remarks: remarks || `[Generated from Call Action: ${action}]`,
+        callBackDt: status === 'Call Back' && callBackDt ? new Date(callBackDt) : null,
+        appointmentDt: null,
+        createdAt: new Date(),
+        lastModified: new Date()
+      };
+      await leadsCollection.insertOne(leadRecord);
+    }
+
+    // 4. Emit events
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('contact_disposed', { contactId: newContactId, disposition: newContact.disposition, agentName: req.user.name });
+      io.emit('dashboard_update');
+      io.emit('contacts_updated');
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Clone and dispose error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // PUT /api/leads/:id - Update a specific lead record
 router.put('/:id', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
   try {

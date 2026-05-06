@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
-import { Phone, Clock, ChevronRight, Bell, User, AlertTriangle, X, Check, Award } from 'lucide-react';
+import { Phone, Clock, ChevronRight, Bell, User, AlertTriangle, X, Check, Award, Star } from 'lucide-react';
 
 const MyCallbacks = () => {
   const { user } = useAuth();
@@ -136,12 +136,93 @@ const MyCallbacks = () => {
     };
   };
 
+  const leadFollowUps = callbacks.filter(c => c.source === 'lead');
+  const workflowFollowUps = callbacks.filter(c => c.source !== 'lead');
+
+  const renderList = (list, emptyMessage) => {
+    if (list.length === 0) {
+      return (
+        <div className="glass-panel" style={{ padding: '40px 20px', textAlign: 'center', marginBottom: 20 }}>
+          <Clock size={40} style={{ opacity: 0.08, margin: '0 auto 16px', display: 'block' }} />
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>{emptyMessage}</p>
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 30 }}>
+        {list.map(cb => {
+          const fields = cb.fields || {};
+          const name = fields.Name || fields.name || 'Unknown Client';
+          const phone = fields.Phone || fields.phone || fields.Mobile || 'N/A';
+          const today = isToday(cb.callBackDt);
+          const { month, day, time } = formatMonthDay(cb.callBackDt);
+
+          return (
+            <div key={cb._id} className="glass-panel appt-card" style={{ border: today ? '1px solid var(--primary)' : undefined }}>
+              {/* Date sidebar */}
+              <div className="appt-date-col" style={{ background: today ? 'linear-gradient(160deg, var(--primary), var(--violet))' : 'var(--bg-surface-2)', color: today ? '#fff' : 'var(--text-primary)' }}>
+                <div style={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', opacity: today ? 0.85 : 0.6 }}>{today ? 'TODAY' : month}</div>
+                <div style={{ fontSize: '2rem', fontWeight: 900, lineHeight: 1.1 }}>{day}</div>
+                <div style={{ fontSize: '0.8rem', fontWeight: 600, marginTop: 2, opacity: 0.9 }}>{time}</div>
+                {user?.role === 'admin' && (
+                  <input type="checkbox" checked={selectedIds.includes(cb._id)} onChange={() => toggleSelect(cb._id)} onClick={e => e.stopPropagation()} style={{ marginTop: 12, width: 18, height: 18, cursor: 'pointer' }} />
+                )}
+              </div>
+
+              {/* Content */}
+              <div className="appt-content">
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {name}
+                    {today && <Bell size={16} style={{ color: 'var(--primary)', flexShrink: 0 }} className="animate-bounce" />}
+                  </h3>
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Phone size={13} /> {phone}</span>
+                    {cb.agentName && <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><User size={13} /> {cb.agentName}</span>}
+                    {cb.remarks && <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>"{cb.remarks}"</span>}
+                  </div>
+
+                  <div style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                    {cb.disposition === 'Lead' && (
+                      <span className="badge badge-success" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <Award size={12} /> Lead: ₹{cb.leadAmount?.toLocaleString()}
+                      </span>
+                    )}
+                    {cb.status && (
+                      <span className="badge" style={{ backgroundColor: 'var(--primary-light)', color: 'var(--primary)', fontSize: '0.7rem' }}>
+                        Status: {cb.status}
+                      </span>
+                    )}
+                    {today && <span className="badge badge-primary" style={{ fontSize: '0.7rem' }}>Callback Due Today</span>}
+                  </div>
+                </div>
+
+                {user?.role === 'agent' && (
+                  <button className="btn btn-primary appt-action-btn" onClick={() => handleContactNow(cb)} style={{ padding: '10px 20px', flexShrink: 0 }}>
+                    <span className="hide-mobile">Add to Workflow</span>
+                    <ChevronRight size={16} />
+                  </button>
+                )}
+                {user?.role === 'admin' && (
+                  <button className="btn btn-danger appt-action-btn" onClick={() => handleDelete(cb._id)} style={{ padding: '10px 20px', flexShrink: 0 }}>
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div>
       <div className="page-header">
         <div>
           <h1 className="page-title" style={{ fontSize: 'var(--h1)' }}>
-            <Clock size={24} style={{ color: 'var(--primary)' }} /> My Callbacks
+            <Clock size={24} style={{ color: 'var(--primary)' }} /> Follow Ups
           </h1>
           <p className="page-subtitle">Your scheduled follow-up calls with potential leads</p>
         </div>
@@ -153,9 +234,9 @@ const MyCallbacks = () => {
       {callbacks.length > 0 && (
         <div className="glass-panel" style={{ padding: '12px 20px', marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: 'var(--r-md)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <input 
-              type="checkbox" 
-              checked={selectedIds.length === callbacks.length && callbacks.length > 0} 
+            <input
+              type="checkbox"
+              checked={selectedIds.length === callbacks.length && callbacks.length > 0}
               onChange={toggleSelectAll}
               style={{ width: 18, height: 18, cursor: 'pointer' }}
             />
@@ -192,107 +273,20 @@ const MyCallbacks = () => {
             </div>
           ))}
         </div>
-      ) : callbacks.length === 0 ? (
-        <div className="glass-panel" style={{ padding: '80px 40px', textAlign: 'center' }}>
-          <Clock size={64} style={{ opacity: 0.08, margin: '0 auto 20px', display: 'block' }} />
-          <h3 style={{ marginBottom: 8 }}>No upcoming callbacks</h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-            Schedule callbacks during your workflow to see them here.
-          </p>
-        </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {callbacks.map(cb => {
-            const fields = cb.fields || {};
-            const name = fields.Name || fields.name || 'Unknown Client';
-            const phone = fields.Phone || fields.phone || fields.Mobile || 'N/A';
-            const today = isToday(cb.callBackDt);
-            const { month, day, time } = formatMonthDay(cb.callBackDt);
+        <>
+          <h2 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: 12, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Star size={18} color="var(--success)" /> Leads Follow Ups 
+            <span className="badge" style={{ fontSize: '0.75rem', background: 'var(--bg-surface-2)', color: 'var(--text-muted)' }}>{leadFollowUps.length}</span>
+          </h2>
+          {renderList(leadFollowUps, 'No follow-ups generated from the Leads page.')}
 
-            return (
-              <div
-                key={cb._id}
-                className="glass-panel appt-card"
-                style={{ border: today ? '1px solid var(--primary)' : undefined }}
-              >
-                {/* Date sidebar */}
-                <div
-                  className="appt-date-col"
-                  style={{
-                    background: today
-                      ? 'linear-gradient(160deg, var(--primary), var(--violet))'
-                      : 'var(--bg-surface-2)',
-                    color: today ? '#fff' : 'var(--text-primary)',
-                  }}
-                >
-                  <div style={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', opacity: today ? 0.85 : 0.6 }}>
-                    {today ? 'TODAY' : month}
-                  </div>
-                  <div style={{ fontSize: '2rem', fontWeight: 900, lineHeight: 1.1 }}>{day}</div>
-                  <div style={{ fontSize: '0.8rem', fontWeight: 600, marginTop: 2, opacity: 0.9 }}>{time}</div>
-                  {user?.role === 'admin' && (
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(cb._id)}
-                      onChange={() => toggleSelect(cb._id)}
-                      onClick={e => e.stopPropagation()}
-                      style={{ marginTop: 12, width: 18, height: 18, cursor: 'pointer' }}
-                    />
-                  )}
-                </div>
-
-                {/* Content */}
-                <div className="appt-content">
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {name}
-                      {today && <Bell size={16} style={{ color: 'var(--primary)', flexShrink: 0 }} className="animate-bounce" />}
-                    </h3>
-                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Phone size={13} /> {phone}</span>
-                      {cb.agentName && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><User size={13} /> {cb.agentName}</span>
-                      )}
-                      {cb.remarks && (
-                        <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>"{cb.remarks}"</span>
-                      )}
-                    </div>
-
-                    <div style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                      {cb.disposition === 'Lead' && (
-                        <span className="badge badge-success" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                          <Award size={12} /> Lead: ₹{cb.leadAmount?.toLocaleString()}
-                        </span>
-                      )}
-                      {cb.status && (
-                        <span className="badge" style={{ backgroundColor: 'var(--primary-light)', color: 'var(--primary)', fontSize: '0.7rem' }}>
-                          Status: {cb.status}
-                        </span>
-                      )}
-                      {today && (
-                        <span className="badge badge-primary" style={{ fontSize: '0.7rem' }}>
-                          Callback Due Today
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {user?.role === 'agent' && (
-                    <button className="btn btn-primary appt-action-btn" onClick={() => handleContactNow(cb)} style={{ padding: '10px 20px', flexShrink: 0 }}>
-                      <span className="hide-mobile">Contact Now</span>
-                      <ChevronRight size={16} />
-                    </button>
-                  )}
-                  {user?.role === 'admin' && (
-                    <button className="btn btn-danger appt-action-btn" onClick={() => handleDelete(cb._id)} style={{ padding: '10px 20px', flexShrink: 0 }}>
-                      <X size={16} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+          <h2 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: 12, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Phone size={18} color="var(--cyan)" /> Workflow Follow Ups
+            <span className="badge" style={{ fontSize: '0.75rem', background: 'var(--bg-surface-2)', color: 'var(--text-muted)' }}>{workflowFollowUps.length}</span>
+          </h2>
+          {renderList(workflowFollowUps, 'No follow-ups scheduled during normal workflow.')}
+        </>
       )}
 
       {/* Confirmation Modal */}
