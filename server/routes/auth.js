@@ -54,20 +54,6 @@ router.post('/login', async (req, res) => {
       }))
     ];
 
-    // Mark these as notified so they don't trigger again on next login
-    if (pastAppts.length > 0) {
-      await contactsCollection.updateMany(
-        { _id: { $in: pastAppts.map(a => a._id) } },
-        { $set: { lateNotified: true } }
-      );
-    }
-    if (pastCbs.length > 0) {
-      await contactsCollection.updateMany(
-        { _id: { $in: pastCbs.map(c => c._id) } },
-        { $set: { cbReminderSent: true } }
-      );
-    }
-
     // Set HTTP cookie valid for 2 hours
     res.cookie('crm_session', token, {
       httpOnly: true,

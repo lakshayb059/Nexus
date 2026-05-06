@@ -47,7 +47,7 @@ class AppointmentService {
 
       for (const app of upcoming) {
         const diff = new Date(app.appointmentDt) - now;
-        const mins = Math.max(0, Math.floor(diff / (1000 * 60)));
+        const mins = Math.max(0, Math.round(diff / (1000 * 60)));
         await this.sendReminder(app, mins, 'upcoming');
       }
 
@@ -113,7 +113,7 @@ class AppointmentService {
           this.io.emit('callback_reminder', {
             contactId: cb._id,
             contactName: cb.fields?.Name || cb.fields?.name || 'Unknown',
-            agentId: cb.assignedTo,
+            agentId: cb.assignedTo.toString(),
             callBackDt: cb.callBackDt,
             minutesUntil: 2
           });
@@ -145,20 +145,11 @@ class AppointmentService {
             appointmentTime: appointment.appointmentDt,
             minutesUntil,
             type, // 'upcoming' or 'late'
-            agentId: agent._id,
+            agentId: agent._id.toString(),
             agentName: agent.name,
             contactPhone: appointment.fields?.Phone || appointment.fields?.Mobile || 'N/A'
           });
         }
-
-        // Update database flags so it only rings ONCE
-        const contactsCollection = getCollection('contacts');
-        if (type === 'upcoming') {
-          await contactsCollection.updateOne({ _id: appointment._id }, { $set: { reminderSent: true } });
-        } else if (type === 'late') {
-          await contactsCollection.updateOne({ _id: appointment._id }, { $set: { lateNotified: true } });
-        }
-      }
     } catch (error) {
       console.error('Send reminder error:', error);
     }

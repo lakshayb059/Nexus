@@ -149,13 +149,23 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
       if (status) update.status = status;
       if (statusDetails) update.statusDetails = statusDetails;
       if (transactionId) update.transactionId = transactionId;
-      if (callBackDt) update.callBackDt = new Date(callBackDt);
-      if (appointmentDt) update.appointmentDt = new Date(appointmentDt);
+      if (callBackDt) {
+        update.callBackDt = new Date(callBackDt);
+        update.cbReminderSent = false;
+      }
+      if (appointmentDt) {
+        update.appointmentDt = new Date(appointmentDt);
+        update.reminderSent = false;
+        update.lateNotified = false;
+      }
     } else if (disposition === 'Appointment') {
       update.appointmentDt = appointmentDt ? new Date(appointmentDt) : null;
+      update.reminderSent = false;
+      update.lateNotified = false;
       update.queueOrder = 999999;
     } else if (disposition === 'CallBack') {
       update.callBackDt = callBackDt ? new Date(callBackDt) : null;
+      update.cbReminderSent = false;
       update.queueOrder = 999999;
     } else if (disposition === 'CallNotAnswered' || disposition === 'HungUp') {
       update.rechurnCount = (contact.rechurnCount || 0) + 1;
@@ -272,7 +282,10 @@ router.put('/:id/status', verify, authorize(['agent', 'tl', 'admin']), async (re
     }
 
     const update = { lastModified: new Date(), status, statusDetails, transactionId };
-    if (callBackDt) update.callBackDt = new Date(callBackDt);
+    if (callBackDt) {
+      update.callBackDt = new Date(callBackDt);
+      update.cbReminderSent = false;
+    }
     if (status === 'Converted') {
       update.queueOrder = 999999;
       update.conversionDate = new Date();

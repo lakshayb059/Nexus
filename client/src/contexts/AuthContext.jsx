@@ -21,7 +21,7 @@ export const AuthProvider = ({ children }) => {
     if (loginTime) {
       const twoHours = 2 * 60 * 60 * 1000;
       const elapsed = Date.now() - parseInt(loginTime);
-      
+
       if (elapsed >= twoHours) {
         console.log('Session expired due to 2h limit');
         logout();
@@ -34,7 +34,7 @@ export const AuthProvider = ({ children }) => {
     // Initial load: Check if user is logged in
     const token = localStorage.getItem('crm_token');
     const storedUser = localStorage.getItem('crm_user');
-    
+
     if (token && storedUser) {
       try {
         setUser(JSON.parse(storedUser));
@@ -54,7 +54,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await api.post('/auth/login', { username, password });
       const { token, user, pastDueAlerts } = response.data;
-      
+
       localStorage.setItem('crm_token', token);
       localStorage.setItem('crm_user', JSON.stringify(user));
       localStorage.setItem('crm_login_time', Date.now().toString());
@@ -72,20 +72,14 @@ export const AuthProvider = ({ children }) => {
         }));
         const merged = [...newAlerts, ...existing].slice(0, 20);
         localStorage.setItem(`notifications_${user._id}`, JSON.stringify(merged));
-
-        // Play the notification sound so they notice immediately upon login
-        try {
-          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-          audio.play().catch(e => console.log('Sound blocked by browser policy'));
-        } catch (e) {}
       }
 
       setUser(user);
       return { success: true };
     } catch (error) {
-      return { 
-        success: false, 
-        error: error.response?.data?.error || 'Login failed. Please check credentials.' 
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Login failed. Please check credentials.'
       };
     }
   };

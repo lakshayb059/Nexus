@@ -90,8 +90,15 @@ const Dashboard = () => {
   const fetchDashboardData = async (silent = false) => {
     if (!silent) setLoading(true); else setRefreshing(true);
     try {
-      const statsRes = await api.get('/contacts/stats');
-      setStats({ ...statsRes.data, totalLeadValue: statsRes.data.totalLeadAmount || 0 });
+      const [statsRes, callbacksRes] = await Promise.all([
+        api.get('/contacts/stats'),
+        api.get('/leads/callbacks')
+      ]);
+      setStats({ 
+        ...statsRes.data, 
+        totalLeadValue: statsRes.data.totalLeadAmount || 0,
+        callbacksPageCount: callbacksRes.data ? callbacksRes.data.length : 0
+      });
       if (user?.role !== 'agent') {
         const queuesRes = await api.get('/contacts/agent-queues');
         setQueues(queuesRes.data || []);
@@ -122,7 +129,7 @@ const Dashboard = () => {
 
   const activityCards = stats ? [
     { title: 'Appointments', value: stats.appointment || 0, subtext: 'Scheduled',           icon: Calendar,    accent: '#a855f7' },
-    { title: 'Call Backs',   value: stats.callBack   || 0, subtext: 'Follow-up required',   icon: PhoneCall,   accent: '#06b6d4' },
+    { title: 'Call Backs',   value: stats.callbacksPageCount || 0, subtext: 'Follow-up required',   icon: PhoneCall,   accent: '#06b6d4' },
   ] : [];
 
   const negativeCards = stats ? [
