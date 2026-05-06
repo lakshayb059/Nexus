@@ -479,32 +479,41 @@ router.get('/history/:phone', verify, authorize(['agent', 'tl', 'admin']), async
   try {
     const leadsCollection = getCollection('leads');
     const rawPhone = req.params.phone;
-    console.log(`[HISTORY] Fetching history for phone: ${rawPhone} | User: ${req.user.name} (${req.user.role})`);
-
-    // Normalize: get last 10 digits
     const last10 = rawPhone.replace(/\D/g, '').slice(-10);
+
     if (!last10) return res.json([]);
 
-    // Create a regex that allows non-digit characters between numbers
-    const regexPattern = last10.split('').join('[^0-9]*');
-    const phoneRegex = new RegExp(regexPattern);
-
-    // Build match query that handles both string regex and exact numeric match
-    const phoneNum = parseInt(last10);
-    let matchQuery = {
-      $or: [
-        { "fields.Phone": { $regex: phoneRegex } },
-        { "fields.phone": { $regex: phoneRegex } },
-        { "fields.Mobile": { $regex: phoneRegex } },
-        { "fields.Phone": phoneNum },
-        { "fields.phone": phoneNum },
-        { "fields.Mobile": phoneNum }
-      ]
-    };
-
-    const history = await leadsCollection.find(matchQuery).sort({ createdAt: -1 }).toArray();
+    // Use aggregation to normalize DB fields exactly like the listing view
+    const history = await leadsCollection.aggregate([
+      {
+        $addFields: {
+          normPhone: {
+            $let: {
+              vars: {
+                rawP: { $ifNull: ["$fields.Phone", { $ifNull: ["$fields.phone", { $ifNull: ["$fields.Mobile", "N/A"] }] }] }
+              },
+              in: {
+                $let: {
+                  vars: { strP: { $toString: "$$rawP" } },
+                  in: {
+                    $cond: {
+                      if: { $eq: ["$$strP", "N/A"] },
+                      then: "N/A",
+                      else: { $substr: ["$$strP", { $max: [0, { $subtract: [{ $strLenCP: "$$strP" }, 10] }] }, 10] }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        $match: { normPhone: last10 }
+      },
+      { $sort: { createdAt: -1 } }
+    ]).toArray();
     
-    console.log(`[HISTORY] Found ${history.length} records for ${rawPhone}`);
     res.json(history);
   } catch (err) {
     console.error('[HISTORY] Error:', err);

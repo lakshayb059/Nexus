@@ -90,14 +90,37 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
 
     // Duplicate Check Logic (Admin only, Lead upload only)
     if (req.user.role === 'admin' && (isLeadUpload === 'true' || isLeadUpload === true)) {
-      const phonesToCheck = records.map(r => {
+      // 1. Check for duplicates WITHIN the uploaded Excel file
+      const seenInFile = {};
+      const internalDuplicates = [];
+      
+      const filePhoneData = records.map((r, idx) => {
         const p = r.Phone || r.phone || r.Mobile || r.MOBILE || r.PHONE;
-        return normalizePhone(p);
-      }).filter(Boolean);
+        const normalized = normalizePhone(p);
+        return { normalized, original: p, row: idx + 2 }; // +2 for 1-indexing and header row
+      }).filter(item => item.normalized);
 
+      for (const item of filePhoneData) {
+        if (seenInFile[item.normalized]) {
+          if (!internalDuplicates.includes(item.original)) {
+            internalDuplicates.push(item.original);
+          }
+        } else {
+          seenInFile[item.normalized] = item;
+        }
+      }
+
+      if (internalDuplicates.length > 0) {
+        return res.status(400).json({ 
+          error: `Duplicate leads detected WITHIN the uploaded file! The following phone numbers appear multiple times in your Excel: ${internalDuplicates.join(', ')}. Please ensure each lead is unique in the file.` 
+        });
+      }
+
+      // 2. Check for duplicates AGAINST THE DATABASE
+      const phonesToCheck = Object.keys(seenInFile);
       if (phonesToCheck.length > 0) {
         const duplicatePhones = [];
-        // Check in batches of 50 to avoid massive $or queries or slow loops
+        // Check in batches of 50 to avoid massive $or queries
         for (let i = 0; i < phonesToCheck.length; i += 50) {
           const batch = phonesToCheck.slice(i, i + 50);
           const orConditions = batch.flatMap(phone => [
@@ -121,7 +144,7 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
 
         if (duplicatePhones.length > 0) {
           return res.status(400).json({ 
-            error: `Duplicate leads detected! The following phone numbers already exist in the system: ${duplicatePhones.join(', ')}. Please remove them and try again.` 
+            error: `Duplicate leads detected! The following phone numbers already exist in the CRM system: ${duplicatePhones.join(', ')}. Please remove them from your Excel and try again.` 
           });
         }
       }
@@ -276,6 +299,8 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
     const io = req.app.get('io');
     if (io) {
       io.emit('batch_uploaded', { batchId, agentId, totalUploaded: contacts.length });
+      io.emit('dashboard_update');
+      io.emit('contacts_updated');
     }
 
     res.json({

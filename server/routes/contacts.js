@@ -230,21 +230,7 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
     // Permanent Lead Storage Logic
     if (disposition === 'Lead') {
       const leadsCollection = getCollection('leads');
-      const isFinalStatus = status === 'Converted' || status === 'Not Interested';
       
-      // Check if lead already exists for this contact
-      const existingLead = await leadsCollection.findOne({ contactId: new ObjectId(req.params.id) });
-
-      if (!isFinalStatus && existingLead) {
-        // If not a final status and lead already exists, block and ask agent to use CallBack/Appointment
-        return res.status(409).json({ 
-          error: 'EXISTING_LEAD', 
-          message: 'A lead record already exists for this contact. Please save as Callback or Appointment.' 
-        });
-      }
-
-      // If no lead exists OR if it's a final status update (we can allow multiple final records or update?)
-      // User said "if dont then save the lead in my leads"
       try {
         const leadRecord = {
           contactId: new ObjectId(req.params.id),
@@ -351,14 +337,43 @@ router.put('/:id/status', verify, authorize(['agent', 'tl', 'admin']), async (re
     // Sync with Permanent Leads
     try {
       const leadsCollection = getCollection('leads');
-      // Update the latest lead record for this contact
-      await leadsCollection.updateOne(
-        { contactId: contactId },
-        { $set: { status, statusDetails, transactionId, lastModified: new Date() } },
-        { sort: { createdAt: -1 } }
-      );
+      const existing = await leadsCollection.findOne({ contactId: contactId });
+      
+      if (existing) {
+        // Update the latest lead record for this contact
+        await leadsCollection.updateOne(
+          { contactId: contactId },
+          { $set: { status, statusDetails, transactionId, lastModified: new Date() } },
+          { sort: { createdAt: -1 } }
+        );
+      } else {
+        // If it's a lead disposition but no lead record exists, create one
+        const contact = await contactsCollection.findOne({ _id: contactId });
+        if (contact && contact.disposition === 'Lead') {
+          await leadsCollection.insertOne({
+            contactId: contactId,
+            fields: contact.fields,
+            batchId: contact.batchId,
+            assignedTo: contact.assignedTo,
+            agentName: contact.agentName || 'Unknown',
+            leadAmount: contact.leadAmount || 0,
+            status: status || 'Pending',
+            statusDetails: statusDetails || '',
+            transactionId: transactionId || '',
+            remarks: contact.remarks || '[Auto-synced from status update]',
+            createdAt: new Date(),
+            lastModified: new Date()
+          });
+        }
+      }
     } catch (leadErr) {
       console.error('Failed to sync status to leads collection:', leadErr);
+    }
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('contacts_updated');
+      io.emit('dashboard_update');
     }
 
     res.json({ success: true });
