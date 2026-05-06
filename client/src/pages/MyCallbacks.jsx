@@ -180,8 +180,30 @@ const MyCallbacks = () => {
                   <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Phone size={13} /> {phone}</span>
                     {cb.agentName && <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><User size={13} /> {cb.agentName}</span>}
-                    {cb.remarks && <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>"{cb.remarks}"</span>}
                   </div>
+
+                  {cb.remarks && (
+                    <div style={{ marginTop: 10, padding: '8px 12px', background: 'var(--bg-surface-2)', borderRadius: 'var(--r-sm)', borderLeft: '3px solid var(--primary)', fontSize: '0.8rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {cb.remarks.split(' | ').map((remark, idx) => (
+                          <div key={idx} style={{ 
+                            color: idx === 0 ? 'var(--text-primary)' : 'var(--text-muted)',
+                            fontStyle: 'italic',
+                            opacity: idx === 0 ? 1 : 0.8,
+                            paddingLeft: idx === 0 ? 0 : 10,
+                            borderLeft: idx === 0 ? 'none' : '1px solid var(--border)'
+                          }}>
+                            {remark.startsWith('[Later CB Remark:') ? (
+                              <span>
+                                <Clock size={10} style={{ display: 'inline', marginRight: 4, opacity: 0.6 }} />
+                                {remark.replace('[Later CB Remark:', '').replace(']', '')}
+                              </span>
+                            ) : remark}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <div style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                     {cb.disposition === 'Lead' && (

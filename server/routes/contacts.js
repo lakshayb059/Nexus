@@ -2,6 +2,7 @@ const router = require('express').Router();
 const { getCollection } = require('../mongodb');
 const { authorize, verify } = require('../middleware/auth');
 const { ObjectId } = require('mongodb');
+const { consolidateCallbacks, cleanupAllCallbacks } = require('../utils/callbackUtils');
 
 // Helper: get contacts based on role
 async function getAccessibleContacts(user, filters = {}, includeDeleted = false) {
@@ -116,6 +117,41 @@ router.get('/queue', verify, authorize(['agent']), async (req, res) => {
   }
 });
 
+// GET /contacts/:id/check-callback - Check if a callback already exists for this contact (by phone)
+router.get('/:id/check-callback', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
+  try {
+    const contactsCollection = getCollection('contacts');
+    const contact = await contactsCollection.findOne({ _id: new ObjectId(req.params.id) });
+    if (!contact) return res.status(404).json({ error: 'Contact not found' });
+
+    const phoneNum = contact.fields?.Phone || contact.fields?.phone || contact.fields?.Mobile;
+    if (!phoneNum) return res.json({ exists: false });
+
+    const { normalizePhone } = require('../utils/callbackUtils');
+    const normalized = normalizePhone(phoneNum);
+    if (!normalized) return res.json({ exists: false });
+
+    const callbacksCollection = getCollection('callbacks');
+    const phoneRegex = new RegExp(normalized + '$');
+    
+    const existingCb = await callbacksCollection.findOne({
+      $or: [
+        { "fields.Phone": { $regex: phoneRegex } },
+        { "fields.phone": { $regex: phoneRegex } },
+        { "fields.Mobile": { $regex: phoneRegex } }
+      ]
+    });
+
+    if (existingCb) {
+      return res.json({ exists: true, callback: existingCb });
+    }
+    res.json({ exists: false });
+  } catch (err) {
+    console.error('Check callback error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // POST /contacts/:id/dispose - MULTI-LEAD ALLOWED, NO DUPLICATE CHECKS
 router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
   try {
@@ -167,6 +203,7 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
       update.callBackDt = callBackDt ? new Date(callBackDt) : null;
       update.cbReminderSent = false;
       update.queueOrder = 999999;
+      update.status = 'Call Back';
     } else if (disposition === 'CallNotAnswered' || disposition === 'HungUp') {
       update.rechurnCount = (contact.rechurnCount || 0) + 1;
       update.queueOrder = update.rechurnCount >= 3 ? 999999 : 0;
@@ -183,6 +220,12 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
       getCollection('appointments').deleteMany({ contactId }),
       getCollection('callbacks').deleteMany({ contactId })
     ]);
+
+    // Cleanup: Remove all callbacks for this phone number if NOT a CallBack disposition
+    const phoneNum = contact.fields?.Phone || contact.fields?.phone || contact.fields?.Mobile;
+    if (disposition !== 'CallBack') {
+      await cleanupAllCallbacks(phoneNum);
+    }
 
     // Permanent Lead Storage Logic
     if (disposition === 'Lead') {
@@ -250,10 +293,15 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
           agentName: req.user.name,
           callBackDt: callBackDt ? new Date(callBackDt) : null,
           remarks: remarks || '',
+          status: 'Call Back',
           createdAt: new Date(),
           lastModified: new Date()
         };
         await callbacksCollection.insertOne(callbackRecord);
+
+        // Consolidate callbacks for this phone number
+        const phoneNum = contact.fields?.Phone || contact.fields?.phone || contact.fields?.Mobile;
+        await consolidateCallbacks(phoneNum);
       } catch (err) { console.error('Callback save error:', err); }
     }
 

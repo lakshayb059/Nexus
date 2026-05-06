@@ -2,6 +2,7 @@ const router = require('express').Router();
 const { getCollection } = require('../mongodb');
 const { authorize, verify } = require('../middleware/auth');
 const { ObjectId } = require('mongodb');
+const { consolidateCallbacks, cleanupAllCallbacks } = require('../utils/callbackUtils');
 
 // Enhanced workflow management with proper disposition handling
 router.post('/workflow/dispose', verify, authorize(['agent']), async (req, res) => {
@@ -104,6 +105,30 @@ router.post('/workflow/dispose', verify, authorize(['agent']), async (req, res) 
       { _id: new ObjectId(contactId) },
       { $set: update }
     );
+
+    // If CallBack, also insert into callbacks collection
+    if (disposition === 'CallBack') {
+      const callbacksCollection = getCollection('callbacks');
+      await callbacksCollection.insertOne({
+        contactId: new ObjectId(contactId),
+        fields: contact.fields,
+        batchId: contact.batchId,
+        assignedTo: new ObjectId(req.user._id),
+        agentName: req.user.name,
+        callBackDt: new Date(callBackDt),
+        remarks: remarks || '',
+        createdAt: new Date(),
+        lastModified: new Date()
+      });
+    }
+
+    // Consolidate or cleanup callbacks
+    const phoneNum = contact.fields?.Phone || contact.fields?.phone || contact.fields?.Mobile;
+    if (disposition === 'CallBack') {
+      await consolidateCallbacks(phoneNum);
+    } else {
+      await cleanupAllCallbacks(phoneNum);
+    }
 
     // Emit real-time updates
     const io = req.app.get('io');

@@ -121,15 +121,39 @@ const MyLeads = () => {
   const handleModalSave = async (formData) => {
     setModalSubmitting(true);
     try {
+      const cid = modalLead.contactId || modalLead._id;
+
+      if (modalStatus === 'Call Back') {
+        const checkRes = await api.get(`/contacts/${cid}/check-callback`);
+        if (checkRes.data.exists) {
+          const existing = checkRes.data.callback;
+          const choice = window.confirm(
+            `A callback already exists for this contact scheduled for ${new Date(existing.callBackDt).toLocaleString()}.\n\n` +
+            `Click OK to EDIT the existing callback.\n` +
+            `Click CANCEL to CREATE A NEW separate callback record.`
+          );
+
+          if (choice) {
+            await api.put(`/leads/callbacks/${existing._id}`, {
+              callBackDt: formData.callBackDt,
+              remarks: formData.remarks || `[Status update to Call Back]`
+            });
+            alert('Existing callback updated successfully!');
+            setModalLead(null);
+            setModalStatus(null);
+            fetchData();
+            return;
+          }
+        }
+      }
+
       if (modalLead.type === 'lead') {
         await api.put(`/leads/${modalLead._id}`, {
           status: modalStatus,
           ...formData
         });
-        fetchHistory(historyContact.phone, historyContact.name);
+        if (historyContact) fetchHistory(historyContact.phone, historyContact.name);
       } else {
-        // Main dashboard updates use contactId
-        const cid = modalLead.contactId || modalLead._id;
         await api.put(`/contacts/${cid}/status`, {
           status: modalStatus,
           ...formData
@@ -151,6 +175,31 @@ const MyLeads = () => {
 
   const handleCallActionSubmit = async (payload) => {
     try {
+      const cid = callActionLead.contactId || callActionLead._id;
+      
+      if (payload.action === 'Followup' || (payload.action === 'Lead' && payload.status === 'Call Back')) {
+        const checkRes = await api.get(`/contacts/${cid}/check-callback`);
+        if (checkRes.data.exists) {
+          const existing = checkRes.data.callback;
+          const choice = window.confirm(
+            `A callback already exists for this contact scheduled for ${new Date(existing.callBackDt).toLocaleString()}.\n\n` +
+            `Click OK to EDIT the existing callback.\n` +
+            `Click CANCEL to CREATE A NEW separate callback record.`
+          );
+
+          if (choice) {
+            await api.put(`/leads/callbacks/${existing._id}`, {
+              callBackDt: payload.callBackDt,
+              remarks: payload.remarks || `[Call Action: ${payload.action}]`
+            });
+            alert('Existing callback updated successfully!');
+            setCallActionLead(null);
+            fetchData();
+            return;
+          }
+        }
+      }
+
       await api.post(`/leads/${callActionLead._id}/clone-and-dispose`, payload);
       setCallActionLead(null);
       fetchData(); // Refresh the list

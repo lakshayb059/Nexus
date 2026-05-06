@@ -2,6 +2,7 @@ const router = require('express').Router();
 const { getCollection } = require('../mongodb');
 const { authorize, verify } = require('../middleware/auth');
 const { ObjectId } = require('mongodb');
+const { consolidateCallbacks, cleanupAllCallbacks } = require('../utils/callbackUtils');
 
 // GET /api/leads/my-leads - Fetch leads for the current agent
 router.get('/my-leads', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
@@ -116,26 +117,8 @@ router.get('/callbacks', verify, authorize(['agent', 'tl', 'admin']), async (req
       matchQuery.assignedTo = { $in: agents.map(a => a._id) };
     }
 
-    const pipeline = [
-      { $match: matchQuery },
-      {
-        $addFields: {
-          normPhone: { $ifNull: ["$fields.Phone", { $ifNull: ["$fields.phone", { $ifNull: ["$fields.Mobile", "N/A"] }] }] }
-        }
-      },
-      { $sort: { callBackDt: 1 } }, // Earliest first
-      {
-        $group: {
-          _id: "$normPhone",
-          earliestCb: { $first: "$$ROOT" }
-        }
-      },
-      { $replaceRoot: { newRoot: "$earliestCb" } },
-      { $sort: { callBackDt: 1 } }
-    ];
-
-    const aggregated = await callbacksCollection.aggregate(pipeline).toArray();
-    res.json(aggregated.map(c => ({ ...c, isLeadCallback: false })));
+    const callbacks = await callbacksCollection.find(matchQuery).sort({ callBackDt: 1 }).toArray();
+    res.json(callbacks.map(c => ({ ...c, isLeadCallback: false })));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -302,6 +285,40 @@ router.post('/callbacks/bulk-delete', verify, authorize(['admin']), async (req, 
   }
 });
 
+// PUT /api/leads/callbacks/:id - Update an existing callback
+router.put('/callbacks/:id', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
+  try {
+    const { callBackDt, remarks } = req.body;
+    const callbacksCollection = getCollection('callbacks');
+    const contactsCollection = getCollection('contacts');
+
+    const callback = await callbacksCollection.findOne({ _id: new ObjectId(req.params.id) });
+    if (!callback) return res.status(404).json({ error: 'Callback not found' });
+
+    const update = { lastModified: new Date() };
+    if (callBackDt) update.callBackDt = new Date(callBackDt);
+    if (remarks) update.remarks = remarks;
+
+    await callbacksCollection.updateOne(
+      { _id: new ObjectId(req.params.id) },
+      { $set: update }
+    );
+
+    // Also update the associated contact if it exists
+    if (callback.contactId) {
+      await contactsCollection.updateOne(
+        { _id: new ObjectId(callback.contactId) },
+        { $set: { ...update, disposition: 'CallBack' } }
+      );
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Update callback error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // POST /api/leads/:id/clone-and-dispose - Clone contact and perform a call action
 router.post('/:id/clone-and-dispose', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
   try {
@@ -360,6 +377,10 @@ router.post('/:id/clone-and-dispose', verify, authorize(['agent', 'tl', 'admin']
         createdAt: new Date(),
         lastModified: new Date()
       });
+
+      // Consolidate callbacks for this phone number
+      const phoneNum = newContact.fields?.Phone || newContact.fields?.phone || newContact.fields?.Mobile;
+      await consolidateCallbacks(phoneNum);
     } else if (action === 'Lead' || action === 'Not Interested') {
       const leadRecord = {
         contactId: newContactId,
@@ -378,6 +399,12 @@ router.post('/:id/clone-and-dispose', verify, authorize(['agent', 'tl', 'admin']
         lastModified: new Date()
       };
       await leadsCollection.insertOne(leadRecord);
+    }
+
+    // Cleanup: If not a Followup, remove all callbacks for this phone
+    const phoneNum = newContact.fields?.Phone || newContact.fields?.phone || newContact.fields?.Mobile;
+    if (action !== 'Followup') {
+      await cleanupAllCallbacks(phoneNum);
     }
 
     // 4. Emit events

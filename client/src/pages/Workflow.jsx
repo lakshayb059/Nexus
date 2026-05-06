@@ -94,13 +94,39 @@ const Workflow = () => {
     setSubmitting(true);
     try {
       let payload = { ...dispForm };
-      
+
       // Convert local date strings to ISO strings
       if (payload.appointmentDt) {
         payload.appointmentDt = new Date(payload.appointmentDt).toISOString();
       }
       if (payload.callBackDt) {
         payload.callBackDt = new Date(payload.callBackDt).toISOString();
+      }
+
+      // Check for existing callback if disposition is CallBack
+      if (payload.disposition === 'CallBack') {
+        const checkRes = await api.get(`/contacts/${data.contact._id}/check-callback`);
+        if (checkRes.data.exists) {
+          const existing = checkRes.data.callback;
+          const choice = window.confirm(
+            `A callback already exists for this contact scheduled for ${new Date(existing.callBackDt).toLocaleString()}.\n\n` +
+            `Click OK to EDIT the existing callback with your new date and remarks.\n` +
+            `Click CANCEL to CREATE A NEW separate callback record.`
+          );
+
+          if (choice) {
+            // EDIT existing
+            await api.put(`/leads/callbacks/${existing._id}`, {
+              callBackDt: payload.callBackDt,
+              remarks: payload.remarks
+            });
+            alert('Existing callback updated successfully!');
+            setDispForm({ disposition: '', remarks: '', appointmentDt: '', leadAmount: '', callBackDt: '', status: '', statusDetails: '', transactionId: '' });
+            fetchNext();
+            return;
+          }
+          // If Cancel, it continues to standard post /dispose (Create New)
+        }
       }
 
       await api.post(`/contacts/${data.contact._id}/dispose`, payload);
@@ -112,7 +138,7 @@ const Workflow = () => {
         const confirmRedirect = window.confirm(
           `A lead record already exists for this contact.\n\nWould you like to save this update in the ${targetSection} section instead?`
         );
-        
+
         if (confirmRedirect) {
           // Change disposition based on the status and retry
           let retryPayload = { ...dispForm };
@@ -122,11 +148,11 @@ const Workflow = () => {
             retryPayload.disposition = 'Appointment';
             if (!retryPayload.appointmentDt) retryPayload.appointmentDt = retryPayload.callBackDt || new Date().toISOString();
           }
-          
+
           // Format dates for retry
           if (retryPayload.appointmentDt) retryPayload.appointmentDt = new Date(retryPayload.appointmentDt).toISOString();
           if (retryPayload.callBackDt) retryPayload.callBackDt = new Date(retryPayload.callBackDt).toISOString();
-          
+
           try {
             await api.post(`/contacts/${data.contact._id}/dispose`, retryPayload);
             setDispForm({ disposition: '', remarks: '', appointmentDt: '', leadAmount: '', callBackDt: '', status: '', statusDetails: '', transactionId: '' });
@@ -299,6 +325,31 @@ const Workflow = () => {
               );
             })}
           </div>
+
+          {contact.remarks && (
+            <div style={{ marginTop: 20, padding: '12px 16px', background: 'var(--bg-surface-2)', borderRadius: 'var(--r-md)', borderLeft: '4px solid var(--primary)' }}>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.05em', marginBottom: 8 }}>Previous Remarks / History</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {contact.remarks.split(' | ').map((remark, idx) => (
+                  <div key={idx} style={{ 
+                    fontSize: '0.9rem',
+                    color: idx === 0 ? 'var(--text-primary)' : 'var(--text-muted)',
+                    fontStyle: 'italic',
+                    paddingLeft: idx === 0 ? 0 : 12,
+                    borderLeft: idx === 0 ? 'none' : '2px solid var(--border)',
+                    lineHeight: 1.4
+                  }}>
+                    {remark.startsWith('[Later CB Remark:') ? (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Clock size={12} style={{ opacity: 0.6 }} />
+                        {remark.replace('[Later CB Remark:', '').replace(']', '').trim()}
+                      </span>
+                    ) : remark}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Prominent Call Bar for Mobile Only */}
           {(() => {

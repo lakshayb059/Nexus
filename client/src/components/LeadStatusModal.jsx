@@ -6,6 +6,7 @@ const LeadStatusModal = ({ lead, newStatus, onClose, onSave, submitting }) => {
     transactionId: lead.transactionId || '',
     callBackDt: lead.callBackDt ? new Date(lead.callBackDt).toISOString().slice(0, 16) : '',
     statusDetails: lead.statusDetails || '',
+    remarks: lead.remarks || '',
   });
 
   const handleSubmit = (e) => {
@@ -71,18 +72,32 @@ const LeadStatusModal = ({ lead, newStatus, onClose, onSave, submitting }) => {
           )}
 
           {newStatus === 'Call Back' && (
-            <div className="input-group">
-              <label htmlFor="modalCallBackDt">Next Callback Date & Time *</label>
-              <input 
-                id="modalCallBackDt"
-                type="datetime-local" 
-                className="input-field" 
-                value={formData.callBackDt} 
-                onChange={e => setFormData(p => ({ ...p, callBackDt: e.target.value }))}
-                required
-                autoFocus
-              />
-            </div>
+            <>
+              <div className="input-group">
+                <label htmlFor="modalCallBackDt">Next Callback Date & Time *</label>
+                <input 
+                  id="modalCallBackDt"
+                  type="datetime-local" 
+                  className="input-field" 
+                  value={formData.callBackDt} 
+                  onChange={e => setFormData(p => ({ ...p, callBackDt: e.target.value }))}
+                  required
+                  autoFocus
+                />
+              </div>
+              <div className="input-group">
+                <label htmlFor="modalRemarks">Remarks / Notes *</label>
+                <textarea 
+                  id="modalRemarks"
+                  className="input-field" 
+                  rows="3"
+                  value={formData.remarks} 
+                  onChange={e => setFormData(p => ({ ...p, remarks: e.target.value }))}
+                  required
+                  placeholder="Enter followup notes..."
+                />
+              </div>
+            </>
           )}
 
           {newStatus === 'Others' && (

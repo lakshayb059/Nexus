@@ -1,5 +1,6 @@
 const { getCollection } = require('../mongodb');
 const { ObjectId } = require('mongodb');
+const { consolidateCallbacks, cleanupAllCallbacks } = require('../utils/callbackUtils');
 
 class LeadsService {
   constructor(io) {
@@ -160,6 +161,33 @@ class LeadsService {
         { _id: new ObjectId(contactId) },
         { $set: update }
       );
+
+      // If CallBack, also insert into callbacks collection
+      if (disposition === 'CallBack') {
+        const callbacksCollection = getCollection('callbacks');
+        const usersCollection = getCollection('users');
+        const agent = await usersCollection.findOne({ _id: new ObjectId(agentId) });
+        
+        await callbacksCollection.insertOne({
+          contactId: new ObjectId(contactId),
+          fields: contact.fields,
+          batchId: contact.batchId,
+          assignedTo: new ObjectId(agentId),
+          agentName: agent?.name || 'Unknown',
+          callBackDt: new Date(callBackDt),
+          remarks: remarks || '',
+          createdAt: new Date(),
+          lastModified: new Date()
+        });
+      }
+
+      // Consolidate or cleanup callbacks
+      const phoneNum = contact.fields?.Phone || contact.fields?.phone || contact.fields?.Mobile;
+      if (disposition === 'CallBack') {
+        await consolidateCallbacks(phoneNum);
+      } else {
+        await cleanupAllCallbacks(phoneNum);
+      }
 
       // Emit real-time updates
       if (this.io) {
