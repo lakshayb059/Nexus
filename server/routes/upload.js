@@ -70,6 +70,17 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
 
     if (!records.length) return res.status(400).json({ error: 'No records found in file' });
 
+    // Standardize phone field names to 'Phone' if they match common patterns
+    const phoneHeaders = ['phone', 'mobile', 'contact', 'mobile no', 'contact no', 'phone number', 'mobile number'];
+    records = records.map(r => {
+      const keys = Object.keys(r);
+      const phoneKey = keys.find(k => phoneHeaders.includes(k.toLowerCase()));
+      if (phoneKey && phoneKey !== 'Phone') {
+        r.Phone = r[phoneKey];
+      }
+      return r;
+    });
+
     const columns = Object.keys(records[0]);
     const batchId = 'batch_' + Date.now();
     const now = new Date().toISOString();
@@ -88,8 +99,14 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
     const leadsCollection = getCollection('leads');
     const queueStarts = {};
 
-    // Duplicate Check Logic (Admin only, Lead upload only)
-    if (req.user.role === 'admin' && (isLeadUpload === 'true' || isLeadUpload === true)) {
+    // Duplicate Check Logic (Admin only)
+    // Trigger if isLeadUpload is true OR if any record in the file has a lead status
+    const hasLeads = isLeadUpload === 'true' || isLeadUpload === true || records.some(r => {
+      const s = r.Status || r.status;
+      return ['Converted', 'Not Interested', 'Call Back', 'Others', 'Appointment'].includes(s);
+    });
+
+    if (req.user.role === 'admin' && hasLeads) {
       // 1. Check for duplicates WITHIN the uploaded Excel file
       const seenInFile = {};
       const internalDuplicates = [];
@@ -123,26 +140,49 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
         // Check in batches of 50 to avoid massive $or queries
         for (let i = 0; i < phonesToCheck.length; i += 50) {
           const batch = phonesToCheck.slice(i, i + 50);
-          const orConditions = batch.flatMap(phone => [
-            { "fields.Phone": { $regex: new RegExp(phone + '$') } },
-            { "fields.phone": { $regex: new RegExp(phone + '$') } },
-            { "fields.Mobile": { $regex: new RegExp(phone + '$') } },
-            { "fields.MOBILE": { $regex: new RegExp(phone + '$') } },
-            { "fields.PHONE": { $regex: new RegExp(phone + '$') } }
+          
+          // Build a query that covers all common phone fields
+          const orConditions = [];
+          batch.forEach(phone => {
+            if (phone.length >= 10) {
+              const regex = new RegExp(phone + '$');
+              orConditions.push({ "fields.Phone": { $regex: regex } });
+              orConditions.push({ "fields.phone": { $regex: regex } });
+              orConditions.push({ "fields.Mobile": { $regex: regex } });
+              orConditions.push({ "fields.MOBILE": { $regex: regex } });
+              orConditions.push({ "fields.PHONE": { $regex: regex } });
+              orConditions.push({ "fields.Contact": { $regex: regex } });
+              orConditions.push({ "fields.Mobile No": { $regex: regex } });
+            }
+          });
+
+          if (orConditions.length === 0) continue;
+
+          // Check in BOTH leads and contacts collection to be absolutely sure
+          const [existingLeads, existingContacts] = await Promise.all([
+            leadsCollection.find({ isDeleted: { $ne: true }, $or: orConditions }).toArray(),
+            contactsCollection.find({ isDeleted: { $ne: true }, $or: orConditions }).toArray()
           ]);
 
-          const existing = await leadsCollection.find({ $or: orConditions }).toArray();
-          if (existing.length > 0) {
-            existing.forEach(e => {
-              const ep = normalizePhone(e.fields?.Phone || e.fields?.phone || e.fields?.Mobile || e.fields?.MOBILE || e.fields?.PHONE);
-              if (batch.includes(ep) && !duplicatePhones.includes(ep)) {
-                duplicatePhones.push(ep);
+          const allExisting = [...existingLeads, ...existingContacts];
+          
+          allExisting.forEach(e => {
+            const rawP = e.fields?.Phone || e.fields?.phone || e.fields?.Mobile || 
+                         e.fields?.MOBILE || e.fields?.PHONE || e.fields?.Contact || 
+                         e.fields?.['Mobile No'];
+            const ep = normalizePhone(rawP);
+            if (ep && batch.includes(ep) && !duplicatePhones.includes(ep)) {
+              // Double check: make sure the original row in Excel matches this duplicate
+              const originalItem = seenInFile[ep];
+              if (originalItem) {
+                duplicatePhones.push(originalItem.original);
               }
-            });
-          }
+            }
+          });
         }
 
         if (duplicatePhones.length > 0) {
+          console.log(`[UPLOAD] Blocking upload due to database duplicates: ${duplicatePhones.join(', ')}`);
           return res.status(400).json({ 
             error: `Duplicate leads detected! The following phone numbers already exist in the CRM system: ${duplicatePhones.join(', ')}. Please remove them from your Excel and try again.` 
           });
@@ -202,14 +242,17 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
       let transactionId = null;
       let callBackDt = null;
 
-      if (isLeadUpload === 'true' || isLeadUpload === true) {
+      // Extract status from row
+      const statusCol = Object.keys(row).find(k => k.toLowerCase() === 'status');
+      if (statusCol) status = row[statusCol];
+
+      const s = (status || '').toLowerCase().trim();
+      const isLeadStatus = ['converted', 'not interested', 'call back', 'others', 'appointment', 'lead'].includes(s);
+
+      if (isLeadUpload === 'true' || isLeadUpload === true || isLeadStatus) {
         disposition = 'Lead';
         queueOrder = 999999;
         
-        // Extract status from row
-        const statusCol = Object.keys(row).find(k => k.toLowerCase() === 'status');
-        if (statusCol) status = row[statusCol];
-
         // Map template status to DB status
         if (status === 'Converted') {
           const utrCol = Object.keys(row).find(k => k.toLowerCase().includes('utr') || k.toLowerCase().includes('transaction'));
@@ -253,11 +296,21 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
 
     const insertResult = await contactsCollection.insertMany(contacts);
 
-    // If it's a lead upload, also insert into the leads collection
-    if (isLeadUpload === 'true' || isLeadUpload === true) {
-      const leads = contacts.map((c, index) => {
-        const contactId = insertResult.insertedIds[index];
-        // Get agent name for the lead record
+    // 2.3 Process and filter leads for the leads collection
+    // We sync to leads table if isLeadUpload is true OR if the record has a lead status
+    const leadContacts = contacts.filter(c => {
+      const s = (c.status || '').toLowerCase().trim();
+      const leadStatuses = ['converted', 'not interested', 'call back', 'others', 'appointment', 'lead'];
+      return (c.disposition === 'Lead') || leadStatuses.includes(s);
+    });
+
+    if (leadContacts.length > 0) {
+      console.log(`[UPLOAD] Detected ${leadContacts.length} leads. Syncing to leads collection...`);
+      const leads = leadContacts.map((c) => {
+        // Find the inserted contact ID
+        const contactIndex = contacts.findIndex(origC => origC === c);
+        const contactId = insertResult.insertedIds[contactIndex];
+        
         let agentName = 'Unknown';
         const agentIdStr = c.assignedTo.toString();
         const agentObj = allAgents.find(a => a._id.toString() === agentIdStr);
@@ -275,12 +328,13 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
           transactionId: c.transactionId || '',
           remarks: c.remarks || '[Uploaded via Excel]',
           callBackDt: c.callBackDt,
-          appointmentDt: null,
+          appointmentDt: c.appointmentDt,
           createdAt: new Date(now),
           lastModified: new Date(now)
         };
       });
       await leadsCollection.insertMany(leads);
+      console.log(`[UPLOAD] Lead sync complete. ${leads.length} records added.`);
     }
 
     const batchesCollection = getCollection('batches');

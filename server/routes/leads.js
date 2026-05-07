@@ -10,7 +10,7 @@ router.get('/my-leads', verify, authorize(['agent', 'tl', 'admin']), async (req,
     const leadsCollection = getCollection('leads');
     const usersCollection = getCollection('users');
 
-    let matchQuery = {};
+    const matchQuery = { isDeleted: { $ne: true } };
     if (req.user.role === 'agent') {
       matchQuery.assignedTo = new ObjectId(req.user._id);
     } else if (req.user.role === 'tl') {
@@ -18,66 +18,52 @@ router.get('/my-leads', verify, authorize(['agent', 'tl', 'admin']), async (req,
       matchQuery.assignedTo = { $in: agents.map(a => a._id) };
     }
 
-    if (req.user.role === 'admin') {
-      // Admin sees every single lead record independently
-      const leads = await leadsCollection.find(matchQuery).sort({ createdAt: -1 }).toArray();
-      res.json(leads);
-    } else {
-      // Agents and TLs see aggregated view (one card per contact with total stats)
-      const pipeline = [
-        { $match: matchQuery },
-        {
-          $addFields: {
-            normPhone: {
-              $let: {
-                vars: {
-                  rawP: { $ifNull: ["$fields.Phone", { $ifNull: ["$fields.phone", { $ifNull: ["$fields.Mobile", "N/A"] }] }] }
-                },
-                in: {
-                  $let: {
-                    vars: {
-                      strP: { $toString: "$$rawP" }
-                    },
-                    in: {
-                      $cond: {
-                        if: { $eq: ["$$strP", "N/A"] },
-                        then: "N/A",
-                        else: { $substr: ["$$strP", { $max: [0, { $subtract: [{ $strLenCP: "$$strP" }, 10] }] }, 10] }
-                      }
-                    }
-                  }
-                }
-              }
-            },
-            sortPriority: {
-              $cond: {
-                if: { $in: ["$status", ["Converted", "Not Interested"]] },
-                then: 1,
-                else: 0
-              }
-            }
-          }
-        },
-        { $sort: { sortPriority: 1, createdAt: -1 } },
-        {
-          $group: {
-            _id: "$normPhone",
-            latestLead: { $first: "$$ROOT" },
-            totalAmount: { $sum: "$leadAmount" },
-            leadsCount: { $sum: 1 }
-          }
-        },
-        {
-          $replaceRoot: {
-            newRoot: { $mergeObjects: ["$latestLead", { totalAmount: "$totalAmount", leadsCount: "$leadsCount" }] }
-          }
-        },
-        { $sort: { lastModified: -1 } } // For the final list of unique contacts
-      ];
+    // 1. Fetch raw lead records
+    const leads = await leadsCollection.find(matchQuery).sort({ createdAt: -1 }).toArray();
 
-      const aggregatedLeads = await leadsCollection.aggregate(pipeline).toArray();
-      res.json(aggregatedLeads);
-    }
+    // 2. Group and normalize in Node.js for 100% reliability across all tiers
+    const groupedMap = new Map();
+
+    const normalize = (phone) => {
+      if (!phone) return 'N/A';
+      const clean = String(phone).replace(/\D/g, '');
+      return clean.length >= 10 ? clean.slice(-10) : clean || 'N/A';
+    };
+
+    leads.forEach(lead => {
+      const rawPhone = lead.fields?.Phone || lead.fields?.phone || lead.fields?.Mobile || 
+                       lead.fields?.MOBILE || lead.fields?.PHONE || lead.fields?.Contact || 
+                       lead.fields?.['Mobile No'] || 'N/A';
+      
+      const normPhone = normalize(rawPhone);
+
+      if (!groupedMap.has(normPhone)) {
+        groupedMap.set(normPhone, {
+          ...lead,
+          totalAmount: 0,
+          leadsCount: 0
+        });
+      }
+
+      const group = groupedMap.get(normPhone);
+      group.totalAmount += (parseFloat(lead.leadAmount) || 0);
+      group.leadsCount += 1;
+      
+      // Keep the most recent record as the primary one for the card
+      if (new Date(lead.createdAt) > new Date(group.createdAt)) {
+        const currentAmount = group.totalAmount;
+        const currentCount = group.leadsCount;
+        Object.assign(group, lead);
+        group.totalAmount = currentAmount;
+        group.leadsCount = currentCount;
+      }
+    });
+
+    const result = Array.from(groupedMap.values()).sort((a, b) => 
+      new Date(b.lastModified || b.createdAt) - new Date(a.lastModified || a.createdAt)
+    );
+
+    res.json(result);
   } catch (err) {
     console.error('Fetch leads error:', err);
     res.status(500).json({ error: 'Server error' });
@@ -478,42 +464,39 @@ router.put('/:id', verify, authorize(['agent', 'tl', 'admin']), async (req, res)
 router.get('/history/:phone', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
   try {
     const leadsCollection = getCollection('leads');
-    const rawPhone = req.params.phone;
-    const last10 = rawPhone.replace(/\D/g, '').slice(-10);
+    const phone = req.params.phone;
+    const last10 = phone.replace(/\D/g, "").slice(-10);
 
     if (!last10) return res.json([]);
 
-    // Use aggregation to normalize DB fields exactly like the listing view
-    const history = await leadsCollection.aggregate([
-      {
-        $addFields: {
-          normPhone: {
-            $let: {
-              vars: {
-                rawP: { $ifNull: ["$fields.Phone", { $ifNull: ["$fields.phone", { $ifNull: ["$fields.Mobile", "N/A"] }] }] }
-              },
-              in: {
-                $let: {
-                  vars: { strP: { $toString: "$$rawP" } },
-                  in: {
-                    $cond: {
-                      if: { $eq: ["$$strP", "N/A"] },
-                      then: "N/A",
-                      else: { $substr: ["$$strP", { $max: [0, { $subtract: [{ $strLenCP: "$$strP" }, 10] }] }, 10] }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      {
-        $match: { normPhone: last10 }
-      },
-      { $sort: { createdAt: -1 } }
-    ]).toArray();
-    
+    // 1. Fetch leads that could possibly match (indexed search)
+    const leads = await leadsCollection.find({
+      isDeleted: { $ne: true },
+      $or: [
+        { "fields.Phone": { $regex: last10 + "$" } },
+        { "fields.phone": { $regex: last10 + "$" } },
+        { "fields.Mobile": { $regex: last10 + "$" } },
+        { "fields.MOBILE": { $regex: last10 + "$" } },
+        { "fields.PHONE": { $regex: last10 + "$" } },
+        { "fields.Contact": { $regex: last10 + "$" } },
+        { "fields.Mobile No": { $regex: last10 + "$" } }
+      ]
+    }).toArray();
+
+    // 2. Final normalization and filtering in Node.js for perfect accuracy
+    const normalize = (p) => {
+      if (!p) return 'N/A';
+      const clean = String(p).replace(/\D/g, '');
+      return clean.length >= 10 ? clean.slice(-10) : clean || 'N/A';
+    };
+
+    const history = leads.filter(l => {
+      const p = l.fields?.Phone || l.fields?.phone || l.fields?.Mobile || 
+                l.fields?.MOBILE || l.fields?.PHONE || l.fields?.Contact || 
+                l.fields?.['Mobile No'] || 'N/A';
+      return normalize(p) === last10;
+    }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
     res.json(history);
   } catch (err) {
     console.error('[HISTORY] Error:', err);

@@ -34,14 +34,30 @@ router.post('/workflow/dispose', verify, authorize(['agent']), async (req, res) 
 
     // Handle Lead disposition - require lead amount
     if (disposition === 'Lead') {
-      if (leadAmount === undefined || leadAmount === '' || leadAmount <= 0) {
+      if (leadAmount === undefined || leadAmount === '' || leadAmount < 0) {
         return res.status(400).json({ error: 'Valid lead amount is required for Lead disposition' });
       }
       update.leadAmount = parseFloat(leadAmount);
       update.conversionDate = new Date();
-      
-      // Remove from queue by setting high queue order
       update.queueOrder = 999999;
+
+      // Sync with Permanent Leads
+      try {
+        const leadsCollection = getCollection('leads');
+        await leadsCollection.insertOne({
+          contactId: new ObjectId(contactId),
+          fields: contact.fields,
+          batchId: contact.batchId,
+          assignedTo: new ObjectId(req.user._id),
+          agentName: req.user.name,
+          leadAmount: parseFloat(leadAmount),
+          status: 'Lead',
+          createdAt: new Date(),
+          lastModified: new Date()
+        });
+      } catch (leadErr) {
+        console.error('Failed to sync to leads collection:', leadErr);
+      }
     } else {
       update.leadAmount = null;
     }
@@ -143,7 +159,8 @@ router.post('/workflow/dispose', verify, authorize(['agent']), async (req, res) 
       });
       
       // Update dashboard stats
-      io.emit('dashboard_update', { type: 'lead_disposed', data: update });
+      io.emit('dashboard_update');
+      io.emit('contacts_updated');
     }
 
     res.json({ 
