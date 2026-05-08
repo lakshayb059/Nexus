@@ -55,27 +55,38 @@ router.get('/', verify, authorize(['admin', 'tl', 'agent']), async (req, res) =>
     
     try {
       const usersCollection = getCollection('users');
-      const assignedToIds = [...new Set(contacts
-        .map(c => c.assignedTo ? c.assignedTo.toString() : null)
-        .filter(Boolean)
-      )].map(id => new ObjectId(id));
+      
+      // Extremely safe ID extraction
+      const validIds = contacts
+        .map(c => c.assignedTo)
+        .filter(id => id && (typeof id === 'string' || typeof id === 'object'))
+        .map(id => id.toString())
+        .filter(id => /^[0-9a-fA-F]{24}$/.test(id)); // Only keep valid 24-char hex strings
+
+      const uniqueIds = [...new Set(validIds)].map(id => new ObjectId(id));
       
       let userMap = {};
-      if (assignedToIds.length > 0) {
+      if (uniqueIds.length > 0) {
         const agents = await usersCollection.find(
-          { _id: { $in: assignedToIds } },
+          { _id: { $in: uniqueIds } },
           { projection: { _id: 1, name: 1 } }
         ).toArray();
-        userMap = agents.reduce((acc, a) => { acc[a._id.toString()] = a.name; return acc; }, {});
+        userMap = agents.reduce((acc, a) => { 
+          if (a._id) acc[a._id.toString()] = a.name; 
+          return acc; 
+        }, {});
       }
 
-      const enriched = contacts.map(c => ({
-        ...c,
-        agentName: c.assignedTo ? (userMap[c.assignedTo.toString()] || 'Unknown Agent') : 'Unassigned'
-      }));
+      const enriched = contacts.map(c => {
+        const aId = c.assignedTo ? c.assignedTo.toString() : null;
+        return {
+          ...c,
+          agentName: aId ? (userMap[aId] || 'Unknown Agent') : 'Unassigned'
+        };
+      });
       return res.json(enriched);
     } catch (enrichErr) {
-      console.error('Enrichment failed, returning base contacts:', enrichErr);
+      console.error('Enrichment failed:', enrichErr);
       return res.json(contacts);
     }
   } catch (err) { 
