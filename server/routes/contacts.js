@@ -2,103 +2,142 @@ const router = require('express').Router();
 const { getCollection } = require('../mongodb');
 const { authorize, verify } = require('../middleware/auth');
 const { ObjectId } = require('mongodb');
-const { consolidateCallbacks, cleanupAllCallbacks } = require('../utils/callbackUtils');
+const { consolidateCallbacks, cleanupAllCallbacks, normalizePhone } = require('../utils/callbackUtils');
 
 // Helper: get contacts based on role
 async function getAccessibleContacts(user, filters = {}, includeDeleted = false) {
   let query = { ...filters };
   if (!includeDeleted) query.isDeleted = { $ne: true };
-  
-  if (user.role === 'agent') {
-    query.assignedTo = new ObjectId(user._id);
-  } else if (user.role === 'tl') {
-    const usersCollection = getCollection('users');
-    const agents = await usersCollection.find({ role: 'agent', tlId: new ObjectId(user._id) }, { projection: { _id: 1 } }).toArray();
-    const agentIds = agents.map(a => a._id);
-    query.assignedTo = { $in: agentIds };
-  } else if (user.role === 'admin') {
-    if (filters.tlId) {
-      try {
-        const tlObjectId = new ObjectId(filters.tlId);
-        const usersCollection = getCollection('users');
-        const agents = await usersCollection.find({ role: 'agent', tlId: tlObjectId }, { projection: { _id: 1 } }).toArray();
-        const agentIds = agents.map(a => a._id);
-        query.assignedTo = { $in: agentIds };
-      } catch (err) {
-        console.warn('Invalid tlId in filter:', filters.tlId);
+
+  try {
+    if (!user || !user.role) {
+      // If user is not properly defined, restrict to nothing
+      query._id = new ObjectId();
+      return [];
+    }
+
+    if (user.role === 'agent') {
+      query.assignedTo = new ObjectId(user._id);
+    } else if (user.role === 'tl') {
+      const usersCollection = getCollection('users');
+      // Use the helper to find agents for this TL
+      const tlIdValue = /^[0-9a-fA-F]{24}$/.test(user._id.toString()) ? new ObjectId(user._id) : user._id;
+      const agents = await usersCollection.find({
+        role: 'agent',
+        tlId: tlIdValue
+      }, { projection: { _id: 1 } }).toArray();
+      const agentIds = agents.map(a => a._id);
+      query.assignedTo = { $in: agentIds };
+    } else if (user.role === 'admin') {
+      // Admin case: handle tlId filter if present
+      if (filters.tlId) {
+        try {
+          const usersCollection = getCollection('users');
+          // Support both ObjectId and string tlId in the database
+          const tlQuery = /^[0-9a-fA-F]{24}$/.test(filters.tlId) ? new ObjectId(filters.tlId) : filters.tlId;
+          const agents = await usersCollection.find({ role: 'agent', tlId: tlQuery }, { projection: { _id: 1 } }).toArray();
+          const agentIds = agents.map(a => a._id);
+          query.assignedTo = { $in: agentIds };
+        } catch (err) {
+          console.warn('TL filter error:', err.message);
+        }
+        delete query.tlId;
       }
-      delete query.tlId;
+
+      // agentId (assignedTo) is already handled in the route caller
     }
-    // Handle agentId if it's already in filters as assignedTo
-    if (query.assignedTo && typeof query.assignedTo === 'string') {
-      try { query.assignedTo = new ObjectId(query.assignedTo); } catch(e) {}
-    }
+  } catch (err) {
+    console.error('[AUTH QUERY ERROR]', err);
+    if (user.role !== 'admin') query._id = new ObjectId();
   }
-  
+
   const contactsCollection = getCollection('contacts');
-  console.log(`[DB FETCH] User: ${user.name} (${user.role}) | Query: ${JSON.stringify(query)}`);
-  return contactsCollection.find(query).sort({ queueOrder: 1, createdAt: 1 }).toArray();
+  // Safe logging
+  const logQuery = { ...query };
+  try {
+    return await contactsCollection.find(query).sort({ createdAt: -1 }).toArray();
+  } catch (findErr) {
+    console.error('[DB FIND ERROR]', findErr);
+    // If sorting fails, try without sorting
+    return await contactsCollection.find(query).toArray();
+  }
 }
 
-// GET /contacts - list
+// GET /contacts
 router.get('/', verify, authorize(['admin', 'tl', 'agent']), async (req, res) => {
   try {
     const { disposition, agentId, tlId, search, batchId } = req.query;
+
+    // 1. Build basic filters
     const filters = {};
     if (disposition === 'pending') filters.disposition = null;
     else if (disposition) filters.disposition = disposition;
     if (batchId) filters.batchId = batchId;
-    
-    if (agentId && req.user.role !== 'agent') {
-      try { filters.assignedTo = new ObjectId(agentId); } catch(e) {}
-    }
-    if (tlId && req.user.role === 'admin') filters.tlId = tlId;
-    
-    if (search && search.trim()) {
-      filters.$text = { $search: search };
+
+    // 2. Handle specific agent/TL filters for Admin/TL roles
+    if (req.user.role !== 'agent' && agentId) {
+      try {
+        if (/^[0-9a-fA-F]{24}$/.test(agentId)) {
+          filters.assignedTo = new ObjectId(agentId);
+        }
+      } catch (e) { }
     }
 
+    // If Admin selects a TL, getAccessibleContacts will handle fetching agents for that TL
+    if (req.user.role === 'admin' && tlId) {
+      filters.tlId = tlId;
+    }
+
+    // 3. Handle search
+    if (search && typeof search === 'string' && search.trim()) {
+      filters.$text = { $search: search.trim() };
+    }
+
+    // 4. Fetch contacts with role-based visibility
     let contacts = await getAccessibleContacts(req.user, filters);
-    
-    try {
-      const usersCollection = getCollection('users');
-      
-      // Extremely safe ID extraction
-      const validIds = contacts
-        .map(c => c.assignedTo)
-        .filter(id => id && (typeof id === 'string' || typeof id === 'object'))
-        .map(id => id.toString())
-        .filter(id => /^[0-9a-fA-F]{24}$/.test(id)); // Only keep valid 24-char hex strings
 
-      const uniqueIds = [...new Set(validIds)].map(id => new ObjectId(id));
-      
-      let userMap = {};
-      if (uniqueIds.length > 0) {
+    // 5. Enrichment (Agent Names) - wrapped in its own try-catch to never block the main result
+    try {
+      const validAssignedToIds = contacts
+        .map(c => c.assignedTo)
+        .filter(id => id && /^[0-9a-fA-F]{24}$/.test(id.toString()))
+        .map(id => new ObjectId(id.toString()));
+
+      if (validAssignedToIds.length > 0) {
+        const uniqueIds = [...new Set(validAssignedToIds.map(id => id.toString()))].map(s => new ObjectId(s));
+        const usersCollection = getCollection('users');
         const agents = await usersCollection.find(
           { _id: { $in: uniqueIds } },
           { projection: { _id: 1, name: 1 } }
         ).toArray();
-        userMap = agents.reduce((acc, a) => { 
-          if (a._id) acc[a._id.toString()] = a.name; 
-          return acc; 
-        }, {});
-      }
 
-      const enriched = contacts.map(c => {
-        const aId = c.assignedTo ? c.assignedTo.toString() : null;
-        return {
+        const userMap = agents.reduce((acc, a) => {
+          acc[a._id.toString()] = a.name;
+          return acc;
+        }, {});
+
+        contacts = contacts.map(c => ({
           ...c,
-          agentName: aId ? (userMap[aId] || 'Unknown Agent') : 'Unassigned'
-        };
-      });
-      return res.json(enriched);
+          agentName: c.assignedTo ? (userMap[c.assignedTo.toString()] || 'Unknown Agent') : 'Unassigned'
+        }));
+      } else {
+        contacts = contacts.map(c => ({ ...c, agentName: 'Unassigned' }));
+      }
     } catch (enrichErr) {
-      console.error('Enrichment failed:', enrichErr);
-      return res.json(contacts);
+      console.error('[ENRICHMENT ERROR]', enrichErr);
+      // Continue with unenriched contacts if this fails
+      contacts = contacts.map(c => ({ ...c, agentName: 'Unknown' }));
     }
-  } catch (err) { 
-    console.error('Fetch contacts error:', err);
-    res.status(500).json({ error: 'Server error' }); 
+
+    return res.json(contacts);
+
+  } catch (err) {
+    console.error('[FETCH CONTACTS 500]', err);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: err.message,
+      path: req.originalUrl
+    });
   }
 });
 
@@ -137,30 +176,31 @@ router.get('/queue', verify, authorize(['agent']), async (req, res) => {
     else if (rechurn.length > 0) { contact = rechurn[0]; type = 'rechurn'; }
 
     const total = await contactsCollection.countDocuments(commonQuery);
-    const finalized = await contactsCollection.countDocuments({ 
-      ...commonQuery, 
-      disposition: { $in: ['Lead', 'Invalid', 'DoNotCall', 'Appointment', 'CallBack'] } 
+    const finalized = await contactsCollection.countDocuments({
+      ...commonQuery,
+      disposition: { $in: ['Lead', 'Invalid', 'DoNotCall', 'Appointment', 'CallBack'] }
     });
     const pendingCount = total - finalized;
     const disposed = finalized;
-    
+
     const upcomingAppointments = await contactsCollection.find({
       ...commonQuery,
       disposition: 'Appointment',
       appointmentDt: { $gte: now, $lte: new Date(now.getTime() + 30 * 60 * 1000) }
     }).sort({ appointmentDt: 1 }).limit(3).toArray();
 
-    res.json({ 
-      contact, 
-      remaining: fresh.length + rechurn.length, 
-      total, 
-      pending: pendingCount, 
-      disposed, 
-      upcomingAppointments, 
-      type: contact ? type : null, 
-      rechurnNum: contact?.rechurnCount || 0 
+    res.json({
+      contact,
+      remaining: fresh.length + rechurn.length,
+      total,
+      pending: pendingCount,
+      disposed,
+      upcomingAppointments,
+      type: contact ? type : null,
+      rechurnNum: contact?.rechurnCount || 0
     });
   } catch (err) {
+    console.error('[QUEUE ERROR]', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -175,13 +215,12 @@ router.get('/:id/check-callback', verify, authorize(['agent', 'tl', 'admin']), a
     const phoneNum = contact.fields?.Phone || contact.fields?.phone || contact.fields?.Mobile;
     if (!phoneNum) return res.json({ exists: false });
 
-    const { normalizePhone } = require('../utils/callbackUtils');
     const normalized = normalizePhone(phoneNum);
     if (!normalized) return res.json({ exists: false });
 
     const callbacksCollection = getCollection('callbacks');
     const phoneRegex = new RegExp(normalized + '$');
-    
+
     const existingCb = await callbacksCollection.findOne({
       $or: [
         { "fields.Phone": { $regex: phoneRegex } },
@@ -205,13 +244,13 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
   try {
     const { disposition, remarks, appointmentDt, leadAmount, callBackDt, status, statusDetails, transactionId } = req.body;
     const contactsCollection = getCollection('contacts');
-    
-    const contact = await contactsCollection.findOne({ 
-      _id: new ObjectId(req.params.id), 
-      assignedTo: new ObjectId(req.user._id), 
-      isDeleted: { $ne: true } 
+
+    const contact = await contactsCollection.findOne({
+      _id: new ObjectId(req.params.id),
+      assignedTo: new ObjectId(req.user._id),
+      isDeleted: { $ne: true }
     });
-    
+
     if (!contact) return res.status(404).json({ error: 'Contact not found' });
 
     console.log(`[DISPOSE] ID: ${req.params.id} | Disp: ${disposition} | Agent: ${req.user.name}`);
@@ -271,14 +310,14 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
 
     // Cleanup: Remove all callbacks for this phone number if NOT a CallBack disposition
     const phoneNum = contact.fields?.Phone || contact.fields?.phone || contact.fields?.Mobile;
-    if (disposition !== 'CallBack') {
+    if (disposition !== 'CallBack' && phoneNum) {
       await cleanupAllCallbacks(phoneNum);
     }
 
     // Permanent Lead Storage Logic
     if (disposition === 'Lead') {
       const leadsCollection = getCollection('leads');
-      
+
       try {
         const leadRecord = {
           contactId: new ObjectId(req.params.id),
@@ -334,17 +373,18 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
         await callbacksCollection.insertOne(callbackRecord);
 
         // Consolidate callbacks for this phone number
-        const phoneNum = contact.fields?.Phone || contact.fields?.phone || contact.fields?.Mobile;
-        await consolidateCallbacks(phoneNum);
+        if (phoneNum) {
+          await consolidateCallbacks(phoneNum);
+        }
       } catch (err) { console.error('Callback save error:', err); }
     }
 
     const io = req.app.get('io');
     if (io) io.emit('contact_disposed', { contactId: req.params.id, disposition, agentName: req.user.name });
     res.json({ success: true });
-  } catch (err) { 
+  } catch (err) {
     console.error('Disposition error:', err);
-    res.status(500).json({ error: 'Server error' }); 
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -386,13 +426,12 @@ router.put('/:id/status', verify, authorize(['agent', 'tl', 'admin']), async (re
     try {
       const leadsCollection = getCollection('leads');
       const existing = await leadsCollection.findOne({ contactId: contactId });
-      
+
       if (existing) {
         // Update the latest lead record for this contact
         await leadsCollection.updateOne(
           { contactId: contactId },
-          { $set: { status, statusDetails, transactionId, lastModified: new Date() } },
-          { sort: { createdAt: -1 } }
+          { $set: { status, statusDetails, transactionId, lastModified: new Date() } }
         );
       } else {
         // If it's a lead disposition but no lead record exists, create one
@@ -425,66 +464,93 @@ router.put('/:id/status', verify, authorize(['agent', 'tl', 'admin']), async (re
     }
 
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+  } catch (err) {
+    console.error('[STATUS UPDATE ERROR]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
+// DELETE /contacts/:id
 router.delete('/:id', verify, authorize(['admin']), async (req, res) => {
   try {
     const contactsCollection = getCollection('contacts');
     await contactsCollection.updateOne({ _id: new ObjectId(req.params.id) }, { $set: { isDeleted: true, deletedAt: new Date() } });
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+  } catch (err) {
+    console.error('[DELETE CONTACT ERROR]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
+// DELETE /contacts/batch/:batchId
 router.delete('/batch/:batchId', verify, authorize(['admin']), async (req, res) => {
   try {
     const contactsCollection = getCollection('contacts');
     // Preservation Logic: Skip contacts that have been disposed as 'Lead'
     await contactsCollection.updateMany(
-      { batchId: req.params.batchId, disposition: { $ne: 'Lead' } }, 
+      { batchId: req.params.batchId, disposition: { $ne: 'Lead' } },
       { $set: { isDeleted: true, deletedAt: new Date() } }
     );
     const batchesCollection = getCollection('batches');
     await batchesCollection.deleteOne({ _id: req.params.batchId });
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+  } catch (err) {
+    console.error('[DELETE BATCH ERROR]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
+// POST /contacts/bulk-delete-batches
 router.post('/bulk-delete-batches', verify, authorize(['admin']), async (req, res) => {
   try {
     const { batchIds } = req.body;
+    if (!batchIds || !Array.isArray(batchIds)) {
+      return res.status(400).json({ error: 'Invalid batchIds array' });
+    }
+
     const contactsCollection = getCollection('contacts');
     const batchesCollection = getCollection('batches');
     // Preservation Logic: Skip contacts that have been disposed as 'Lead'
     await contactsCollection.updateMany(
-      { batchId: { $in: batchIds }, disposition: { $ne: 'Lead' } }, 
+      { batchId: { $in: batchIds }, disposition: { $ne: 'Lead' } },
       { $set: { isDeleted: true, deletedAt: new Date() } }
     );
     await batchesCollection.deleteMany({ _id: { $in: batchIds } });
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+  } catch (err) {
+    console.error('[BULK DELETE BATCHES ERROR]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
-
+// POST /contacts/bulk-delete
 router.post('/bulk-delete', verify, authorize(['admin']), async (req, res) => {
   try {
     const { ids } = req.body;
+    if (!ids || !Array.isArray(ids)) {
+      return res.status(400).json({ error: 'Invalid ids array' });
+    }
+
     const contactsCollection = getCollection('contacts');
     const objectIds = ids.map(id => new ObjectId(id));
     // Preservation Logic: Skip contacts that have been disposed as 'Lead'
     await contactsCollection.updateMany(
-      { _id: { $in: objectIds }, disposition: { $ne: 'Lead' } }, 
+      { _id: { $in: objectIds }, disposition: { $ne: 'Lead' } },
       { $set: { isDeleted: true, deletedAt: new Date() } }
     );
     res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+  } catch (err) {
+    console.error('[BULK DELETE ERROR]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
+// POST /contacts/:id/requeue
 router.post('/:id/requeue', verify, authorize(['admin', 'tl', 'agent']), async (req, res) => {
   try {
     const contactsCollection = getCollection('contacts');
     const contactId = new ObjectId(req.params.id);
-    
+
     const contact = await contactsCollection.findOne({ _id: contactId });
     if (!contact) return res.status(404).json({ error: 'Contact not found' });
 
@@ -533,7 +599,7 @@ router.post('/:id/requeue', verify, authorize(['admin', 'tl', 'agent']), async (
     } else {
       // Standard Logic: Just reset the existing record
       await contactsCollection.updateOne(
-        { _id: contactId }, 
+        { _id: contactId },
         { $set: { disposition: null, queueOrder: 0, isDeleted: false, deletedAt: null, lastModified: new Date() } }
       );
     }
@@ -543,7 +609,7 @@ router.post('/:id/requeue', verify, authorize(['admin', 'tl', 'agent']), async (
       getCollection('appointments').deleteMany({ contactId }),
       getCollection('callbacks').deleteMany({ contactId })
     ]);
-    
+
     const io = req.app.get('io');
     if (io) {
       io.emit('requeue_notification', {
@@ -557,9 +623,9 @@ router.post('/:id/requeue', verify, authorize(['admin', 'tl', 'agent']), async (
     }
 
     res.json({ success: true });
-  } catch (err) { 
+  } catch (err) {
     console.error('Requeue error:', err);
-    res.status(500).json({ error: 'Server error' }); 
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -574,7 +640,22 @@ router.get('/stats', verify, authorize(['admin', 'tl', 'agent']), async (req, re
     } else if (req.user.role === 'tl') {
       const usersCollection = getCollection('users');
       const agents = await usersCollection.find({ role: 'agent', tlId: new ObjectId(req.user._id) }).toArray();
-      query.assignedTo = { $in: agents.map(a => a._id) };
+      if (agents.length > 0) {
+        query.assignedTo = { $in: agents.map(a => a._id) };
+      } else {
+        // If TL has no agents, return empty stats
+        return res.json({
+          total: 0,
+          pending: 0,
+          lead: 0,
+          appointment: 0,
+          callBack: 0,
+          invalid: 0,
+          doNotCall: 0,
+          hungUp: 0,
+          totalLeadAmount: 0
+        });
+      }
     }
 
     const statsResult = await contactsCollection.aggregate([
@@ -597,7 +678,7 @@ router.get('/stats', verify, authorize(['admin', 'tl', 'agent']), async (req, re
       }
     ]).toArray();
 
-    const s = statsResult[0];
+    const s = statsResult[0] || {};
     const getCount = (arr) => arr && arr[0] ? arr[0].count : 0;
 
     res.json({
@@ -612,6 +693,7 @@ router.get('/stats', verify, authorize(['admin', 'tl', 'agent']), async (req, re
       totalLeadAmount: s.leadAmount && s.leadAmount[0] ? s.leadAmount[0].total : 0
     });
   } catch (err) {
+    console.error('[STATS ERROR]', err);
     res.status(500).json({ error: 'Stats fetch failed' });
   }
 });
@@ -628,6 +710,10 @@ router.get('/agent-queues', verify, authorize(['admin', 'tl']), async (req, res)
     }
 
     const agents = await usersCollection.find(agentQuery).toArray();
+    if (agents.length === 0) {
+      return res.json([]);
+    }
+
     const agentIds = agents.map(a => a._id);
 
     const statsResult = await contactsCollection.aggregate([
@@ -673,15 +759,18 @@ router.get('/agent-queues', verify, authorize(['admin', 'tl']), async (req, res)
 
     res.json(stats);
   } catch (err) {
+    console.error('[AGENT QUEUES ERROR]', err);
     res.status(500).json({ error: 'Queue status fetch failed' });
   }
 });
 
-// POST /api/contacts/bulk-requeue - Re-queue multiple contacts at once
+// POST /contacts/bulk-requeue - Re-queue multiple contacts at once
 router.post('/bulk-requeue', verify, authorize(['admin', 'tl', 'agent']), async (req, res) => {
   try {
-    const { ids } = req.body; // These should be contact IDs
-    if (!ids || !Array.isArray(ids)) return res.status(400).json({ error: 'Invalid IDs' });
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Invalid or empty IDs array' });
+    }
 
     const contactsCollection = getCollection('contacts');
     const objectIds = ids.map(id => new ObjectId(id));
@@ -712,4 +801,3 @@ router.post('/bulk-requeue', verify, authorize(['admin', 'tl', 'agent']), async 
 });
 
 module.exports = router;
-

@@ -24,6 +24,7 @@ const Contacts = ({ filterType }) => {
   const location = useLocation();
   const [contacts, setContacts]       = useState([]);
   const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState(null);
   const [searchTerm, setSearchTerm]   = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
 
@@ -48,6 +49,7 @@ const Contacts = ({ filterType }) => {
 
       const res = await api.get(`/contacts${query}`);
       setContacts(res.data);
+      setError(null);
 
       if (user?.role === 'admin' && tls.length === 0) {
         const usersRes = await api.get('/users');
@@ -58,6 +60,7 @@ const Contacts = ({ filterType }) => {
       }
     } catch (err) {
       console.error('Fetch contacts failed', err);
+      setError(err.response?.data?.details || err.response?.data?.error || 'Failed to connect to database');
     } finally {
       setLoading(false);
     }
@@ -214,8 +217,19 @@ const Contacts = ({ filterType }) => {
       <div className="grid-cards">
         {loading ? (
           <div className="skeleton" style={{ height: 200 }} />
+        ) : error ? (
+          <div className="glass-panel" style={{ padding: '60px 40px', textAlign: 'center', gridColumn: '1 / -1', border: '1px solid #fee2e2' }}>
+            <X size={40} style={{ color: '#ef4444', marginBottom: 16 }} />
+            <h3 style={{ color: '#ef4444' }}>Connection Error</h3>
+            <p style={{ color: 'var(--text-muted)' }}>{error}</p>
+            <button className="btn btn-primary" style={{ marginTop: 20 }} onClick={fetchContacts}>Retry Connection</button>
+          </div>
         ) : filtered.length === 0 ? (
-          <div className="glass-panel" style={{ padding: '60px 40px', textAlign: 'center', gridColumn: '1 / -1' }}><h3>No contacts found</h3></div>
+          <div className="glass-panel" style={{ padding: '60px 40px', textAlign: 'center', gridColumn: '1 / -1' }}>
+            <Database size={40} style={{ color: 'var(--text-muted)', marginBottom: 16, opacity: 0.5 }} />
+            <h3>No contacts found</h3>
+            <p style={{ color: 'var(--text-muted)' }}>Try adjusting your filters or search terms</p>
+          </div>
         ) : (
           filtered.map(contact => {
             const fields = contact.fields || {};
