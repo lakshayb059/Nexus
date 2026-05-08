@@ -42,15 +42,33 @@ async function createIndexes() {
     await db.collection(COLLECTIONS.users).createIndex({ username: 1 }, { unique: true });
     
     // Contacts collection indexes
-    await db.collection(COLLECTIONS.contacts).createIndex({ agentId: 1 });
+    await db.collection(COLLECTIONS.contacts).createIndex({ assignedTo: 1 });
     await db.collection(COLLECTIONS.contacts).createIndex({ disposition: 1 });
     await db.collection(COLLECTIONS.contacts).createIndex({ batchId: 1 });
+    await db.collection(COLLECTIONS.contacts).createIndex({ isDeleted: 1 });
+    await db.collection(COLLECTIONS.contacts).createIndex({ createdAt: 1 });
+    
+    // Compound indexes for login and queue performance
+    await db.collection(COLLECTIONS.contacts).createIndex({ 
+      assignedTo: 1, 
+      disposition: 1, 
+      appointmentDt: 1 
+    });
+    await db.collection(COLLECTIONS.contacts).createIndex({ 
+      assignedTo: 1, 
+      disposition: 1, 
+      callBackDt: 1 
+    });
+    
+    // Index for appointment/callback dates for background service
+    await db.collection(COLLECTIONS.contacts).createIndex({ appointmentDt: 1 });
+    await db.collection(COLLECTIONS.contacts).createIndex({ callBackDt: 1 });
     
     // Batches collection indexes
     await db.collection(COLLECTIONS.batches).createIndex({ agentId: 1 });
     await db.collection(COLLECTIONS.batches).createIndex({ createdAt: 1 });
     
-    console.log('✅ Database indexes created');
+    console.log('✅ Database indexes optimized');
   } catch (error) {
     console.warn('⚠️ Index creation warning:', error.message);
   }

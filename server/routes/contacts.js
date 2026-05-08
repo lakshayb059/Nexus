@@ -42,13 +42,21 @@ router.get('/', verify, authorize(['admin', 'tl', 'agent']), async (req, res) =>
       const q = search.toLowerCase();
       contacts = contacts.filter(c => Object.values(c.fields || {}).some(v => String(v).toLowerCase().includes(q)));
     }
-    const usersCollection = getCollection('users');
-    const userCache = {};
-    const enriched = await Promise.all(contacts.map(async c => {
-      if (!userCache[c.assignedTo]) {
-        userCache[c.assignedTo] = await usersCollection.findOne({ _id: c.assignedTo }, { projection: { password: 0 } });
-      }
-      return { ...c, agentName: userCache[c.assignedTo]?.name || 'Unknown' };
+    // Enrichment: Fetch agent names in bulk to avoid N+1 query problem
+    const assignedToIds = [...new Set(contacts.map(c => c.assignedTo).filter(Boolean))];
+    const agents = await usersCollection.find(
+      { _id: { $in: assignedToIds } },
+      { projection: { _id: 1, name: 1 } }
+    ).toArray();
+    
+    const userMap = agents.reduce((acc, agent) => {
+      acc[agent._id.toString()] = agent.name;
+      return acc;
+    }, {});
+
+    const enriched = contacts.map(c => ({
+      ...c,
+      agentName: userMap[c.assignedTo?.toString()] || 'Unknown'
     }));
     res.json(enriched);
   } catch (err) { res.status(500).json({ error: 'Server error' }); }

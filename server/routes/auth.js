@@ -30,13 +30,19 @@ router.post('/login', async (req, res) => {
         disposition: 'Appointment',
         appointmentDt: { $lte: now, $gte: yesterday },
         lateNotified: { $ne: true }
-      }).toArray(),
+      })
+      .project({ _id: 1, 'fields.Name': 1, 'fields.name': 1, appointmentDt: 1 })
+      .limit(10)
+      .toArray(),
       contactsCollection.find({
         assignedTo: user._id,
         disposition: 'CallBack',
         callBackDt: { $lte: now, $gte: yesterday },
         cbReminderSent: { $ne: true }
-      }).toArray()
+      })
+      .project({ _id: 1, 'fields.Name': 1, 'fields.name': 1, callBackDt: 1 })
+      .limit(10)
+      .toArray()
     ]);
 
     const pastDueAlerts = [

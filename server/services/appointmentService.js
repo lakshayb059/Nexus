@@ -45,10 +45,22 @@ class AppointmentService {
         reminderSent: { $ne: true }
       }).toArray();
 
+      // Fetch all unique assignedTo IDs to avoid individual lookups
+      const agentIds = [...new Set(upcoming.map(a => a.assignedTo).filter(Boolean))];
+      const usersCollection = getCollection('users');
+      const agents = await usersCollection.find({ _id: { $in: agentIds } }).toArray();
+      const agentMap = agents.reduce((acc, agent) => {
+        acc[agent._id.toString()] = agent;
+        return acc;
+      }, {});
+
       for (const app of upcoming) {
         const diff = new Date(app.appointmentDt) - now;
         const mins = Math.max(0, Math.round(diff / (1000 * 60)));
-        await this.sendReminder(app, mins, 'upcoming');
+        const agent = agentMap[app.assignedTo?.toString()];
+        if (agent) {
+          await this.sendReminder(app, mins, 'upcoming', agent);
+        }
       }
 
       // 2. Check for "LATE" appointments (missed by ~1 minute)
@@ -61,8 +73,20 @@ class AppointmentService {
         lateNotified: { $ne: true }
       }).toArray();
 
-      for (const app of late) {
-        await this.sendReminder(app, -1, 'late');
+      if (late.length > 0) {
+        const lateAgentIds = [...new Set(late.map(a => a.assignedTo).filter(Boolean))];
+        const lateAgents = await usersCollection.find({ _id: { $in: lateAgentIds } }).toArray();
+        const lateAgentMap = lateAgents.reduce((acc, agent) => {
+          acc[agent._id.toString()] = agent;
+          return acc;
+        }, {});
+
+        for (const app of late) {
+          const agent = lateAgentMap[app.assignedTo?.toString()];
+          if (agent) {
+            await this.sendReminder(app, -1, 'late', agent);
+          }
+        }
       }
 
     } catch (error) {
@@ -88,17 +112,21 @@ class AppointmentService {
         cbReminderSent: { $ne: true }
       }).toArray();
 
-      for (const cb of upcoming) {
-        if (this.io) {
-          this.io.emit('callback_reminder', {
-            contactId: cb._id,
-            contactName: cb.fields?.Name || cb.fields?.name || 'Unknown',
-            agentId: cb.assignedTo.toString(),
-            callBackDt: cb.callBackDt,
-            minutesUntil: 2
-          });
+      if (upcoming.length > 0) {
+        for (const cb of upcoming) {
+          if (this.io) {
+            this.io.emit('callback_reminder', {
+              contactId: cb._id,
+              contactName: cb.fields?.Name || cb.fields?.name || 'Unknown',
+              agentId: cb.assignedTo.toString(),
+              callBackDt: cb.callBackDt,
+              minutesUntil: 2
+            });
+          }
         }
-        await contactsCollection.updateOne({ _id: cb._id }, { $set: { cbReminderSent: true } });
+        // Bulk update to mark reminders as sent
+        const cbIds = upcoming.map(cb => cb._id);
+        await contactsCollection.updateMany({ _id: { $in: cbIds } }, { $set: { cbReminderSent: true } });
       }
 
     } catch (error) {
@@ -106,12 +134,16 @@ class AppointmentService {
     }
   }
 
-  async sendReminder(appointment, minutesUntil, type = 'upcoming') {
+  async sendReminder(appointment, minutesUntil, type = 'upcoming', preFetchedAgent = null) {
     try {
       const contactsCollection = getCollection('contacts');
-      const usersCollection = getCollection('users');
-
-      const agent = await usersCollection.findOne({ _id: appointment.assignedTo });
+      
+      let agent = preFetchedAgent;
+      if (!agent) {
+        const usersCollection = getCollection('users');
+        agent = await usersCollection.findOne({ _id: appointment.assignedTo });
+      }
+      
       if (!agent) return;
 
       const update = type === 'late' ? { lateNotified: true } : { reminderSent: true, reminderSentAt: new Date() };
