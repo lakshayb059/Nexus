@@ -35,34 +35,43 @@ router.get('/', verify, authorize(['admin', 'tl', 'agent']), async (req, res) =>
     if (disposition === 'pending') filters.disposition = null;
     else if (disposition) filters.disposition = disposition;
     if (batchId) filters.batchId = batchId;
-    if (agentId && req.user.role !== 'agent') filters.assignedTo = new ObjectId(agentId);
+    
+    if (agentId && req.user.role !== 'agent') {
+      try { filters.assignedTo = new ObjectId(agentId); } catch(e) {}
+    }
     if (tlId && req.user.role === 'admin') filters.tlId = tlId;
     
-    // Optimization: Move search to MongoDB query level
-    if (search) {
+    if (search && search.trim()) {
       filters.$text = { $search: search };
     }
 
     let contacts = await getAccessibleContacts(req.user, filters);
     
-    // Enrichment: Fetch agent names in bulk to avoid N+1 query problem
-    const usersCollection = getCollection('users');
-    const assignedToIds = [...new Set(contacts.map(c => c.assignedTo).filter(Boolean))];
-    const agents = await usersCollection.find(
-      { _id: { $in: assignedToIds } },
-      { projection: { _id: 1, name: 1 } }
-    ).toArray();
-    
-    const userMap = agents.reduce((acc, agent) => {
-      acc[agent._id.toString()] = agent.name;
-      return acc;
-    }, {});
+    try {
+      const usersCollection = getCollection('users');
+      const assignedToIds = [...new Set(contacts
+        .map(c => c.assignedTo ? c.assignedTo.toString() : null)
+        .filter(Boolean)
+      )].map(id => new ObjectId(id));
+      
+      let userMap = {};
+      if (assignedToIds.length > 0) {
+        const agents = await usersCollection.find(
+          { _id: { $in: assignedToIds } },
+          { projection: { _id: 1, name: 1 } }
+        ).toArray();
+        userMap = agents.reduce((acc, a) => { acc[a._id.toString()] = a.name; return acc; }, {});
+      }
 
-    const enriched = contacts.map(c => ({
-      ...c,
-      agentName: userMap[c.assignedTo?.toString()] || 'Unknown'
-    }));
-    res.json(enriched);
+      const enriched = contacts.map(c => ({
+        ...c,
+        agentName: c.assignedTo ? (userMap[c.assignedTo.toString()] || 'Unknown Agent') : 'Unassigned'
+      }));
+      return res.json(enriched);
+    } catch (enrichErr) {
+      console.error('Enrichment failed, returning base contacts:', enrichErr);
+      return res.json(contacts);
+    }
   } catch (err) { 
     console.error('Fetch contacts error:', err);
     res.status(500).json({ error: 'Server error' }); 
