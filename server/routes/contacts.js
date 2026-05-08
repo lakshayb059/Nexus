@@ -16,14 +16,20 @@ async function getAccessibleContacts(user, filters = {}, includeDeleted = false)
     const agents = await usersCollection.find({ role: 'agent', tlId: new ObjectId(user._id) }, { projection: { _id: 1 } }).toArray();
     const agentIds = agents.map(a => a._id);
     query.assignedTo = { $in: agentIds };
-  } else if (user.role === 'admin' && filters.tlId) {
-    const usersCollection = getCollection('users');
-    const agents = await usersCollection.find({ role: 'agent', tlId: new ObjectId(filters.tlId) }, { projection: { _id: 1 } }).toArray();
-    const agentIds = agents.map(a => a._id);
-    query.assignedTo = { $in: agentIds };
-    delete query.tlId;
+  } else if (user.role === 'admin') {
+    // Admin specific filtering logic
+    if (filters.tlId) {
+      const usersCollection = getCollection('users');
+      const agents = await usersCollection.find({ role: 'agent', tlId: new ObjectId(filters.tlId) }, { projection: { _id: 1 } }).toArray();
+      const agentIds = agents.map(a => a._id);
+      query.assignedTo = { $in: agentIds };
+      delete query.tlId;
+    }
+    // If agentId was already set in the route handler, it will be in filters.assignedTo
   }
+  
   const contactsCollection = getCollection('contacts');
+  console.log(`[DB FETCH] User: ${user.name} (${user.role}) | Query: ${JSON.stringify(query)}`);
   return contactsCollection.find(query).sort({ queueOrder: 1, createdAt: 1 }).toArray();
 }
 
