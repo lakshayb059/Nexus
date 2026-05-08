@@ -17,15 +17,22 @@ async function getAccessibleContacts(user, filters = {}, includeDeleted = false)
     const agentIds = agents.map(a => a._id);
     query.assignedTo = { $in: agentIds };
   } else if (user.role === 'admin') {
-    // Admin specific filtering logic
     if (filters.tlId) {
-      const usersCollection = getCollection('users');
-      const agents = await usersCollection.find({ role: 'agent', tlId: new ObjectId(filters.tlId) }, { projection: { _id: 1 } }).toArray();
-      const agentIds = agents.map(a => a._id);
-      query.assignedTo = { $in: agentIds };
+      try {
+        const tlObjectId = new ObjectId(filters.tlId);
+        const usersCollection = getCollection('users');
+        const agents = await usersCollection.find({ role: 'agent', tlId: tlObjectId }, { projection: { _id: 1 } }).toArray();
+        const agentIds = agents.map(a => a._id);
+        query.assignedTo = { $in: agentIds };
+      } catch (err) {
+        console.warn('Invalid tlId in filter:', filters.tlId);
+      }
       delete query.tlId;
     }
-    // If agentId was already set in the route handler, it will be in filters.assignedTo
+    // Handle agentId if it's already in filters as assignedTo
+    if (query.assignedTo && typeof query.assignedTo === 'string') {
+      try { query.assignedTo = new ObjectId(query.assignedTo); } catch(e) {}
+    }
   }
   
   const contactsCollection = getCollection('contacts');
