@@ -365,14 +365,9 @@ router.get('/detailed', verify, authorize(['agent', 'tl', 'admin']), async (req,
       query.disposition = disposition;
     }
 
-    // Search filter
+    // Optimization: Use text index for high-speed searching
     if (search) {
-      query.$or = [
-        { 'fields.Name': { $regex: search, $options: 'i' } },
-        { 'fields.Phone': { $regex: search, $options: 'i' } },
-        { 'fields.Mobile': { $regex: search, $options: 'i' } },
-        { 'fields.Email': { $regex: search, $options: 'i' } }
-      ];
+      query.$text = { $search: search };
     }
 
     const skip = (page - 1) * limit;
@@ -383,14 +378,21 @@ router.get('/detailed', verify, authorize(['agent', 'tl', 'admin']), async (req,
       .limit(parseInt(limit))
       .toArray();
 
-    // Enrich with agent names
-    const usersCollection = getCollection('users');
-    const enriched = await Promise.all(leads.map(async lead => {
-      const agent = await usersCollection.findOne({ _id: lead.assignedTo }, { projection: { name: 1 } });
-      return {
-        ...lead,
-        agentName: agent?.name || 'Unknown Agent'
-      };
+    // Enrichment: Fetch agent names in bulk to avoid N+1 query problem
+    const assignedToIds = [...new Set(leads.map(l => l.assignedTo).filter(Boolean))];
+    const agents = await usersCollection.find(
+      { _id: { $in: assignedToIds } },
+      { projection: { _id: 1, name: 1 } }
+    ).toArray();
+    
+    const userMap = agents.reduce((acc, agent) => {
+      acc[agent._id.toString()] = agent.name;
+      return acc;
+    }, {});
+
+    const enriched = leads.map(lead => ({
+      ...lead,
+      agentName: userMap[lead.assignedTo?.toString()] || 'Unknown Agent'
     }));
 
     const total = await contactsCollection.countDocuments(query);
@@ -439,15 +441,23 @@ router.get('/appointments/reminders', verify, authorize(['agent', 'tl', 'admin']
       .sort({ appointmentDt: 1 })
       .toArray();
 
-    // Enrich with agent names
+    // Enrichment: Fetch agent names in bulk to avoid N+1 query problem
     const usersCollection = getCollection('users');
-    const enriched = await Promise.all(appointments.map(async apt => {
-      const agent = await usersCollection.findOne({ _id: apt.assignedTo }, { projection: { name: 1 } });
-      return {
-        ...apt,
-        agentName: agent?.name || 'Unknown Agent',
-        timeUntilAppointment: Math.floor((new Date(apt.appointmentDt) - now) / (1000 * 60)) // minutes
-      };
+    const assignedToIds = [...new Set(appointments.map(apt => apt.assignedTo).filter(Boolean))];
+    const agents = await usersCollection.find(
+      { _id: { $in: assignedToIds } },
+      { projection: { _id: 1, name: 1 } }
+    ).toArray();
+    
+    const userMap = agents.reduce((acc, agent) => {
+      acc[agent._id.toString()] = agent.name;
+      return acc;
+    }, {});
+
+    const enriched = appointments.map(apt => ({
+      ...apt,
+      agentName: userMap[apt.assignedTo?.toString()] || 'Unknown Agent',
+      timeUntilAppointment: Math.floor((new Date(apt.appointmentDt) - now) / (1000 * 60)) // minutes
     }));
 
     res.json(enriched);

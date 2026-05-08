@@ -37,12 +37,16 @@ router.get('/', verify, authorize(['admin', 'tl', 'agent']), async (req, res) =>
     if (batchId) filters.batchId = batchId;
     if (agentId && req.user.role !== 'agent') filters.assignedTo = new ObjectId(agentId);
     if (tlId && req.user.role === 'admin') filters.tlId = tlId;
-    let contacts = await getAccessibleContacts(req.user, filters);
+    
+    // Optimization: Move search to MongoDB query level
     if (search) {
-      const q = search.toLowerCase();
-      contacts = contacts.filter(c => Object.values(c.fields || {}).some(v => String(v).toLowerCase().includes(q)));
+      filters.$text = { $search: search };
     }
+
+    let contacts = await getAccessibleContacts(req.user, filters);
+    
     // Enrichment: Fetch agent names in bulk to avoid N+1 query problem
+    const usersCollection = getCollection('users');
     const assignedToIds = [...new Set(contacts.map(c => c.assignedTo).filter(Boolean))];
     const agents = await usersCollection.find(
       { _id: { $in: assignedToIds } },
@@ -59,7 +63,10 @@ router.get('/', verify, authorize(['admin', 'tl', 'agent']), async (req, res) =>
       agentName: userMap[c.assignedTo?.toString()] || 'Unknown'
     }));
     res.json(enriched);
-  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+  } catch (err) { 
+    console.error('Fetch contacts error:', err);
+    res.status(500).json({ error: 'Server error' }); 
+  }
 });
 
 // GET /contacts/queue
@@ -537,26 +544,39 @@ router.get('/stats', verify, authorize(['admin', 'tl', 'agent']), async (req, re
       query.assignedTo = { $in: agents.map(a => a._id) };
     }
 
-    const [total, pending, lead, appointment, callBack, invalid, doNotCall, hungUp] = await Promise.all([
-      contactsCollection.countDocuments(query),
-      contactsCollection.countDocuments({ ...query, disposition: null }),
-      contactsCollection.countDocuments({ ...query, disposition: 'Lead' }),
-      contactsCollection.countDocuments({ ...query, disposition: 'Appointment' }),
-      contactsCollection.countDocuments({ ...query, disposition: 'CallBack' }),
-      contactsCollection.countDocuments({ ...query, disposition: 'Invalid' }),
-      contactsCollection.countDocuments({ ...query, disposition: 'DoNotCall' }),
-      contactsCollection.countDocuments({ ...query, disposition: 'HungUp' }),
-    ]);
-
-    // Aggregate lead amount
-    const leadAmountResult = await contactsCollection.aggregate([
-      { $match: { ...query, disposition: 'Lead' } },
-      { $group: { _id: null, total: { $sum: '$leadAmount' } } }
+    const statsResult = await contactsCollection.aggregate([
+      { $match: query },
+      {
+        $facet: {
+          total: [{ $count: 'count' }],
+          pending: [{ $match: { disposition: null } }, { $count: 'count' }],
+          lead: [{ $match: { disposition: 'Lead' } }, { $count: 'count' }],
+          appointment: [{ $match: { disposition: 'Appointment' } }, { $count: 'count' }],
+          callBack: [{ $match: { disposition: 'CallBack' } }, { $count: 'count' }],
+          invalid: [{ $match: { disposition: 'Invalid' } }, { $count: 'count' }],
+          doNotCall: [{ $match: { disposition: 'DoNotCall' } }, { $count: 'count' }],
+          hungUp: [{ $match: { disposition: 'HungUp' } }, { $count: 'count' }],
+          leadAmount: [
+            { $match: { disposition: 'Lead' } },
+            { $group: { _id: null, total: { $sum: '$leadAmount' } } }
+          ]
+        }
+      }
     ]).toArray();
 
+    const s = statsResult[0];
+    const getCount = (arr) => arr && arr[0] ? arr[0].count : 0;
+
     res.json({
-      total, pending, lead, appointment, callBack, invalid, doNotCall, hungUp,
-      totalLeadAmount: leadAmountResult[0]?.total || 0
+      total: getCount(s.total),
+      pending: getCount(s.pending),
+      lead: getCount(s.lead),
+      appointment: getCount(s.appointment),
+      callBack: getCount(s.callBack),
+      invalid: getCount(s.invalid),
+      doNotCall: getCount(s.doNotCall),
+      hungUp: getCount(s.hungUp),
+      totalLeadAmount: s.leadAmount && s.leadAmount[0] ? s.leadAmount[0].total : 0
     });
   } catch (err) {
     res.status(500).json({ error: 'Stats fetch failed' });
@@ -575,40 +595,48 @@ router.get('/agent-queues', verify, authorize(['admin', 'tl']), async (req, res)
     }
 
     const agents = await usersCollection.find(agentQuery).toArray();
-    
-    const stats = await Promise.all(agents.map(async (agent) => {
-      const q = { assignedTo: agent._id, isDeleted: { $ne: true } };
-      
-      const [total, pending, lead, appointment] = await Promise.all([
-        contactsCollection.countDocuments(q),
-        contactsCollection.countDocuments({ ...q, disposition: null }),
-        contactsCollection.countDocuments({ ...q, disposition: 'Lead' }),
-        contactsCollection.countDocuments({ ...q, disposition: 'Appointment' }),
-      ]);
-      const disposed = total - pending;
+    const agentIds = agents.map(a => a._id);
 
-      const leadAmountResult = await contactsCollection.aggregate([
-        { $match: { ...q, disposition: 'Lead' } },
-        { $group: { _id: null, total: { $sum: '$leadAmount' } } }
-      ]).toArray();
-
-      let tlName = '—';
-      if (agent.tlId) {
-        const tl = await usersCollection.findOne({ _id: agent.tlId });
-        tlName = tl?.name || '—';
+    const statsResult = await contactsCollection.aggregate([
+      { $match: { assignedTo: { $in: agentIds }, isDeleted: { $ne: true } } },
+      {
+        $group: {
+          _id: '$assignedTo',
+          total: { $sum: 1 },
+          pending: { $sum: { $cond: [{ $eq: ['$disposition', null] }, 1, 0] } },
+          lead: { $sum: { $cond: [{ $eq: ['$disposition', 'Lead'] }, 1, 0] } },
+          appointment: { $sum: { $cond: [{ $eq: ['$disposition', 'Appointment'] }, 1, 0] } },
+          leadAmount: { $sum: '$leadAmount' }
+        }
       }
+    ]).toArray();
 
+    const statsMap = statsResult.reduce((acc, s) => {
+      acc[s._id.toString()] = s;
+      return acc;
+    }, {});
+
+    // Get TL names in bulk
+    const tlIds = [...new Set(agents.map(a => a.tlId).filter(Boolean))];
+    const tls = await usersCollection.find({ _id: { $in: tlIds } }).toArray();
+    const tlMap = tls.reduce((acc, tl) => {
+      acc[tl._id.toString()] = tl.name;
+      return acc;
+    }, {});
+
+    const stats = agents.map(agent => {
+      const s = statsMap[agent._id.toString()] || { total: 0, pending: 0, lead: 0, appointment: 0, leadAmount: 0 };
       return {
         agent: { _id: agent._id, name: agent.name },
-        tlName,
-        total,
-        disposed,
-        lead,
-        appointment,
-        pending,
-        totalLeadAmount: leadAmountResult[0]?.total || 0
+        tlName: agent.tlId ? (tlMap[agent.tlId.toString()] || '—') : '—',
+        total: s.total,
+        disposed: s.total - s.pending,
+        lead: s.lead,
+        appointment: s.appointment,
+        pending: s.pending,
+        totalLeadAmount: s.leadAmount
       };
-    }));
+    });
 
     res.json(stats);
   } catch (err) {

@@ -64,6 +64,18 @@ async function createIndexes() {
     await db.collection(COLLECTIONS.contacts).createIndex({ appointmentDt: 1 });
     await db.collection(COLLECTIONS.contacts).createIndex({ callBackDt: 1 });
     
+    // Index for reports and history
+    await db.collection(COLLECTIONS.contacts).createIndex({ disposedAt: 1 });
+    await db.collection(COLLECTIONS.contacts).createIndex({ lastModified: 1 });
+    
+    // Text search index for global search performance
+    await db.collection(COLLECTIONS.contacts).createIndex({
+      "fields.Name": "text",
+      "fields.Phone": "text",
+      "fields.Mobile": "text",
+      "fields.Email": "text"
+    }, { name: "ContactSearchIndex" });
+    
     // Batches collection indexes
     await db.collection(COLLECTIONS.batches).createIndex({ agentId: 1 });
     await db.collection(COLLECTIONS.batches).createIndex({ createdAt: 1 });
