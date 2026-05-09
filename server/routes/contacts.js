@@ -698,6 +698,61 @@ router.get('/stats', verify, authorize(['admin', 'tl', 'agent']), async (req, re
   }
 });
 
+
+// GET /contacts/notifications - Fetch past-due callbacks and appointments for the user
+router.get('/notifications', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
+  try {
+    const contactsCollection = getCollection('contacts');
+    const now = new Date();
+    
+    // Base query for the current user
+    const query = {
+      assignedTo: new ObjectId(req.user._id),
+      isDeleted: { $ne: true }
+    };
+
+    const notifications = [];
+
+    // 1. Past-due Callbacks
+    const pastDueCallbacks = await contactsCollection.find({
+      ...query,
+      disposition: 'CallBack',
+      callBackDt: { $lt: now }
+    }).sort({ callBackDt: -1 }).limit(10).toArray();
+
+    pastDueCallbacks.forEach(c => {
+      notifications.push({
+        type: 'callback',
+        title: 'Callback Past Due',
+        message: `Callback for ${c.fields?.Name || c.fields?.name || 'Unknown'} was due at ${new Date(c.callBackDt).toLocaleString()}`,
+        path: `/workflow/${c._id}`
+      });
+    });
+
+    // 2. Past-due Appointments
+    const pastDueAppointments = await contactsCollection.find({
+      ...query,
+      disposition: 'Appointment',
+      appointmentDt: { $lt: now }
+    }).sort({ appointmentDt: -1 }).limit(10).toArray();
+
+    pastDueAppointments.forEach(c => {
+      notifications.push({
+        type: 'appointment',
+        title: 'Appointment Past Due',
+        message: `Appointment for ${c.fields?.Name || c.fields?.name || 'Unknown'} was due at ${new Date(c.appointmentDt).toLocaleString()}`,
+        path: `/workflow/${c._id}`
+      });
+    });
+
+    res.json(notifications);
+  } catch (err) {
+    console.error('[NOTIFICATIONS ERROR]', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
 // GET /contacts/agent-queues - Stats breakdown by agent for Admins/TLs
 router.get('/agent-queues', verify, authorize(['admin', 'tl']), async (req, res) => {
   try {
