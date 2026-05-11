@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../utils/api';
 import { useSocket } from '../contexts/SocketContext';
-import { Users as UsersIcon, Plus, Edit2, Trash2, Shield, UserCheck, Search, X } from 'lucide-react';
+import { Users as UsersIcon, Plus, Edit2, Shield, UserCheck, Search, X } from 'lucide-react';
 
 const Users = () => {
   const { user }   = useAuth();
@@ -73,15 +73,7 @@ const Users = () => {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this user?')) return;
-    try {
-      await api.delete(`/users/${id}`);
-      fetchUsers();
-    } catch (err) {
-      alert(err.response?.data?.error || 'Delete failed');
-    }
-  };
+
 
   const roleStyles = {
     admin: { label: 'Admin',     cls: 'badge-primary' },
@@ -186,11 +178,6 @@ const Users = () => {
                     <td style={{ textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                         <button className="btn btn-outline btn-icon" onClick={() => openModal(u)} title="Edit"><Edit2 size={15} /></button>
-                        {u.role !== 'admin' && (
-                          <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(u._id)} title="Delete">
-                            <Trash2 size={15} style={{ color: 'var(--danger)' }} />
-                          </button>
-                        )}
                       </div>
                     </td>
                   </tr>

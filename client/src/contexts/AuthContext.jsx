@@ -53,6 +53,11 @@ export const AuthProvider = ({ children }) => {
   const login = async (username, password) => {
     try {
       const response = await api.post('/auth/login', { username, password });
+      
+      if (response.data.error) {
+        return { success: false, error: response.data.error };
+      }
+
       const { token, user } = response.data;
 
       localStorage.setItem('crm_token', token);

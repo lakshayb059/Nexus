@@ -225,22 +225,26 @@ const Dashboard = () => {
                   const progress = q.total > 0 ? Math.round(((q.total - q.pending) / q.total) * 100) : 0;
                   const progressColor = progress >= 80 ? '#10b981' : progress >= 50 ? '#f59e0b' : '#ef4444';
                   return (
-                    <tr key={i} style={{ borderBottom: '1px solid rgba(37,99,235,0.05)', transition: 'background 0.2s' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(37,99,235,0.02)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    <tr key={i} style={{ 
+                        borderBottom: '1px solid rgba(37,99,235,0.05)', 
+                        transition: 'background 0.2s',
+                        background: q.active === false ? 'rgba(239, 68, 68, 0.08)' : 'transparent'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = q.active === false ? 'rgba(239, 68, 68, 0.12)' : 'rgba(37,99,235,0.02)'}
+                      onMouseLeave={e => e.currentTarget.style.background = q.active === false ? 'rgba(239, 68, 68, 0.08)' : 'transparent'}>
                       <td style={{ padding: '14px 20px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <div style={{
                             width: 34, height: 34, borderRadius: '50%',
-                            background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
-                            color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: '0.75rem', fontWeight: 800, flexShrink: 0
-                          }}>
+                             background: q.active === false ? 'linear-gradient(135deg,#ef4444,#dc2626)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+                             color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                             fontSize: '0.75rem', fontWeight: 800, flexShrink: 0
+                           }}>
                             {q.agent?.name?.charAt(0)?.toUpperCase() || 'U'}
                           </div>
                           <div>
-                            <div style={{ fontWeight: 700, fontSize: '0.875rem', color: '#0f172a' }}>{q.agent?.name || 'Unknown'}</div>
-                            <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500 }}>Agent</div>
+                            <div style={{ fontWeight: 700, fontSize: '0.875rem', color: q.active === false ? '#b91c1c' : '#0f172a' }}>{q.agent?.name || 'Unknown'}</div>
+                            <div style={{ fontSize: '0.7rem', color: q.active === false ? '#ef4444' : '#94a3b8', fontWeight: 500 }}>{q.active === false ? 'INACTIVE' : 'Agent'}</div>
                           </div>
                         </div>
                       </td>

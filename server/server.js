@@ -113,7 +113,7 @@ async function start() {
   server.listen(PORT, () => {
     console.log(`\n✅ CRM Server running at http://localhost:${PORT}`);
     console.log(`\nDemo credentials:`);
-    console.log(`  Admin:  admin / admin123`);
+    console.log(`  Admin:  admin / spikeCRM_2024!`);
     console.log(`  TL:     tl_rohit / tl123`);
     console.log(`  Agent:  agent_priya / ag123`);
     console.log(`  Agent:  agent_amit / ag123\n`);

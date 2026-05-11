@@ -17,7 +17,7 @@ router.post('/login', async (req, res) => {
         );
 
         if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-        if (!user.active) return res.status(403).json({ error: 'Account is inactive' });
+        if (!user.active) return res.json({ error: 'Your ID is inactive. Please contact admin.' });
 
         const valid = await bcrypt.compare(password, user.password);
         if (!valid) return res.status(401).json({ error: 'Invalid credentials' });

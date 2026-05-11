@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import api from '../utils/api';
-import { UploadCloud, FileSpreadsheet, Trash2, Download, Share2, X, CheckCircle2, Star, Square, CheckSquare } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet, Trash2, Download, Share2, X, CheckCircle2, Star, Square, CheckSquare, AlertCircle } from 'lucide-react';
 
 const Upload = () => {
   const { user }   = useAuth();
@@ -18,6 +18,7 @@ const Upload = () => {
   const [handoverBatch,  setHandoverBatch]  = useState(null);
   const [targetAgentId,  setTargetAgentId]  = useState('');
   const [selectedBatchIds, setSelectedBatchIds] = useState([]);
+  const [uploadResult, setUploadResult] = useState(null);
   const fileInputRef = useRef(null);
 
   const fetchData = React.useCallback(async () => {
@@ -75,13 +76,18 @@ const Upload = () => {
     fd.append('isLeadUpload', isLeadUpload);
     if (batchName) fd.append('batchName', batchName);
     try {
-      await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const res = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       setFile(null);
       setBatchName('');
       if (fileInputRef.current) fileInputRef.current.value = '';
-      alert('File uploaded successfully!');
+      setUploadResult(res.data);
+      fetchData();
     } catch (err) {
-      alert(err.response?.data?.error || 'Upload failed');
+      if (err.response?.data?.uploadErrors) {
+        setUploadResult(err.response.data);
+      } else {
+        alert(err.response?.data?.error || 'Upload failed');
+      }
     } finally {
       setIsUploading(false);
     }
@@ -339,6 +345,69 @@ const Upload = () => {
           </div>
         </div>
       </div>
+
+      {/* Upload Result Modal */}
+      {uploadResult && (
+        <div className="modal-overlay" onClick={() => setUploadResult(null)}>
+          <div className="modal-box animate-fade-in" style={{ maxWidth: 600, width: '90%' }}>
+            <div className="modal-header">
+              <h2 style={{ color: uploadResult.success ? 'var(--success)' : 'var(--danger)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                {uploadResult.success ? <CheckCircle2 size={22} /> : <AlertCircle size={22} />}
+                Upload {uploadResult.success ? 'Complete' : 'Failed'}
+              </h2>
+              <button className="btn btn-ghost btn-icon" onClick={() => setUploadResult(null)}><X size={18} /></button>
+            </div>
+            
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                <div style={{ background: 'rgba(16,185,129,0.1)', padding: 12, borderRadius: 12, textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--success)', textTransform: 'uppercase' }}>Successful</div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 900, color: 'var(--success)' }}>{uploadResult.totalUploaded || 0}</div>
+                </div>
+                <div style={{ background: 'rgba(239,68,68,0.1)', padding: 12, borderRadius: 12, textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--danger)', textTransform: 'uppercase' }}>Failed / Skipped</div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 900, color: 'var(--danger)' }}>{uploadResult.totalFailed || uploadResult.uploadErrors?.length || 0}</div>
+                </div>
+              </div>
+
+              {uploadResult.uploadErrors && uploadResult.uploadErrors.length > 0 && (
+                <>
+                  <h3 style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-secondary)', marginBottom: 10, textTransform: 'uppercase' }}>
+                    Issue Details
+                  </h3>
+                  <div style={{ maxHeight: 300, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 12 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                      <thead style={{ background: 'var(--bg-surface-2)', position: 'sticky', top: 0 }}>
+                        <tr>
+                          <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 800 }}>Row</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 800 }}>Name / Phone</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 800 }}>Error Reason</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {uploadResult.uploadErrors.map((err, idx) => (
+                          <tr key={idx} style={{ borderTop: '1px solid var(--border)' }}>
+                            <td style={{ padding: '8px 12px', color: 'var(--text-muted)' }}>{err.rowNumber}</td>
+                            <td style={{ padding: '8px 12px' }}>
+                              <div style={{ fontWeight: 700 }}>{err.name}</div>
+                              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{err.phone}</div>
+                            </td>
+                            <td style={{ padding: '8px 12px', color: 'var(--danger)', fontWeight: 600 }}>{err.error}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn btn-primary" onClick={() => setUploadResult(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Handover Modal */}
       {handoverBatch && (

@@ -48,7 +48,7 @@ class AppointmentService {
       // Fetch all unique assignedTo IDs to avoid individual lookups
       const agentIds = [...new Set(upcoming.map(a => a.assignedTo).filter(Boolean))];
       const usersCollection = getCollection('users');
-      const agents = await usersCollection.find({ _id: { $in: agentIds } }).toArray();
+      const agents = await usersCollection.find({ _id: { $in: agentIds }, active: true }).toArray();
       const agentMap = agents.reduce((acc, agent) => {
         acc[agent._id.toString()] = agent;
         return acc;
@@ -75,7 +75,7 @@ class AppointmentService {
 
       if (late.length > 0) {
         const lateAgentIds = [...new Set(late.map(a => a.assignedTo).filter(Boolean))];
-        const lateAgents = await usersCollection.find({ _id: { $in: lateAgentIds } }).toArray();
+        const lateAgents = await usersCollection.find({ _id: { $in: lateAgentIds }, active: true }).toArray();
         const lateAgentMap = lateAgents.reduce((acc, agent) => {
           acc[agent._id.toString()] = agent;
           return acc;

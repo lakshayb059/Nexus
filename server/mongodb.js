@@ -2,7 +2,7 @@ require('dotenv').config();
 const { MongoClient } = require('mongodb');
 
 // MongoDB Atlas connection string from .env
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://gargabhi999:CRM123@crm.hxehni4.mongodb.net/?appName=CRM';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://gargabhi999:gargabhi999@crm.8eds5va.mongodb.net/?appName=CRM';
 
 // Database and collection names
 const DB_NAME = 'spike_dms';
@@ -124,7 +124,7 @@ async function seed() {
       return;
     }
     
-    const hashedPassword = await bcrypt.hash('admin123', 10);
+    const hashedPassword = await bcrypt.hash('spikeCRM_2024!', 10);
     
     // Insert default admin only
     await usersCollection.insertOne({

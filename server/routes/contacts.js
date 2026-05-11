@@ -801,14 +801,15 @@ router.get('/agent-queues', verify, authorize(['admin', 'tl']), async (req, res)
     const stats = agents.map(agent => {
       const s = statsMap[agent._id.toString()] || { total: 0, pending: 0, lead: 0, appointment: 0, leadAmount: 0 };
       return {
-        agent: { _id: agent._id, name: agent.name },
+        agent: { _id: agent._id, name: agent.name, active: agent.active },
         tlName: agent.tlId ? (tlMap[agent.tlId.toString()] || '—') : '—',
         total: s.total,
         disposed: s.total - s.pending,
         lead: s.lead,
         appointment: s.appointment,
         pending: s.pending,
-        totalLeadAmount: s.leadAmount
+        totalLeadAmount: s.leadAmount,
+        active: agent.active
       };
     });
 

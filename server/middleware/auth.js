@@ -18,7 +18,7 @@ function sign(user) {
 }
 
 // Verify JWT token middleware
-function verify(req, res, next) {
+async function verify(req, res, next) {
   const token = req.header('Authorization')?.replace('Bearer ', '');
   
   if (!token) {
@@ -28,6 +28,17 @@ function verify(req, res, next) {
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
+
+    // Critical: Check if user is still active in DB
+    const { getCollection } = require('../mongodb');
+    const { ObjectId } = require('mongodb');
+    const usersCollection = getCollection('users');
+    const user = await usersCollection.findOne({ _id: new ObjectId(decoded._id) });
+
+    if (!user || (user.role === 'agent' && !user.active)) {
+      return res.status(403).json({ error: 'Account inactive or suspended. Please contact admin.' });
+    }
+
     next();
   } catch (error) {
     res.status(401).json({ error: 'Invalid token.' });
