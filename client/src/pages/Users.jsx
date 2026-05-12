@@ -13,6 +13,7 @@ const Users = () => {
   const [isModalOpen,  setIsModalOpen]  = useState(false);
   const [editingUser,  setEditingUser]  = useState(null);
   const [formData,     setFormData]     = useState({ name: '', username: '', password: '', role: 'agent', active: true, tlId: '' });
+  const [isSaving,     setIsSaving]     = useState(false);
   
   // New state for TL disposition
   const [showActionModal, setShowActionModal]           = useState(false);
@@ -63,7 +64,10 @@ const Users = () => {
 
   const handleSubmit = async (e, forceDisposition = false, reactivateAction = null) => {
     if (e) e.preventDefault();
+    if (isSaving) return;
+
     try {
+      setIsSaving(true);
       if (editingUser) {
         // Special check for TL inactivation
         if (editingUser.role === 'tl' && formData.active === false && editingUser.active === true && !forceDisposition) {
@@ -71,6 +75,7 @@ const Users = () => {
           if (agentsToHandle.length > 0) {
             setAffectedAgentsCount(agentsToHandle.length);
             setShowActionModal(true);
+            setIsSaving(false);
             return;
           }
         }
@@ -81,6 +86,7 @@ const Users = () => {
           if (inactiveAgentsToHandle.length > 0) {
             setAffectedAgentsCount(inactiveAgentsToHandle.length);
             setShowReactivateModal(true);
+            setIsSaving(false);
             return;
           }
         }
@@ -110,6 +116,8 @@ const Users = () => {
       fetchUsers();
     } catch (err) {
       alert(err.response?.data?.error || 'Operation failed');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -280,8 +288,10 @@ const Users = () => {
                 </div>
               )}
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
-                <button type="button" className="btn btn-outline" onClick={() => setIsModalOpen(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">{editingUser ? 'Save Changes' : 'Create User'}</button>
+                <button type="button" className="btn btn-outline" onClick={() => setIsModalOpen(false)} disabled={isSaving}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={isSaving}>
+                  {isSaving ? 'Processing...' : editingUser ? 'Save Changes' : 'Create User'}
+                </button>
               </div>
             </form>
           </div>
@@ -290,11 +300,11 @@ const Users = () => {
 
       {/* Disposition Modal (Sub-modal for TL Inactivation) */}
       {showActionModal && (
-        <div className="modal-overlay" style={{ zIndex: 3001 }}>
+        <div className="modal-overlay" style={{ zIndex: 6000 }}>
           <div className="modal-box animate-fade-in" style={{ maxWidth: 450, border: '1px solid var(--danger-light)' }}>
             <div className="modal-header">
               <h2 style={{ color: 'var(--danger)' }}>Handle Assigned Agents</h2>
-              <button className="btn btn-ghost btn-icon" onClick={() => setShowActionModal(false)}><X size={18} /></button>
+              <button className="btn btn-ghost btn-icon" onClick={() => setShowActionModal(false)} disabled={isSaving}><X size={18} /></button>
             </div>
             <div style={{ padding: '0 20px 20px' }}>
               <div className="alert alert-warning" style={{ marginBottom: 20 }}>
@@ -306,7 +316,7 @@ const Users = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 10 }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '12px', background: 'rgba(0,0,0,0.03)', borderRadius: 8 }}>
                     <input type="radio" name="disposition" value="reassign" checked={dispositionData.action === 'reassign'} 
-                      onChange={e => setDispositionData(p => ({ ...p, action: e.target.value }))} />
+                      onChange={e => setDispositionData(p => ({ ...p, action: e.target.value }))} disabled={isSaving} />
                     <div>
                       <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>Reassign to another Team Lead</div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Move agents to a replacement lead</div>
@@ -322,6 +332,7 @@ const Users = () => {
                       ) : (
                         <select className="input-field" value={dispositionData.newTlId} 
                           onChange={e => setDispositionData(p => ({ ...p, newTlId: e.target.value }))}
+                          disabled={isSaving}
                           style={{ fontSize: '0.8rem', padding: '8px 12px' }}>
                           <option value="">-- Choose New Team Lead --</option>
                           {otherTls.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
@@ -332,7 +343,7 @@ const Users = () => {
 
                   <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '12px', background: 'rgba(0,0,0,0.03)', borderRadius: 8 }}>
                     <input type="radio" name="disposition" value="inactivate" checked={dispositionData.action === 'inactivate'} 
-                      onChange={e => setDispositionData(p => ({ ...p, action: e.target.value }))} />
+                      onChange={e => setDispositionData(p => ({ ...p, action: e.target.value }))} disabled={isSaving} />
                     <div>
                       <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>Inactivate all assigned agents</div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Set all {affectedAgentsCount} agents to inactive status</div>
@@ -342,11 +353,11 @@ const Users = () => {
               </div>
 
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 24 }}>
-                <button type="button" className="btn btn-outline" onClick={() => setShowActionModal(false)}>Cancel</button>
+                <button type="button" className="btn btn-outline" onClick={() => setShowActionModal(false)} disabled={isSaving}>Cancel</button>
                 <button type="button" className="btn btn-danger" 
-                  disabled={dispositionData.action === 'reassign' && !dispositionData.newTlId}
+                  disabled={isSaving || (dispositionData.action === 'reassign' && !dispositionData.newTlId)}
                   onClick={() => handleSubmit(null, true)}>
-                  Confirm & Inactivate TL
+                  {isSaving ? 'Processing...' : 'Confirm & Inactivate TL'}
                 </button>
               </div>
             </div>
@@ -356,11 +367,11 @@ const Users = () => {
 
       {/* Reactivation Modal (Sub-modal for TL Activation) */}
       {showReactivateModal && (
-        <div className="modal-overlay" style={{ zIndex: 3001 }}>
+        <div className="modal-overlay" style={{ zIndex: 6000 }}>
           <div className="modal-box animate-fade-in" style={{ maxWidth: 450, border: '1px solid var(--success-light)' }}>
             <div className="modal-header">
               <h2 style={{ color: 'var(--success)' }}>Reactivate Agents?</h2>
-              <button className="btn btn-ghost btn-icon" onClick={() => setShowReactivateModal(false)}><X size={18} /></button>
+              <button className="btn btn-ghost btn-icon" onClick={() => setShowReactivateModal(false)} disabled={isSaving}><X size={18} /></button>
             </div>
             <div style={{ padding: '0 20px 20px' }}>
               <div className="alert alert-success" style={{ marginBottom: 20 }}>
@@ -372,11 +383,11 @@ const Users = () => {
               </p>
 
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 24 }}>
-                <button type="button" className="btn btn-outline" onClick={() => handleSubmit(null, false, false)}>
+                <button type="button" className="btn btn-outline" onClick={() => handleSubmit(null, false, false)} disabled={isSaving}>
                   No, Keep Agents Inactive
                 </button>
-                <button type="button" className="btn btn-success" onClick={() => handleSubmit(null, false, true)}>
-                  Yes, Activate All Agents
+                <button type="button" className="btn btn-success" onClick={() => handleSubmit(null, false, true)} disabled={isSaving}>
+                  {isSaving ? 'Activating...' : 'Yes, Activate All Agents'}
                 </button>
               </div>
             </div>
