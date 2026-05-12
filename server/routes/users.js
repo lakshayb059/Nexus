@@ -61,26 +61,60 @@ router.post('/', verify, authorize('admin'), async (req, res) => {
 // Update user (admin only)
 router.put('/:id', verify, authorize('admin'), async (req, res) => {
   try {
-    const { name, password, active, tlId } = req.body;
+    const { name, password, active, tlId, agentAction, newTlId, reactivateAgents } = req.body;
     const usersCollection = getCollection('users');
-    const updateData = { updatedAt: new Date() };
+    const userId = new ObjectId(req.params.id);
+    
+    // Get existing user to check role
+    const existingUser = await usersCollection.findOne({ _id: userId });
+    if (!existingUser) return res.status(404).json({ error: 'User not found' });
 
+    const updateData = { updatedAt: new Date() };
     if (name) updateData.name = name.trim();
     if (active !== undefined) updateData.active = !!active;
     if (tlId !== undefined) updateData.tlId = tlId ? new ObjectId(tlId) : null;
-    
-    if (password) {
-      updateData.password = await bcrypt.hash(password, 10);
+    if (password) updateData.password = await bcrypt.hash(password, 10);
+
+    // 1. Handle TL Inactivation
+    if (existingUser.role === 'tl' && active === false && existingUser.active === true) {
+      const agentsUnderTL = await usersCollection.find({ 
+        role: 'agent', 
+        tlId: userId,
+        isDeleted: { $ne: true }
+      }).toArray();
+
+      if (agentsUnderTL.length > 0) {
+        if (agentAction === 'inactivate') {
+          await usersCollection.updateMany(
+            { role: 'agent', tlId: userId, isDeleted: { $ne: true } },
+            { $set: { active: false, updatedAt: new Date() } }
+          );
+        } else if (agentAction === 'reassign' && newTlId) {
+          await usersCollection.updateMany(
+            { role: 'agent', tlId: userId, isDeleted: { $ne: true } },
+            { $set: { tlId: new ObjectId(newTlId), updatedAt: new Date() } }
+          );
+        } else {
+          return res.status(400).json({ 
+            error: 'Disposition required', 
+            needsAction: true, 
+            agentCount: agentsUnderTL.length 
+          });
+        }
+      }
     }
 
-    if (!ObjectId.isValid(req.params.id)) return res.status(400).json({ error: 'Invalid user ID' });
+    // 2. Handle TL Reactivation
+    if (existingUser.role === 'tl' && active === true && existingUser.active === false) {
+      if (reactivateAgents === true) {
+        await usersCollection.updateMany(
+          { role: 'agent', tlId: userId, active: false, isDeleted: { $ne: true } },
+          { $set: { active: true, updatedAt: new Date() } }
+        );
+      }
+    }
 
-    const result = await usersCollection.updateOne(
-      { _id: new ObjectId(req.params.id) },
-      { $set: updateData }
-    );
-
-    if (result.matchedCount === 0) return res.status(404).json({ error: 'User not found' });
+    const result = await usersCollection.updateOne({ _id: userId }, { $set: updateData });
 
     const io = req.app.get('io');
     if (io) io.emit('users_updated', { action: 'update', userId: req.params.id });

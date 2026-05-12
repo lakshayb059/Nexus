@@ -13,6 +13,12 @@ const Users = () => {
   const [isModalOpen,  setIsModalOpen]  = useState(false);
   const [editingUser,  setEditingUser]  = useState(null);
   const [formData,     setFormData]     = useState({ name: '', username: '', password: '', role: 'agent', active: true, tlId: '' });
+  
+  // New state for TL disposition
+  const [showActionModal, setShowActionModal]           = useState(false);
+  const [showReactivateModal, setShowReactivateModal] = useState(false);
+  const [dispositionData, setDispositionData]           = useState({ action: 'reassign', newTlId: '' });
+  const [affectedAgentsCount, setAffectedAgentsCount]   = useState(0);
 
   const fetchUsers = async () => {
     try {
@@ -55,25 +61,59 @@ const Users = () => {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (e, forceDisposition = false, reactivateAction = null) => {
+    if (e) e.preventDefault();
     try {
       if (editingUser) {
+        // Special check for TL inactivation
+        if (editingUser.role === 'tl' && formData.active === false && editingUser.active === true && !forceDisposition) {
+          const agentsToHandle = agents.filter(a => a.tlId === editingUser._id);
+          if (agentsToHandle.length > 0) {
+            setAffectedAgentsCount(agentsToHandle.length);
+            setShowActionModal(true);
+            return;
+          }
+        }
+
+        // Special check for TL reactivation
+        if (editingUser.role === 'tl' && formData.active === true && editingUser.active === false && reactivateAction === null) {
+          const inactiveAgentsToHandle = agents.filter(a => a.tlId === editingUser._id && !a.active);
+          if (inactiveAgentsToHandle.length > 0) {
+            setAffectedAgentsCount(inactiveAgentsToHandle.length);
+            setShowReactivateModal(true);
+            return;
+          }
+        }
+
         const payload = { name: formData.name, active: formData.active };
         if (formData.password) payload.password = formData.password;
         if (formData.role === 'agent') payload.tlId = formData.tlId;
+        
+        if (forceDisposition) {
+          payload.agentAction = dispositionData.action;
+          if (dispositionData.action === 'reassign') {
+            payload.newTlId = dispositionData.newTlId;
+          }
+        }
+
+        if (reactivateAction !== null) {
+          payload.reactivateAgents = reactivateAction;
+        }
+
         await api.put(`/users/${editingUser._id}`, payload);
       } else {
         await api.post('/users', formData);
       }
       setIsModalOpen(false);
+      setShowActionModal(false);
+      setShowReactivateModal(false);
       fetchUsers();
     } catch (err) {
       alert(err.response?.data?.error || 'Operation failed');
     }
   };
 
-
+  const otherTls = tls.filter(t => t._id !== editingUser?._id && t.active);
 
   const roleStyles = {
     admin: { label: 'Admin',     cls: 'badge-primary' },
@@ -244,6 +284,102 @@ const Users = () => {
                 <button type="submit" className="btn btn-primary">{editingUser ? 'Save Changes' : 'Create User'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Disposition Modal (Sub-modal for TL Inactivation) */}
+      {showActionModal && (
+        <div className="modal-overlay" style={{ zIndex: 3001 }}>
+          <div className="modal-box animate-fade-in" style={{ maxWidth: 450, border: '1px solid var(--danger-light)' }}>
+            <div className="modal-header">
+              <h2 style={{ color: 'var(--danger)' }}>Handle Assigned Agents</h2>
+              <button className="btn btn-ghost btn-icon" onClick={() => setShowActionModal(false)}><X size={18} /></button>
+            </div>
+            <div style={{ padding: '0 20px 20px' }}>
+              <div className="alert alert-warning" style={{ marginBottom: 20 }}>
+                You are inactivating <strong>{editingUser?.name}</strong>. There are <strong>{affectedAgentsCount}</strong> agents assigned to them.
+              </div>
+              
+              <div className="input-group">
+                <label>What should happen to these agents?</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 10 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '12px', background: 'rgba(0,0,0,0.03)', borderRadius: 8 }}>
+                    <input type="radio" name="disposition" value="reassign" checked={dispositionData.action === 'reassign'} 
+                      onChange={e => setDispositionData(p => ({ ...p, action: e.target.value }))} />
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>Reassign to another Team Lead</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Move agents to a replacement lead</div>
+                    </div>
+                  </label>
+                  
+                  {dispositionData.action === 'reassign' && (
+                    <div style={{ marginLeft: 30, marginTop: -4 }}>
+                      {otherTls.length === 0 ? (
+                        <div className="alert alert-danger" style={{ fontSize: '0.75rem', padding: '8px 12px' }}>
+                          🚨 No other active Team Leaders available. Please create another Team Lead first!
+                        </div>
+                      ) : (
+                        <select className="input-field" value={dispositionData.newTlId} 
+                          onChange={e => setDispositionData(p => ({ ...p, newTlId: e.target.value }))}
+                          style={{ fontSize: '0.8rem', padding: '8px 12px' }}>
+                          <option value="">-- Choose New Team Lead --</option>
+                          {otherTls.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
+                        </select>
+                      )}
+                    </div>
+                  )}
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '12px', background: 'rgba(0,0,0,0.03)', borderRadius: 8 }}>
+                    <input type="radio" name="disposition" value="inactivate" checked={dispositionData.action === 'inactivate'} 
+                      onChange={e => setDispositionData(p => ({ ...p, action: e.target.value }))} />
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>Inactivate all assigned agents</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Set all {affectedAgentsCount} agents to inactive status</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 24 }}>
+                <button type="button" className="btn btn-outline" onClick={() => setShowActionModal(false)}>Cancel</button>
+                <button type="button" className="btn btn-danger" 
+                  disabled={dispositionData.action === 'reassign' && !dispositionData.newTlId}
+                  onClick={() => handleSubmit(null, true)}>
+                  Confirm & Inactivate TL
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reactivation Modal (Sub-modal for TL Activation) */}
+      {showReactivateModal && (
+        <div className="modal-overlay" style={{ zIndex: 3001 }}>
+          <div className="modal-box animate-fade-in" style={{ maxWidth: 450, border: '1px solid var(--success-light)' }}>
+            <div className="modal-header">
+              <h2 style={{ color: 'var(--success)' }}>Reactivate Agents?</h2>
+              <button className="btn btn-ghost btn-icon" onClick={() => setShowReactivateModal(false)}><X size={18} /></button>
+            </div>
+            <div style={{ padding: '0 20px 20px' }}>
+              <div className="alert alert-success" style={{ marginBottom: 20 }}>
+                You are reactivating <strong>{editingUser?.name}</strong>. There are <strong>{affectedAgentsCount}</strong> inactive agents assigned to them.
+              </div>
+              
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 20 }}>
+                Would you also like to set these <strong>{affectedAgentsCount}</strong> agents to <strong>Active</strong> status?
+              </p>
+
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 24 }}>
+                <button type="button" className="btn btn-outline" onClick={() => handleSubmit(null, false, false)}>
+                  No, Keep Agents Inactive
+                </button>
+                <button type="button" className="btn btn-success" onClick={() => handleSubmit(null, false, true)}>
+                  Yes, Activate All Agents
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
