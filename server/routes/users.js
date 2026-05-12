@@ -107,10 +107,11 @@ router.put('/:id', verify, authorize('admin'), async (req, res) => {
     // 2. Handle TL Reactivation
     if (existingUser.role === 'tl' && active === true && existingUser.active === false) {
       if (reactivateAgents === true) {
-        await usersCollection.updateMany(
+        const reactivateResult = await usersCollection.updateMany(
           { role: 'agent', tlId: userId, active: false, isDeleted: { $ne: true } },
           { $set: { active: true, updatedAt: new Date() } }
         );
+        console.log(`📡 Real-time sync: Reactivated ${reactivateResult.modifiedCount} agents for TL ${existingUser.name}`);
       }
     }
 
