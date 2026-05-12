@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "SPIKE CRM",
   "scripts": {
-    "postinstall": "cd server && npm install",
+    "postinstall": "cd server && npm install && cd ../client && npm install && npm run build",
     "client-install": "cd client && npm install",
     "client-build": "cd client && npm run build",
     "build": "npm install && npm run client-install && npm run client-build",

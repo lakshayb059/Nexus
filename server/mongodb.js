@@ -3,7 +3,17 @@ const { MongoClient } = require('mongodb');
 const axios = require('axios');
 
 // MongoDB Atlas connection string from .env
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://gargabhi999:gargabhi999@crm.8eds5va.mongodb.net/?appName=CRM';
+let MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://gargabhi999:gargabhi999@crm.8eds5va.mongodb.net/?appName=CRM';
+
+// Safety check for old cluster URI
+if (MONGODB_URI.includes('hxehni4')) {
+  console.warn('\n' + '!'.repeat(60));
+  console.warn('🚨 WARNING: Detected old cluster URI (hxehni4) from Render Environment.');
+  console.warn('🚨 ACTION: Please update MONGODB_URI in Render Dashboard Settings.');
+  console.warn('🚨 FORCING override to correct URI (8eds5va) for now.');
+  console.warn('!'.repeat(60) + '\n');
+  MONGODB_URI = 'mongodb+srv://gargabhi999:gargabhi999@crm.8eds5va.mongodb.net/?appName=CRM';
+}
 
 // Database and collection names
 const DB_NAME = 'spike_dms';
