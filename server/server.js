@@ -25,7 +25,7 @@ io.on('connection', (socket) => {
     console.log('Client disconnected:', socket.id);
   });
 });
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 // CORS configuration for production
 const corsOptions = {

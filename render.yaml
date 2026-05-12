@@ -17,7 +17,7 @@ services:
       - key: FRONTEND_URL
         value: https://crm-eight-sage.vercel.app
       - key: MONGODB_URI
-        value: mongodb+srv://gargabhi999:CRM123@crm.hxehni4.mongodb.net/?appName=CRM
+        value: mongodb+srv://gargabhi999:gargabhi999@crm.8eds5va.mongodb.net/?appName=CRM
       - key: MAX_FILE_SIZE
         value: 10mb
     

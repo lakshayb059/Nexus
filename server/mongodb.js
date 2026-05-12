@@ -1,5 +1,6 @@
 require('dotenv').config();
 const { MongoClient } = require('mongodb');
+const axios = require('axios');
 
 // MongoDB Atlas connection string from .env
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://gargabhi999:gargabhi999@crm.8eds5va.mongodb.net/?appName=CRM';
@@ -20,7 +21,16 @@ async function connect() {
   if (db) return db;
   
   try {
-    client = new MongoClient(MONGODB_URI);
+    console.log('📡 Connecting to MongoDB Atlas...');
+    
+    const clientOptions = {
+      serverSelectionTimeoutMS: 5000,
+      connectTimeoutMS: 10000,
+      tls: true,
+      family: 4 // Force IPv4 to avoid some network issues
+    };
+
+    client = new MongoClient(MONGODB_URI, clientOptions);
     await client.connect();
     db = client.db(DB_NAME);
     console.log('✅ Connected to MongoDB Atlas');
@@ -30,7 +40,24 @@ async function connect() {
     
     return db;
   } catch (error) {
-    console.error('❌ MongoDB connection error:', error);
+    console.error('❌ MongoDB connection error:', error.message);
+    
+    if (error.message.includes('SSL') || error.message.includes('alert number 80')) {
+      console.error('\n' + '='.repeat(60));
+      console.error('🚨 DIAGNOSTIC: SSL Alert 80 - IP NOT WHITELISTED');
+      console.error('='.repeat(60));
+      
+      try {
+        const response = await axios.get('https://api.ipify.org?format=json');
+        const publicIp = response.data.ip;
+        console.error(`\n👉 Your current public IP is: ${publicIp}`);
+        console.error(`👉 ACTION: Add this IP to MongoDB Atlas > Network Access.`);
+        console.error(`👉 Alternatively, add 0.0.0.0/0 for testing access.\n`);
+      } catch (ipErr) {
+        console.error('\n👉 Please check your public IP and add it to MongoDB Atlas > Network Access.');
+      }
+      console.error('='.repeat(60) + '\n');
+    }
     throw error;
   }
 }

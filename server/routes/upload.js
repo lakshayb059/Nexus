@@ -360,7 +360,7 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
 
         let agentName = 'Unknown';
         const agentIdStr = c.assignedTo.toString();
-        const agentObj = allAgents.find(a => a._id.toString() === agentIdStr);
+        const agentObj = allUsers.find(a => a._id.toString() === agentIdStr);
         if (agentObj) agentName = agentObj.name;
 
         return {

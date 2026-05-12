@@ -5,32 +5,32 @@ echo       CRM LOCAL DEVELOPMENT SETUP
 echo ========================================
 echo.
 echo This will start both backend and frontend
-echo Backend: http://localhost:3000 or 3001
+echo Backend: http://localhost:3001
 echo Frontend: http://localhost:5173
 echo Database: MongoDB Atlas
 echo.
 echo Press any key to start...
-pause > nul
-
 echo.
+pause
+
 echo Starting Backend Server...
-start "CRM Backend" cmd /k "cd /d e:\CRM new\crm\server && npm start"
+start "CRM Backend" cmd /k "cd /d "%~dp0server" && npm start"
 
 echo Waiting for backend to start...
 timeout /t 5 > nul
 
 echo.
 echo Starting Frontend Server...
-start "CRM Frontend" cmd /k "cd /d e:\CRM new\crm\client && npm run dev"
+start "CRM Frontend" cmd /k "cd /d "%~dp0client" && npm run dev"
 
 echo.
 echo ========================================
 echo       CRM IS RUNNING!
 echo ========================================
-echo Backend: http://localhost:3000
+echo Backend: http://localhost:3001
 echo Frontend: http://localhost:5173
 echo.
-echo Login with: admin / admin123
+echo Login with: admin / spikeCRM_2024!
 echo.
 echo Press any key to stop servers...
 pause > nul
