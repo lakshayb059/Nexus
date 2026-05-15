@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { getCollection } = require('../shared/mongodb');
+const { getCollection } = require('./mongodb');
 const { ObjectId } = require('mongodb');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'crm-super-secret-jwt-key-2024-change-in-production-use-strong-random-string';

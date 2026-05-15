@@ -1,4 +1,4 @@
-const { getCollection } = require('../mongodb');
+const { getCollection } = require('./mongodb');
 const { ObjectId } = require('mongodb');
 
 function normalizePhone(phone) {
