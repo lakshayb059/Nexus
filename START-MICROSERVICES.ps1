@@ -1,32 +1,23 @@
 # Spike CRM Microservices Startup Script
-echo "🚀 Starting Spike CRM Microservices locally..."
+Write-Host "🚀 Starting Spike CRM Microservices locally..." -ForegroundColor Cyan
 
-# Kill any existing processes on our ports
-echo "🧹 Cleaning up old processes..."
-Stop-Process -Name node -ErrorAction SilentlyContinue
+# 1. Cleanup
+Write-Host "🧹 Cleaning up old node processes..." -ForegroundColor Yellow
+Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force
 
-# Start Services in new windows
-echo "📦 Launching Services..."
+# 2. Launch Services
+$services = @(
+    @{ Name = "API Gateway"; Port = 3000; Path = "microservices/gateway/server.js" },
+    @{ Name = "Auth Service"; Port = 3001; Path = "microservices/auth-service/server.js" },
+    @{ Name = "Lead Service"; Port = 3002; Path = "microservices/lead-service/server.js" },
+    @{ Name = "Notification Service"; Port = 3003; Path = "microservices/notification-service/server.js" },
+    @{ Name = "Reporting Service"; Port = 3004; Path = "microservices/reporting-service/server.js" }
+)
 
-# 1. API Gateway (Port 3000)
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "node microservices/gateway/server.js" -WindowStyle Normal
-echo "  - Gateway (3000) started"
+foreach ($service in $services) {
+    Write-Host "📦 Launching $($service.Name) on port $($service.Port)..."
+    Start-Process powershell -ArgumentList "-NoExit", "-Command", "node $($service.Path)" -WindowStyle Normal
+}
 
-# 2. Auth Service (Port 3001)
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "node microservices/auth-service/server.js" -WindowStyle Normal
-echo "  - Auth Service (3001) started"
-
-# 3. Lead Service (Port 3002)
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "node microservices/lead-service/server.js" -WindowStyle Normal
-echo "  - Lead Service (3002) started"
-
-# 4. Notification Service (Port 3003)
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "node microservices/notification-service/server.js" -WindowStyle Normal
-echo "  - Notification Service (3003) started"
-
-# 5. Reporting Service (Port 3004)
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "node microservices/reporting-service/server.js" -WindowStyle Normal
-echo "  - Reporting Service (3004) started"
-
-echo "✅ All services launched!"
-echo "📍 Access your CRM at: http://localhost:5173 (Vite Client)"
+Write-Host "`n✅ All services launched successfully!" -ForegroundColor Green
+Write-Host "📍 Access your CRM at: http://localhost:5173 (Vite Client)" -ForegroundColor Blue
