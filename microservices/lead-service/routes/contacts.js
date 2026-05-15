@@ -222,6 +222,39 @@ router.get('/notifications', verify, authorize(['agent', 'tl', 'admin']), async 
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-// Add other routes (stats, notifications, etc.) here or as separate files...
+// GET /contacts/stats - Fetch dashboard metrics
+router.get('/stats', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
+  try {
+    const contactsCollection = getCollection('contacts');
+    const query = { isDeleted: { $ne: true } };
+    
+    if (req.user.role === 'agent') {
+      query.assignedTo = new ObjectId(req.user._id);
+    } else if (req.user.role === 'tl') {
+      const usersCollection = getCollection('users');
+      const agents = await usersCollection.find({ tlId: new ObjectId(req.user._id) }).toArray();
+      query.assignedTo = { $in: agents.map(a => a._id) };
+    }
+
+    const stats = await contactsCollection.aggregate([
+      { $match: query },
+      {
+        $group: {
+          _id: null,
+          totalContacts: { $sum: 1 },
+          leads: { $sum: { $cond: [{ $eq: ['$disposition', 'Lead'] }, 1, 0] } },
+          appointments: { $sum: { $cond: [{ $eq: ['$disposition', 'Appointment'] }, 1, 0] } },
+          totalAmount: { $sum: { $ifNull: ['$leadAmount', 0] } }
+        }
+      }
+    ]).toArray();
+
+    const result = stats[0] || { totalContacts: 0, leads: 0, appointments: 0, totalAmount: 0 };
+    res.json(result);
+  } catch (err) {
+    console.error('Stats error:', err);
+    res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
 
 module.exports = router;
