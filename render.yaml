@@ -9,21 +9,13 @@ services:
       - key: PORT
         value: 10000
       - key: AUTH_SERVICE_URL
-        fromService:
-          name: spike-crm-auth
-          type: web
+        value: http://spike-crm-auth
       - key: LEAD_SERVICE_URL
-        fromService:
-          name: spike-crm-lead
-          type: web
+        value: http://spike-crm-lead
       - key: NOTIFICATION_SERVICE_URL
-        fromService:
-          name: spike-crm-notification
-          type: web
+        value: http://spike-crm-notification
       - key: REPORT_SERVICE_URL
-        fromService:
-          name: spike-crm-reporting
-          type: web
+        value: http://spike-crm-reporting
 
   # 2. Auth Service
   - type: web
@@ -49,9 +41,7 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: NOTIFICATION_SERVICE_URL
-        fromService:
-          name: spike-crm-notification
-          type: web
+        value: http://spike-crm-notification
 
   # 4. Notification Service
   - type: web
