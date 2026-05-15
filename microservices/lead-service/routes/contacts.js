@@ -257,4 +257,42 @@ router.get('/stats', verify, authorize(['agent', 'tl', 'admin']), async (req, re
   }
 });
 
+// GET /contacts/agent-queues - Fetch queue counts per agent
+router.get('/agent-queues', verify, authorize(['admin', 'tl']), async (req, res) => {
+  try {
+    const contactsCollection = getCollection('contacts');
+    const usersCollection = getCollection('users');
+    
+    // 1. Get relevant agents
+    const userQuery = { role: 'agent', isDeleted: { $ne: true } };
+    if (req.user.role === 'tl') {
+      userQuery.tlId = new ObjectId(req.user._id);
+    }
+    const agents = await usersCollection.find(userQuery, { projection: { _id: 1, name: 1 } }).toArray();
+    const agentIds = agents.map(a => a._id);
+
+    // 2. Aggregate pending counts
+    const counts = await contactsCollection.aggregate([
+      { $match: { assignedTo: { $in: agentIds }, disposition: null, isDeleted: { $ne: true } } },
+      { $group: { _id: '$assignedTo', count: { $sum: 1 } } }
+    ]).toArray();
+
+    const countMap = counts.reduce((acc, curr) => {
+      acc[curr._id.toString()] = curr.count;
+      return acc;
+    }, {});
+
+    const result = agents.map(a => ({
+      _id: a._id,
+      name: a.name,
+      pendingCount: countMap[a._id.toString()] || 0
+    }));
+
+    res.json(result);
+  } catch (err) {
+    console.error('Queue error:', err);
+    res.status(500).json({ error: 'Failed to fetch queues' });
+  }
+});
+
 module.exports = router;
