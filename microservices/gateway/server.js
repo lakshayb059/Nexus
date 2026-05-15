@@ -13,15 +13,15 @@ app.use(morgan('dev'));
 // Service Routes
 const services = [
   {
-    path: ['/api/auth', '/api/users'],
+    path: ['/api/auth', '/api/users', '/auth', '/users'],
     target: process.env.AUTH_SERVICE_URL || 'http://localhost:3001',
   },
   {
-    path: ['/api/contacts', '/api/leads', '/api/leads-management'],
+    path: ['/api/contacts', '/api/leads', '/api/leads-management', '/contacts', '/leads', '/leads-management'],
     target: process.env.LEAD_SERVICE_URL || 'http://localhost:3002',
   },
   {
-    path: '/api/notifications',
+    path: ['/api/notifications', '/notifications'],
     target: process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3003',
   },
   {
@@ -30,7 +30,7 @@ const services = [
     ws: true
   },
   {
-    path: ['/api/reports', '/api/upload'],
+    path: ['/api/reports', '/api/upload', '/reports', '/upload'],
     target: process.env.REPORT_SERVICE_URL || 'http://localhost:3004',
   }
 ];
@@ -45,8 +45,8 @@ services.forEach(service => {
   app.use(createProxyMiddleware(service.path, {
     target: service.target,
     changeOrigin: true,
-    pathRewrite: {
-      '^/api': '' // Remove /api prefix when sending to microservices
+    pathRewrite: (path) => {
+      return path.startsWith('/api') ? path.replace('/api', '') : path;
     },
     ws: service.ws || false,
     logLevel: 'debug'
