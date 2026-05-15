@@ -19,19 +19,16 @@ let client = null;
 async function connect() {
   if (db) return db;
   try {
-    const clientOptions = {
-      serverSelectionTimeoutMS: 5000,
-      connectTimeoutMS: 10000,
-      tls: true,
-      family: 4
-    };
-    client = new MongoClient(MONGODB_URI, clientOptions);
+    console.log("📡 Connecting to MongoDB Atlas...");
     await client.connect();
-    db = client.db(DB_NAME);
+    // Default to spike_dms if not specified in URI
+    const dbName = client.options.dbName || DB_NAME;
+    db = client.db(dbName);
+    console.log(`✅ Connected to MongoDB Database: [${dbName}]`);
     return db;
-  } catch (error) {
-    console.error('❌ MongoDB connection error:', error.message);
-    throw error;
+  } catch (err) {
+    console.error("❌ MongoDB Connection Error:", err.message);
+    throw err;
   }
 }
 
