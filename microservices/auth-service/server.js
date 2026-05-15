@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
@@ -5,7 +6,6 @@ const bcrypt = require('bcryptjs');
 const { ObjectId } = require('mongodb');
 const { connect, getCollection } = require('../shared/mongodb');
 const { sign, verify, authorize } = require('../shared/authMiddleware');
-require('dotenv').config();
 
 const app = express();
 const PORT = process.env.AUTH_SERVICE_PORT || 3001;

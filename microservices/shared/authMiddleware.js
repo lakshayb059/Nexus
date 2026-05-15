@@ -41,7 +41,16 @@ function authorize(...roles) {
   };
 }
 
+function sign(user) {
+  return jwt.sign(
+    { _id: user._id, username: user.username, role: user.role, tlId: user.tlId },
+    JWT_SECRET,
+    { expiresIn: '2h' }
+  );
+}
+
 module.exports = {
+  sign,
   verify,
   authorize,
   JWT_SECRET
