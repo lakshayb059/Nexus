@@ -315,4 +315,33 @@ router.get('/agent-queues', verify, authorize(['admin', 'tl']), async (req, res)
   }
 });
 
+// DELETE /contacts/batch/:batchId - Delete entire batch
+router.delete('/batch/:batchId', verify, authorize(['admin']), async (req, res) => {
+  try {
+    const contactsCollection = getCollection('contacts');
+    await contactsCollection.deleteMany({ batchId: req.params.batchId });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// POST /contacts/bulk-delete - Delete multiple contacts
+router.post('/bulk-delete', verify, authorize(['admin']), async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids || !ids.length) return res.status(400).json({ error: 'No IDs provided' });
+    const contactsCollection = getCollection('contacts');
+    await contactsCollection.deleteMany({ _id: { $in: ids.map(id => new ObjectId(id)) } });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// DELETE /contacts/:id - Delete individual contact
+router.delete('/:id', verify, authorize(['admin']), async (req, res) => {
+  try {
+    const contactsCollection = getCollection('contacts');
+    await contactsCollection.deleteOne({ _id: new ObjectId(req.params.id) });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
 module.exports = router;

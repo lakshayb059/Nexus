@@ -104,4 +104,49 @@ router.get('/callbacks', verify, authorize(['agent', 'tl', 'admin']), async (req
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
+// DELETE /leads/appointments/:id - Delete individual appointment
+router.get('/appointments/wipe', verify, authorize(['admin']), async (req, res) => {
+  try {
+    await getCollection('appointments').deleteMany({});
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+router.delete('/appointments/:id', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
+  try {
+    const appointmentsCollection = getCollection('appointments');
+    const query = { _id: new ObjectId(req.params.id) };
+    if (req.user.role === 'agent') query.assignedTo = new ObjectId(req.user._id);
+    await appointmentsCollection.deleteOne(query);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// DELETE /leads/callbacks/:id - Delete individual callback
+router.get('/callbacks/wipe', verify, authorize(['admin']), async (req, res) => {
+  try {
+    await getCollection('callbacks').deleteMany({});
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+router.delete('/callbacks/:id', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
+  try {
+    const callbacksCollection = getCollection('callbacks');
+    const query = { _id: new ObjectId(req.params.id) };
+    if (req.user.role === 'agent') query.assignedTo = new ObjectId(req.user._id);
+    await callbacksCollection.deleteOne(query);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// DELETE /leads/:id - Delete individual lead
+router.delete('/:id', verify, authorize(['admin']), async (req, res) => {
+  try {
+    const leadsCollection = getCollection('leads');
+    await leadsCollection.deleteOne({ _id: new ObjectId(req.params.id) });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
 module.exports = router;
