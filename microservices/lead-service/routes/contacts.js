@@ -344,4 +344,22 @@ router.delete('/:id', verify, authorize(['admin']), async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
+// POST /contacts/bulk-delete-batches - Delete multiple batches
+router.post('/bulk-delete-batches', verify, authorize(['admin']), async (req, res) => {
+  try {
+    const { batchIds } = req.body;
+    if (!batchIds || !batchIds.length) return res.status(400).json({ error: 'No batch IDs provided' });
+    
+    const contactsCollection = getCollection('contacts');
+    const batchesCollection = getCollection('batches');
+    
+    await Promise.all([
+      contactsCollection.deleteMany({ batchId: { $in: batchIds } }),
+      batchesCollection.deleteMany({ _id: { $in: batchIds } })
+    ]);
+    
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
 module.exports = router;
