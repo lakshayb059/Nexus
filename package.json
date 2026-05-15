@@ -1,16 +1,13 @@
 {
-  "name": "spike-crm-root",
+  "name": "spike-crm-microservices",
   "private": true,
-  "version": "1.0.0",
-  "description": "SPIKE CRM",
+  "version": "2.0.0",
+  "description": "Spike CRM - Microservices Architecture",
   "scripts": {
-    "postinstall": "cd server && npm install && cd ../client && npm install && npm run build",
-    "client-install": "cd client && npm install",
-    "client-build": "cd client && npm run build",
-    "build": "npm install && npm run client-install && npm run client-build",
-    "start": "cd server && node server.js"
+    "install:all": "npm install && cd client && npm install && cd ../microservices/gateway && npm install && cd ../auth-service && npm install && cd ../lead-service && npm install && cd ../notification-service && npm install && cd ../reporting-service && npm install",
+    "start": "powershell ./START-MICROSERVICES.ps1",
+    "client": "cd client && npm run dev"
   },
-
   "engines": {
     "node": ">=18.0.0"
   }

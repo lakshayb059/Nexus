@@ -1,14 +1,60 @@
-const router = require('express').Router();
+const express = require('express');
+const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const bcrypt = require('bcryptjs');
-const { getCollection } = require('../mongodb');
-const { authorize, verify } = require('../middleware/auth');
 const { ObjectId } = require('mongodb');
+const { connect, getCollection } = require('../shared/mongodb');
+const { sign, verify, authorize } = require('../shared/authMiddleware');
+require('dotenv').config();
 
-// Get all users (admin only)
-router.get('/', verify, authorize('admin'), async (req, res) => {
+const app = express();
+const PORT = process.env.AUTH_SERVICE_PORT || 3001;
+
+app.use(cors({ origin: true, credentials: true }));
+app.use(express.json());
+app.use(cookieParser());
+
+// --- Auth Routes ---
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
+
+        const usersCollection = getCollection('users');
+        const user = await usersCollection.findOne(
+            { username: username.trim().toLowerCase() },
+            { projection: { password: 1, active: 1, _id: 1, username: 1, name: 1, role: 1, tlId: 1 } }
+        );
+
+        if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+        if (!user.active) return res.json({ error: 'Your ID is inactive. Please contact admin.' });
+
+        const valid = await bcrypt.compare(password, user.password);
+        if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+
+        const token = sign(user);
+
+        res.cookie('crm_session', token, {
+            httpOnly: true,
+            sameSite: 'Lax',
+            maxAge: 2 * 60 * 60 * 1000,
+            secure: process.env.NODE_ENV === 'production'
+        });
+
+        res.json({
+            token,
+            user: { _id: user._id, username: user.username, name: user.name, role: user.role, tlId: user.tlId }
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// --- Users Routes ---
+app.get('/api/users', verify, authorize('admin'), async (req, res) => {
   try {
     const usersCollection = getCollection('users');
-    // Filter out soft-deleted users
     const users = await usersCollection.find({ isDeleted: { $ne: true } }, { projection: { password: 0 } }).toArray();
     res.json(users);
   } catch (err) {
@@ -16,8 +62,7 @@ router.get('/', verify, authorize('admin'), async (req, res) => {
   }
 });
 
-// Get agents under a TL
-router.get('/my-agents', verify, authorize('tl'), async (req, res) => {
+app.get('/api/users/my-agents', verify, authorize('tl'), async (req, res) => {
   try {
     const usersCollection = getCollection('users');
     const agents = await usersCollection.find({ 
@@ -31,8 +76,7 @@ router.get('/my-agents', verify, authorize('tl'), async (req, res) => {
   }
 });
 
-// Create user
-router.post('/', verify, authorize('admin'), async (req, res) => {
+app.post('/api/users', verify, authorize('admin'), async (req, res) => {
   try {
     const { username, password, name, role, tlId } = req.body;
     const usersCollection = getCollection('users');
@@ -58,14 +102,12 @@ router.post('/', verify, authorize('admin'), async (req, res) => {
   }
 });
 
-// Update user (admin only)
-router.put('/:id', verify, authorize('admin'), async (req, res) => {
+app.put('/api/users/:id', verify, authorize('admin'), async (req, res) => {
   try {
     const { name, password, active, tlId, agentAction, newTlId, reactivateAgents } = req.body;
     const usersCollection = getCollection('users');
     const userId = new ObjectId(req.params.id);
     
-    // Get existing user to check role
     const existingUser = await usersCollection.findOne({ _id: userId });
     if (!existingUser) return res.status(404).json({ error: 'User not found' });
 
@@ -75,7 +117,6 @@ router.put('/:id', verify, authorize('admin'), async (req, res) => {
     if (tlId !== undefined) updateData.tlId = tlId ? new ObjectId(tlId) : null;
     if (password) updateData.password = await bcrypt.hash(password, 10);
 
-    // 1. Handle TL Inactivation
     if (existingUser.role === 'tl' && !!active === false && existingUser.active === true) {
       const agentsUnderTL = await usersCollection.find({ 
         role: 'agent', 
@@ -89,13 +130,11 @@ router.put('/:id', verify, authorize('admin'), async (req, res) => {
             { role: 'agent', tlId: userId, isDeleted: { $ne: true } },
             { $set: { active: false, updatedAt: new Date() } }
           );
-          console.log(`🚫 [Simultaneous Inactivation] Inactivated TL ${existingUser.name} and ${agentsUnderTL.length} agents.`);
         } else if (agentAction === 'reassign' && newTlId) {
           await usersCollection.updateMany(
             { role: 'agent', tlId: userId, isDeleted: { $ne: true } },
             { $set: { tlId: new ObjectId(newTlId), updatedAt: new Date() } }
           );
-          console.log(`🔄 [Reassignment] Inactivated TL ${existingUser.name} and reassigned ${agentsUnderTL.length} agents.`);
         } else {
           return res.status(400).json({ 
             error: 'Disposition required', 
@@ -106,24 +145,16 @@ router.put('/:id', verify, authorize('admin'), async (req, res) => {
       }
     }
 
-    // 2. Handle TL Reactivation
     if (existingUser.role === 'tl' && !!active === true && existingUser.active === false) {
       if (reactivateAgents === true) {
-        const reactivateResult = await usersCollection.updateMany(
+        await usersCollection.updateMany(
           { role: 'agent', tlId: userId, active: false, isDeleted: { $ne: true } },
           { $set: { active: true, updatedAt: new Date() } }
         );
-        console.log(`✅ [Simultaneous Activation] Reactivated TL ${existingUser.name} and ${reactivateResult.modifiedCount} agents.`);
-      } else {
-        console.log(`ℹ️ [Single Activation] Reactivated TL ${existingUser.name} only.`);
       }
     }
 
-    const result = await usersCollection.updateOne({ _id: userId }, { $set: updateData });
-
-    const io = req.app.get('io');
-    if (io) io.emit('users_updated', { action: 'update', userId: req.params.id });
-
+    await usersCollection.updateOne({ _id: userId }, { $set: updateData });
     res.json({ success: true });
   } catch (err) {
     console.error('Update user error:', err);
@@ -131,4 +162,11 @@ router.put('/:id', verify, authorize('admin'), async (req, res) => {
   }
 });
 
-module.exports = router;
+async function start() {
+  await connect();
+  app.listen(PORT, () => {
+    console.log(`🔐 Auth Service running on http://localhost:${PORT}`);
+  });
+}
+
+start();
