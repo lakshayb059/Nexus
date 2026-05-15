@@ -72,4 +72,36 @@ router.get('/stats', verify, authorize(['agent', 'tl', 'admin']), async (req, re
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
+// GET /leads/appointments - Fetch scheduled appointments
+router.get('/appointments', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
+  try {
+    const appointmentsCollection = getCollection('appointments');
+    let query = { };
+    if (req.user.role === 'agent') query.assignedTo = new ObjectId(req.user._id);
+    else if (req.user.role === 'tl') {
+      const usersCollection = getCollection('users');
+      const agents = await usersCollection.find({ tlId: new ObjectId(req.user._id) }).toArray();
+      query.assignedTo = { $in: agents.map(a => a._id) };
+    }
+    const appointments = await appointmentsCollection.find(query).sort({ appointmentDt: 1 }).toArray();
+    res.json(appointments);
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// GET /leads/callbacks - Fetch scheduled callbacks
+router.get('/callbacks', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
+  try {
+    const callbacksCollection = getCollection('callbacks');
+    let query = { };
+    if (req.user.role === 'agent') query.assignedTo = new ObjectId(req.user._id);
+    else if (req.user.role === 'tl') {
+      const usersCollection = getCollection('users');
+      const agents = await usersCollection.find({ tlId: new ObjectId(req.user._id) }).toArray();
+      query.assignedTo = { $in: agents.map(a => a._id) };
+    }
+    const callbacks = await callbacksCollection.find(query).sort({ callBackDt: 1 }).toArray();
+    res.json(callbacks);
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
 module.exports = router;

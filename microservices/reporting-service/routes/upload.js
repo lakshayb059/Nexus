@@ -84,4 +84,15 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
   }
 });
 
+// GET /upload/batches - Fetch historical data uploads
+router.get('/batches', verify, authorize(['admin', 'tl']), async (req, res) => {
+  try {
+    const batchesCollection = getCollection('batches');
+    const batches = await batchesCollection.find().sort({ uploadedAt: -1 }).toArray();
+    res.json(batches);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch batches' });
+  }
+});
+
 module.exports = router;
