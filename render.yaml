@@ -1,0 +1,69 @@
+services:
+  # 1. API Gateway
+  - type: web
+    name: spike-crm-gateway
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node microservices/gateway/server.js
+    envVars:
+      - key: AUTH_SERVICE_URL
+        value: https://spike-crm-auth.onrender.com
+      - key: LEAD_SERVICE_URL
+        value: https://spike-crm-lead.onrender.com
+      - key: NOTIFICATION_SERVICE_URL
+        value: https://spike-crm-notification.onrender.com
+      - key: REPORT_SERVICE_URL
+        value: https://spike-crm-reporting.onrender.com
+
+  # 2. Auth Service
+  - type: web
+    name: spike-crm-auth
+    env: node
+    plan: free
+    buildCommand: cd microservices/auth-service && npm install
+    startCommand: cd microservices/auth-service && node server.js
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+
+  # 3. Lead Service
+  - type: web
+    name: spike-crm-lead
+    env: node
+    plan: free
+    buildCommand: cd microservices/lead-service && npm install
+    startCommand: cd microservices/lead-service && node server.js
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: NOTIFICATION_SERVICE_URL
+        value: https://spike-crm-notification.onrender.com
+
+  # 4. Notification Service
+  - type: web
+    name: spike-crm-notification
+    env: node
+    plan: free
+    buildCommand: cd microservices/notification-service && npm install
+    startCommand: cd microservices/notification-service && node server.js
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+
+  # 5. Reporting Service
+  - type: web
+    name: spike-crm-reporting
+    env: node
+    plan: free
+    buildCommand: cd microservices/reporting-service && npm install
+    startCommand: cd microservices/reporting-service && node server.js
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
