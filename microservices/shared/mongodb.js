@@ -27,8 +27,11 @@ async function connect() {
       });
     }
     await client.connect();
-    // Default to spike_dms if not specified in URI
-    const dbName = client.options.dbName || 'spike_dms';
+    // Force spike_dms if the driver defaults to 'test' or nothing is provided
+    let dbName = client.options.dbName || '';
+    if (!dbName || dbName === 'test' || dbName === 'admin') {
+      dbName = 'spike_dms';
+    }
     db = client.db(dbName);
     console.log(`✅ Connected to MongoDB Database: [${dbName}]`);
     return db;
