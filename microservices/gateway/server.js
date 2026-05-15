@@ -45,11 +45,16 @@ services.forEach(service => {
   app.use(createProxyMiddleware(service.path, {
     target: service.target,
     changeOrigin: true,
+    ws: service.ws || false,
+    secure: false, // For local dev with localhost
     pathRewrite: (path) => {
       return path.startsWith('/api') ? path.replace('/api', '') : path;
     },
-    ws: service.ws || false,
-    logLevel: 'debug'
+    logLevel: 'debug',
+    onProxyReqWs: (proxyReq, req, socket, options, head) => {
+      // Ensure WebSocket handshake headers are perfectly preserved
+      proxyReq.setHeader('Origin', service.target);
+    }
   }));
 });
 
