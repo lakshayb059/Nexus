@@ -4,8 +4,8 @@ services:
     name: spike-crm-gateway
     env: node
     plan: free
-    buildCommand: npm install
-    startCommand: node microservices/gateway/server.js
+    buildCommand: cd microservices/gateway && npm install
+    startCommand: cd microservices/gateway && node server.js
     envVars:
       - key: AUTH_SERVICE_URL
         value: https://spike-crm-auth.onrender.com

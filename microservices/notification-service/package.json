@@ -1,0 +1,17 @@
+{
+  "name": "spike-crm-notification",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "mongodb": "^6.3.0",
+    "socket.io": "^4.7.2",
+    "@socket.io/redis-adapter": "^8.2.1",
+    "redis": "^4.6.10",
+    "dotenv": "^16.0.3"
+  }
+}
