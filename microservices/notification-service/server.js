@@ -4,6 +4,8 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const { connect, getCollection } = require('../shared/mongodb');
 const { ObjectId } = require('mongodb');
+const { createAdapter } = require('@socket.io/redis-adapter');
+const { createClient } = require('redis');
 require('dotenv').config();
 
 const app = express();
@@ -11,6 +13,18 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] }
 });
+
+// Redis Adapter Setup
+const pubClient = createClient({ url: process.env.REDIS_URL || 'redis://localhost:6379' });
+const subClient = pubClient.duplicate();
+
+async function setupRedis() {
+  await Promise.all([pubClient.connect(), subClient.connect()]);
+  io.adapter(createAdapter(pubClient, subClient));
+  console.log('🚀 Redis Adapter connected');
+}
+
+setupRedis().catch(console.error);
 
 const PORT = process.env.NOTIFICATION_SERVICE_PORT || 3003;
 
