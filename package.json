@@ -5,14 +5,10 @@
   "description": "Spike CRM - Microservices Architecture",
   "scripts": {
     "install:all": "npm install && cd client && npm install && cd ../microservices/gateway && npm install && cd ../auth-service && npm install && cd ../lead-service && npm install && cd ../notification-service && npm install && cd ../reporting-service && npm install",
-    "start": "powershell ./START-MICROSERVICES.ps1",
-    "client": "cd client && npm run dev"
+    "dev": "node -e \"console.log('Use START-MICROSERVICES.ps1 on Windows or docker-compose up locally')\"",
+    "start": "node -e \"console.log('Root service idle. Railway should deploy sub-services via docker-compose.')\""
   },
   "engines": {
     "node": ">=18.0.0"
-  },
-  "dependencies": {
-    "@socket.io/redis-adapter": "^8.3.0",
-    "redis": "^5.12.1"
   }
 }
