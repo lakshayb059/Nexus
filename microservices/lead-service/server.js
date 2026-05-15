@@ -12,9 +12,9 @@ app.use(express.json());
 app.use(cookieParser());
 
 // Routes
-app.use('/api/contacts', require('./routes/contacts'));
-app.use('/api/leads', require('./routes/leads'));
-app.use('/api/leads-management', require('./routes/leads-management'));
+app.use('/contacts', require('./routes/contacts'));
+app.use('/leads', require('./routes/leads'));
+app.use('/leads-management', require('./routes/leads-management'));
 
 async function start() {
   await connect();

@@ -15,7 +15,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 // --- Auth Routes ---
-app.post('/api/auth/login', async (req, res) => {
+app.post('/auth/login', async (req, res) => {
     try {
         const { username, password } = req.body;
         if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
@@ -52,7 +52,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // --- Users Routes ---
-app.get('/api/users', verify, authorize('admin'), async (req, res) => {
+app.get('/users', verify, authorize('admin'), async (req, res) => {
   try {
     const usersCollection = getCollection('users');
     const users = await usersCollection.find({ isDeleted: { $ne: true } }, { projection: { password: 0 } }).toArray();
@@ -62,7 +62,7 @@ app.get('/api/users', verify, authorize('admin'), async (req, res) => {
   }
 });
 
-app.get('/api/users/my-agents', verify, authorize('tl'), async (req, res) => {
+app.get('/users/my-agents', verify, authorize('tl'), async (req, res) => {
   try {
     const usersCollection = getCollection('users');
     const agents = await usersCollection.find({ 
@@ -76,7 +76,7 @@ app.get('/api/users/my-agents', verify, authorize('tl'), async (req, res) => {
   }
 });
 
-app.post('/api/users', verify, authorize('admin'), async (req, res) => {
+app.post('/users', verify, authorize('admin'), async (req, res) => {
   try {
     const { username, password, name, role, tlId } = req.body;
     const usersCollection = getCollection('users');
@@ -102,7 +102,7 @@ app.post('/api/users', verify, authorize('admin'), async (req, res) => {
   }
 });
 
-app.put('/api/users/:id', verify, authorize('admin'), async (req, res) => {
+app.put('/users/:id', verify, authorize('admin'), async (req, res) => {
   try {
     const { name, password, active, tlId, agentAction, newTlId, reactivateAgents } = req.body;
     const usersCollection = getCollection('users');

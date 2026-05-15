@@ -10,8 +10,8 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
 // Routes
-app.use('/api/reports', require('./routes/reports'));
-app.use('/api/upload', require('./routes/upload'));
+app.use('/reports', require('./routes/reports'));
+app.use('/upload', require('./routes/upload'));
 
 async function start() {
   await connect();

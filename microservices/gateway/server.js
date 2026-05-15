@@ -45,6 +45,9 @@ services.forEach(service => {
   app.use(createProxyMiddleware(service.path, {
     target: service.target,
     changeOrigin: true,
+    pathRewrite: {
+      '^/api': '' // Remove /api prefix when sending to microservices
+    },
     ws: service.ws || false,
     logLevel: 'debug'
   }));

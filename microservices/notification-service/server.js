@@ -24,7 +24,7 @@ io.on('connection', (socket) => {
 });
 
 // --- Broadcast Endpoint (Internal) ---
-app.post('/api/notifications/broadcast', (req, res) => {
+app.post('/notifications/broadcast', (req, res) => {
   const { event, data } = req.body;
   if (!event) return res.status(400).json({ error: 'Event name required' });
 
@@ -33,7 +33,7 @@ app.post('/api/notifications/broadcast', (req, res) => {
 });
 
 // --- Missed Alerts Endpoint ---
-app.get('/api/notifications/alerts', async (req, res) => {
+app.get('/notifications/alerts', async (req, res) => {
   // In a real app, we'd verify the user here via shared middleware.
   // For now, we'll implement the logic from the old auth route.
   try {
