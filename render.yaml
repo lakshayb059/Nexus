@@ -4,8 +4,8 @@ services:
     name: spike-crm-gateway
     env: node
     plan: free
-    buildCommand: cd microservices/gateway && npm install
-    startCommand: cd microservices/gateway && node server.js
+    buildCommand: npm install
+    startCommand: node microservices/gateway/server.js
     envVars:
       - key: AUTH_SERVICE_URL
         value: https://spike-crm-auth.onrender.com
@@ -21,8 +21,8 @@ services:
     name: spike-crm-auth
     env: node
     plan: free
-    buildCommand: cd microservices/auth-service && npm install
-    startCommand: cd microservices/auth-service && node server.js
+    buildCommand: npm install
+    startCommand: node microservices/auth-service/server.js
     envVars:
       - key: MONGODB_URI
         sync: false
@@ -34,8 +34,8 @@ services:
     name: spike-crm-lead
     env: node
     plan: free
-    buildCommand: cd microservices/lead-service && npm install
-    startCommand: cd microservices/lead-service && node server.js
+    buildCommand: npm install
+    startCommand: node microservices/lead-service/server.js
     envVars:
       - key: MONGODB_URI
         sync: false
@@ -49,8 +49,8 @@ services:
     name: spike-crm-notification
     env: node
     plan: free
-    buildCommand: cd microservices/notification-service && npm install
-    startCommand: cd microservices/notification-service && node server.js
+    buildCommand: npm install
+    startCommand: node microservices/notification-service/server.js
     envVars:
       - key: MONGODB_URI
         sync: false
@@ -60,8 +60,8 @@ services:
     name: spike-crm-reporting
     env: node
     plan: free
-    buildCommand: cd microservices/reporting-service && npm install
-    startCommand: cd microservices/reporting-service && node server.js
+    buildCommand: npm install
+    startCommand: node microservices/reporting-service/server.js
     envVars:
       - key: MONGODB_URI
         sync: false
