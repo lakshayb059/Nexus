@@ -268,25 +268,45 @@ router.get('/agent-queues', verify, authorize(['admin', 'tl']), async (req, res)
     if (req.user.role === 'tl') {
       userQuery.tlId = new ObjectId(req.user._id);
     }
-    const agents = await usersCollection.find(userQuery, { projection: { _id: 1, name: 1 } }).toArray();
+    const agents = await usersCollection.find(userQuery).toArray();
     const agentIds = agents.map(a => a._id);
 
-    // 2. Aggregate pending counts
-    const counts = await contactsCollection.aggregate([
-      { $match: { assignedTo: { $in: agentIds }, disposition: null, isDeleted: { $ne: true } } },
-      { $group: { _id: '$assignedTo', count: { $sum: 1 } } }
+    // 2. Map TL IDs for enrichment
+    const tlIds = [...new Set(agents.map(a => a.tlId).filter(id => id))];
+    const tls = await usersCollection.find({ _id: { $in: tlIds.map(id => new ObjectId(id)) } }, { projection: { _id: 1, name: 1 } }).toArray();
+    const tlMap = tls.reduce((acc, t) => { acc[t._id.toString()] = t.name; return acc; }, {});
+
+    // 3. Aggregate performance metrics
+    const metrics = await contactsCollection.aggregate([
+      { $match: { assignedTo: { $in: agentIds }, isDeleted: { $ne: true } } },
+      { 
+        $group: { 
+          _id: '$assignedTo', 
+          total: { $sum: 1 },
+          pending: { $sum: { $cond: [{ $eq: ['$disposition', null] }, 1, 0] } },
+          disposed: { $sum: { $cond: [{ $ne: ['$disposition', null] }, 1, 0] } },
+          lead: { $sum: { $cond: [{ $eq: ['$disposition', 'Lead'] }, 1, 0] } },
+          appointment: { $sum: { $cond: [{ $eq: ['$disposition', 'Appointment'] }, 1, 0] } },
+          totalLeadAmount: { $sum: { $ifNull: ['$leadAmount', 0] } }
+        } 
+      }
     ]).toArray();
 
-    const countMap = counts.reduce((acc, curr) => {
-      acc[curr._id.toString()] = curr.count;
+    const metricMap = metrics.reduce((acc, m) => {
+      acc[m._id.toString()] = m;
       return acc;
     }, {});
 
-    const result = agents.map(a => ({
-      _id: a._id,
-      name: a.name,
-      pendingCount: countMap[a._id.toString()] || 0
-    }));
+    // 4. Combine data for frontend
+    const result = agents.map(a => {
+      const m = metricMap[a._id.toString()] || { total: 0, pending: 0, disposed: 0, lead: 0, appointment: 0, totalLeadAmount: 0 };
+      return {
+        agent: { _id: a._id, name: a.name },
+        tlName: a.tlId ? (tlMap[a.tlId.toString()] || 'Unknown TL') : '—',
+        active: a.active,
+        ...m
+      };
+    });
 
     res.json(result);
   } catch (err) {
