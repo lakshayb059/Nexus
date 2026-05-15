@@ -20,9 +20,15 @@ async function connect() {
   if (db) return db;
   try {
     console.log("📡 Connecting to MongoDB Atlas...");
+    if (!client) {
+      client = new MongoClient(MONGODB_URI, {
+        connectTimeoutMS: 30000,
+        serverSelectionTimeoutMS: 30000
+      });
+    }
     await client.connect();
     // Default to spike_dms if not specified in URI
-    const dbName = client.options.dbName || DB_NAME;
+    const dbName = client.options.dbName || 'spike_dms';
     db = client.db(dbName);
     console.log(`✅ Connected to MongoDB Database: [${dbName}]`);
     return db;
