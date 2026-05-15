@@ -1,0 +1,76 @@
+services:
+  # 1. API Gateway
+  - type: web
+    name: spike-crm-gateway
+    env: node
+    buildCommand: npm install
+    startCommand: node microservices/gateway/server.js
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: AUTH_SERVICE_URL
+        fromService:
+          name: spike-crm-auth
+          type: web
+      - key: LEAD_SERVICE_URL
+        fromService:
+          name: spike-crm-lead
+          type: web
+      - key: NOTIFICATION_SERVICE_URL
+        fromService:
+          name: spike-crm-notification
+          type: web
+      - key: REPORT_SERVICE_URL
+        fromService:
+          name: spike-crm-reporting
+          type: web
+
+  # 2. Auth Service
+  - type: web
+    name: spike-crm-auth
+    env: node
+    buildCommand: cd microservices/auth-service && npm install
+    startCommand: cd microservices/auth-service && node server.js
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+
+  # 3. Lead Service
+  - type: web
+    name: spike-crm-lead
+    env: node
+    buildCommand: cd microservices/lead-service && npm install
+    startCommand: cd microservices/lead-service && node server.js
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: NOTIFICATION_SERVICE_URL
+        fromService:
+          name: spike-crm-notification
+          type: web
+
+  # 4. Notification Service
+  - type: web
+    name: spike-crm-notification
+    env: node
+    buildCommand: cd microservices/notification-service && npm install
+    startCommand: cd microservices/notification-service && node server.js
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+
+  # 5. Reporting Service
+  - type: web
+    name: spike-crm-reporting
+    env: node
+    buildCommand: cd microservices/reporting-service && npm install
+    startCommand: cd microservices/reporting-service && node server.js
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
