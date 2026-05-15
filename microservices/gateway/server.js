@@ -42,10 +42,11 @@ app.get('/health', (req, res) => {
 
 // Setup Proxies
 services.forEach(service => {
-  app.use(service.path, createProxyMiddleware({
+  app.use(createProxyMiddleware(service.path, {
     target: service.target,
     changeOrigin: true,
-    pathRewrite: (path) => path, // Keep path as is
+    ws: service.ws || false,
+    logLevel: 'debug'
   }));
 });
 
