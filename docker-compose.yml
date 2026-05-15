@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  gateway:
+    build: ./microservices/gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - LEAD_SERVICE_URL=http://lead-service:3002
+      - NOTIFICATION_SERVICE_URL=http://notification-service:3003
+      - REPORT_SERVICE_URL=http://reporting-service:3004
+
+  auth-service:
+    build: ./microservices/auth-service
+    ports:
+      - "3001:3001"
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+      - JWT_SECRET=${JWT_SECRET}
+
+  lead-service:
+    build: ./microservices/lead-service
+    ports:
+      - "3002:3002"
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+      - JWT_SECRET=${JWT_SECRET}
+      - NOTIFICATION_SERVICE_URL=http://notification-service:3003
+
+  notification-service:
+    build: ./microservices/notification-service
+    ports:
+      - "3003:3003"
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+
+  reporting-service:
+    build: ./microservices/reporting-service
+    ports:
+      - "3004:3004"
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+      - JWT_SECRET=${JWT_SECRET}
