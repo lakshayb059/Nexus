@@ -36,7 +36,12 @@ async function connect() {
     console.log(`✅ Connected to MongoDB Database: [${dbName}]`);
     return db;
   } catch (err) {
-    console.error("❌ MongoDB Connection Error:", err.message);
+    console.error("\n❌ MongoDB Connection Error:", err.message);
+    console.error("💡 Action Required to Resolve Database Connection Issues:");
+    console.error("   1. Check MongoDB Atlas Network Access: Deployed platforms (e.g., Render/Vercel) have dynamic IPs.");
+    console.error("      Go to MongoDB Atlas dashboard -> Network Access -> Add IP Address, and choose 'Allow Access From Anywhere' (adds 0.0.0.0/0).");
+    console.error("   2. Verify Environment Variables: Ensure 'MONGODB_URI' is correctly configured in your deployment's dashboard.");
+    console.error("   3. Check Connection String Format: Confirm that the credentials and cluster details in your connection string are correct.\n");
     throw err;
   }
 }

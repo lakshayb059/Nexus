@@ -8,7 +8,7 @@ const { connect, getCollection } = require('../shared/mongodb');
 const { sign, verify, authorize } = require('../shared/authMiddleware');
 
 const app = express();
-const PORT = process.env.AUTH_SERVICE_PORT || 3001;
+const PORT = process.env.PORT || process.env.AUTH_SERVICE_PORT || 3001;
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
@@ -163,9 +163,13 @@ app.put('/users/:id', verify, authorize('admin'), async (req, res) => {
 });
 
 async function start() {
-  await connect();
   app.listen(PORT, () => {
-    console.log(`🔐 Auth Service running on http://localhost:${PORT}`);
+    console.log(`🔐 Auth Service running on port: ${PORT}`);
+  });
+  
+  // Connect to MongoDB Atlas in the background to prevent blocking startup checks
+  connect().catch(err => {
+    console.error("❌ Deferred MongoDB Connection Failure in Auth Service:", err.message);
   });
 }
 

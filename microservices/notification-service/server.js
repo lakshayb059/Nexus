@@ -12,7 +12,7 @@ const io = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] }
 });
 
-const PORT = process.env.NOTIFICATION_SERVICE_PORT || 3003;
+const PORT = process.env.PORT || process.env.NOTIFICATION_SERVICE_PORT || 3003;
 
 app.use(cors());
 app.use(express.json());
@@ -104,12 +104,16 @@ async function checkAppointments() {
 }
 
 async function start() {
-  await connect();
   server.listen(PORT, () => {
-    console.log(`🔔 Notification Service running on http://localhost:${PORT}`);
+    console.log(`🔔 Notification Service running on port: ${PORT}`);
 
     // Start background worker
     setInterval(checkAppointments, 60000);
+  });
+  
+  // Connect to MongoDB Atlas in the background to prevent blocking startup checks
+  connect().catch(err => {
+    console.error("❌ Deferred MongoDB Connection Failure in Notification Service:", err.message);
   });
 }
 
