@@ -35,9 +35,28 @@ const services = [
   }
 ];
 
-// Health check
+// Health check with downstream warmup pings for Render Free plan
+const axios = require('axios');
 app.get('/health', (req, res) => {
-  res.json({ status: 'Gateway is up', timestamp: new Date() });
+  const downstreamUrls = [
+    process.env.AUTH_SERVICE_URL || 'http://localhost:3001',
+    process.env.LEAD_SERVICE_URL || 'http://localhost:3002',
+    process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3003',
+    process.env.REPORT_SERVICE_URL || 'http://localhost:3004'
+  ];
+
+  // Fire-and-forget pings in the background. Even if they return 404, Render registers the inbound request and keeps them awake!
+  downstreamUrls.forEach(url => {
+    axios.get(`${url}/health`).catch(() => {
+      // Quietly ignore connection errors or 404s
+    });
+  });
+
+  res.json({ 
+    status: 'Gateway is up', 
+    services: 'Warmup pings dispatched to downstream microservices',
+    timestamp: new Date() 
+  });
 });
 
 // Setup Proxies
