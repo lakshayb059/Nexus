@@ -23,11 +23,17 @@ start "Reporting" cmd /k "node microservices/reporting-service/server.js"
 echo ⏳ Waiting for microservices to initialize...
 timeout /t 5 /nobreak >nul
 
-:: 4. Launch API Gateway last
+:: 4. Launch API Gateway
 echo 📦 Launching API Gateway (3000)...
 start "Gateway" cmd /k "node microservices/gateway/server.js"
 
+:: 5. Launch Frontend Client
+echo 📦 Launching Vite Client (5173)...
+start "Client" cmd /k "cd client && npm run dev"
+
 echo.
-echo ✅ All services launched!
+echo ✅ All services and the client have been launched!
 echo 📍 Access your CRM at: http://localhost:5173
+echo.
+echo NOTE: Keep this window open or press any key to close this launcher.
 pause

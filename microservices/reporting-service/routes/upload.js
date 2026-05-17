@@ -11,7 +11,7 @@ const { broadcast } = require('../../shared/notificationClient');
 const upload = multer({ storage: multer.memoryStorage() });
 
 function parseCSV(buffer) {
-  return csvSync.parse(buffer.toString('utf-8'), { columns: true, skip_empty_lines: true, trim: true, bom: true });
+  return csvSync.parse(buffer.toString('utf-8'), { columns: true, skip_empty_lines: true, trim: true, bom: true, relax_column_count: true });
 }
 
 function parseExcel(buffer) {
@@ -31,6 +31,8 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
     if (agentId !== 'multi') {
       selectedAgent = await usersCollection.findOne({ _id: new ObjectId(agentId) });
       if (!selectedAgent) return res.status(404).json({ error: 'Selected agent not found' });
+      if (selectedAgent.active === false || selectedAgent.isDeleted) return res.status(400).json({ error: 'Selected agent is inactive or deleted' });
+      if (selectedAgent.role === 'tl') return res.status(400).json({ error: 'Selected user is a Team Leader (only Agents can be assigned contacts)' });
     }
 
     let records = req.file.originalname.toLowerCase().endsWith('.xlsx') ? parseExcel(req.file.buffer) : parseCSV(req.file.buffer);
@@ -38,29 +40,79 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
 
     const batchId = 'batch_' + Date.now();
     const contactsCollection = getCollection('contacts');
-    const allUsers = await usersCollection.find({ role: { $in: ['agent', 'tl'] } }).toArray();
+    const allUsers = await usersCollection.find({ role: { $in: ['agent', 'tl'] }, active: { $ne: false }, isDeleted: { $ne: true } }).toArray();
     const userMap = allUsers.reduce((acc, u) => { acc[u.name.toLowerCase()] = u; acc[u._id.toString()] = u; return acc; }, {});
 
-    const contacts = records.map(row => {
+    const isLead = String(isLeadUpload) === 'true';
+
+    const contacts = [];
+    const uploadErrors = [];
+
+    records.forEach((row, index) => {
       let assignedId = selectedAgent?._id;
       const agentCol = Object.keys(row).find(k => k.toLowerCase().includes('agent'));
-      if (agentId === 'multi' && agentCol && row[agentCol]) {
-        const u = userMap[row[agentCol].toString().toLowerCase()];
-        if (u) assignedId = u._id;
+      
+      let errorReason = null;
+
+      if (agentId === 'multi') {
+        if (agentCol && row[agentCol]) {
+          const agentNameStr = row[agentCol].toString().toLowerCase().trim();
+          const u = userMap[agentNameStr];
+          if (u) {
+            if (u.role === 'tl') {
+              errorReason = `User '${row[agentCol]}' is a Team Leader (only Agents can be assigned contacts).`;
+            } else {
+              assignedId = u._id;
+            }
+          } else {
+            errorReason = `Agent '${row[agentCol]}' not found or inactive.`;
+          }
+        } else {
+          errorReason = 'Agent column missing or empty.';
+        }
       }
-      return {
-        assignedTo: assignedId ? new ObjectId(assignedId) : null,
+
+      if (!assignedId && !errorReason) {
+         errorReason = 'No valid agent assignment.';
+      }
+
+      if (errorReason) {
+        uploadErrors.push({
+          rowNumber: index + 2,
+          name: row.Name || row.name || 'Unknown',
+          phone: row.Phone || row.Mobile || row.phone || row.mobile || 'N/A',
+          error: errorReason
+        });
+        return;
+      }
+      
+      const contactDoc = {
+        assignedTo: new ObjectId(assignedId),
         batchId,
         fields: row,
         createdAt: new Date(),
         lastModified: new Date(),
         isDeleted: false,
-        disposition: null,
+        disposition: isLead ? 'Lead' : null,
         queueOrder: 0
       };
-    }).filter(c => c.assignedTo);
 
-    if (contacts.length === 0) return res.status(400).json({ error: 'No valid assignments' });
+      if (isLead) {
+        contactDoc.status = row.Status || row.status || 'Converted';
+        contactDoc.leadAmount = Number(row.LeadAmount || row.leadAmount || row.Amount || 0);
+        contactDoc.transactionId = row.TransactionId || row.transactionId || '';
+        contactDoc.remarks = row.Remarks || row.remarks || 'Uploaded via Lead Template';
+      }
+
+      contacts.push(contactDoc);
+    });
+
+    if (contacts.length === 0) {
+      if (uploadErrors.length > 0) {
+        return res.status(400).json({ success: false, error: 'All records failed to upload.', totalUploaded: 0, totalFailed: uploadErrors.length, uploadErrors });
+      }
+      return res.status(400).json({ error: 'No valid assignments could be created from the uploaded file.' });
+    }
 
     await contactsCollection.insertMany(contacts);
     
@@ -77,7 +129,7 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
     broadcast('batch_uploaded', { batchId, totalUploaded: contacts.length });
     broadcast('dashboard_update');
 
-    res.json({ success: true, batchId, totalUploaded: contacts.length });
+    res.json({ success: true, batchId, totalUploaded: contacts.length, totalFailed: uploadErrors.length, uploadErrors });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Upload failed' });
@@ -92,6 +144,58 @@ router.get('/batches', verify, authorize(['admin', 'tl']), async (req, res) => {
     res.json(batches);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch batches' });
+  }
+});
+
+// GET /upload/template - Download upload templates
+router.get('/template', verify, authorize(['admin', 'tl', 'agent']), async (req, res) => {
+  const format = req.query.format || 'csv';
+  const type = req.query.type || 'contacts';
+  
+  let headers = [];
+  let sampleRow = [];
+
+  if (type === 'leads') {
+    headers = ['Name', 'Phone', 'Email', 'LeadAmount', 'Status', 'Remarks', 'TransactionId', 'Agent'];
+    sampleRow = ['John Doe', '9876543210', 'john@example.com', '5000', 'Converted', 'Interested in premium plan', 'TXN123456', 'Priya (Agent)'];
+  } else {
+    headers = ['Name', 'Phone', 'Email', 'City', 'Source', 'Agent'];
+    sampleRow = ['Jane Smith', '9123456780', 'jane@example.com', 'Mumbai', 'Website', 'Amit (Agent)'];
+  }
+
+  if (format === 'csv') {
+    const csvContent = [headers.join(','), sampleRow.join(',')].join('\n');
+    res.header('Content-Type', 'text/csv');
+    res.attachment(`crm-${type}-template.csv`);
+    return res.send(csvContent);
+  } else if (format === 'xlsx') {
+    const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Template');
+
+    try {
+      const usersCollection = getCollection('users');
+      const agents = await usersCollection.find({ role: 'agent', isDeleted: { $ne: true } }).toArray();
+      const referenceData = [['Agents available for assignment (Use exact name in Agent column)']];
+      agents.forEach(a => referenceData.push([a.name]));
+      
+      referenceData.push([]);
+      referenceData.push(['Valid Status/Dispositions (Use exact text)']);
+      const statuses = ['Lead', 'Appointment', 'Call Not Answered', 'Hung Up', 'Invalid', 'Do Not Call', 'Call Back', 'Converted', 'Not Interested', 'DNC/DND', 'Others'];
+      statuses.forEach(s => referenceData.push([s]));
+      
+      const wsRef = XLSX.utils.aoa_to_sheet(referenceData);
+      XLSX.utils.book_append_sheet(wb, wsRef, 'Reference Data');
+    } catch(err) {
+      console.error('Failed to append reference data sheet', err);
+    }
+
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    res.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.attachment(`crm-${type}-template.xlsx`);
+    return res.send(buffer);
+  } else {
+    return res.status(400).json({ error: 'Invalid format requested' });
   }
 });
 

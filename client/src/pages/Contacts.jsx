@@ -253,6 +253,7 @@ const Contacts = ({ filterType }) => {
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     {disp && <span className="badge" style={{ background: `${disp.color}18`, color: disp.color }}>{disp.label}</span>}
+                    {contact.isDeleted && <span className="badge" style={{ background: '#ef444418', color: '#ef4444', marginLeft: 6 }}>Deleted</span>}
                     {contact.leadAmount > 0 && <div className="badge badge-success">₹{contact.leadAmount.toLocaleString()}</div>}
                   </div>
                 </div>

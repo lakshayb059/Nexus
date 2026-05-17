@@ -57,6 +57,12 @@ router.post('/workflow/dispose', verify, authorize(['agent']), async (req, res) 
       update.appointmentDt = new Date(appointmentDt);
       update.appointmentStatus = 'scheduled';
       update.queueOrder = 999999;
+      const appointmentsCollection = getCollection('appointments');
+      await appointmentsCollection.insertOne({
+        contactId: new ObjectId(contactId), fields: contact.fields, batchId: contact.batchId,
+        assignedTo: new ObjectId(req.user._id), agentName: req.user.name,
+        appointmentDt: new Date(appointmentDt), remarks: remarks || '', createdAt: new Date(), lastModified: new Date()
+      });
     } else if (disposition === 'CallBack') {
       update.callBackDt = new Date(callBackDt);
       update.queueOrder = 999999;
@@ -103,7 +109,8 @@ router.get('/workflow/next', verify, authorize(['agent']), async (req, res) => {
       return res.json({ contact: dueCallbacks[0], type: 'callback_due' });
     }
 
-    const nextContact = await contactsCollection.findOne({ assignedTo: new ObjectId(req.user._id), queueOrder: { $lt: 999999 }, $or: [{ disposition: null }, { disposition: 'CallNotAnswered' }] }).sort({ queueOrder: 1, createdAt: 1 });
+    const nextContacts = await contactsCollection.find({ assignedTo: new ObjectId(req.user._id), queueOrder: { $lt: 999999 }, $or: [{ disposition: null }, { disposition: 'CallNotAnswered' }] }).sort({ queueOrder: 1, createdAt: 1 }).limit(1).toArray();
+    const nextContact = nextContacts[0] || null;
 
     res.json({ contact: nextContact || null, queueStats: await getQueueStats(req.user._id) });
   } catch (err) { res.status(500).json({ error: 'Server error' }); }

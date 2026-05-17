@@ -95,3 +95,6 @@ Thumbs.db
 # Uploads (if storing locally)
 uploads/
 temp/
+
+# Scratch scripts
+scratch/

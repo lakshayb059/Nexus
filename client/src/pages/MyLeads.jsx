@@ -309,7 +309,7 @@ const MyLeads = () => {
 
             const isNegative = lead.status === 'Not Interested' || lead.status === 'DNC/DND';
             const isConverted = lead.status === 'Converted';
-            const isLocked = isConverted && lead.transactionId && user?.role !== 'admin';
+            const isLocked = isConverted;
 
             return (
               <div key={lead._id} className={`glass-panel lead-list-item ${isSelected ? 'selected' : ''}`} style={{

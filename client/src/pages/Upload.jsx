@@ -140,12 +140,12 @@ const Upload = () => {
     }
   };
 
-  const downloadTemplate = async (format = 'csv') => {
+  const downloadTemplate = async (format = 'csv', type = 'contacts') => {
     try {
-      const res = await api.get(`/upload/template?format=${format}`, { responseType: 'blob' });
+      const res = await api.get(`/upload/template?format=${format}&type=${type}`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement('a');
-      a.href = url; a.setAttribute('download', `crm-template.${format}`);
+      a.href = url; a.setAttribute('download', `crm-${type}-template.${format}`);
       document.body.appendChild(a); a.click(); a.remove();
     } catch {
       alert('Failed to download template');
@@ -246,18 +246,22 @@ const Upload = () => {
             <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12, textAlign: 'center' }}>
               Download Sample Templates
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, width: '100%' }}>
-              <button className="btn btn-outline" style={{ padding: '10px 8px', fontSize: '0.7rem', display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'center' }} onClick={() => downloadTemplate('csv')}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10, width: '100%' }}>
+              <button className="btn btn-outline" style={{ padding: '10px 6px', fontSize: '0.68rem', display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'center' }} onClick={() => downloadTemplate('csv', 'contacts')}>
                 <Download size={14} style={{ color: 'var(--primary)' }} />
                 <span>CSV Template</span>
               </button>
-              <button className="btn btn-outline" style={{ padding: '10px 8px', fontSize: '0.7rem', display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'center' }} onClick={() => downloadTemplate('xlsx')}>
+              <button className="btn btn-outline" style={{ padding: '10px 6px', fontSize: '0.68rem', display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'center' }} onClick={() => downloadTemplate('xlsx', 'contacts')}>
                 <FileSpreadsheet size={14} style={{ color: 'var(--success)' }} />
                 <span>Excel Template</span>
               </button>
-              <button className="btn btn-outline" style={{ padding: '10px 8px', fontSize: '0.7rem', display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'center', border: '1px solid #10b981', background: 'rgba(16,185,129,0.05)' }} onClick={() => downloadTemplate('xlsx')}>
+              <button className="btn btn-outline" style={{ padding: '10px 6px', fontSize: '0.68rem', display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'center', border: '1px solid #10b981', background: 'rgba(16,185,129,0.05)' }} onClick={() => downloadTemplate('csv', 'leads')}>
+                <Download size={14} style={{ color: '#10b981' }} />
+                <span style={{ color: '#10b981', fontWeight: 700 }}>Leads CSV</span>
+              </button>
+              <button className="btn btn-outline" style={{ padding: '10px 6px', fontSize: '0.68rem', display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'center', border: '1px solid #10b981', background: 'rgba(16,185,129,0.05)' }} onClick={() => downloadTemplate('xlsx', 'leads')}>
                 <Star size={14} style={{ color: '#10b981' }} />
-                <span style={{ color: '#10b981', fontWeight: 700 }}>Leads Template</span>
+                <span style={{ color: '#10b981', fontWeight: 700 }}>Leads Excel</span>
               </button>
             </div>
           </div>

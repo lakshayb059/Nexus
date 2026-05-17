@@ -16,7 +16,7 @@ const DISP_LABELS = {
 router.get('/download', verify, authorize(['admin', 'tl', 'agent']), async (req, res) => {
   try {
     const { format = 'csv', agentId, disposition, batchId, reportType } = req.query;
-    const query = {};
+    const query = { isDeleted: { $ne: true } };
     if (reportType === 'lead') query.disposition = 'Lead';
     else {
       if (disposition === 'pending') query.disposition = null;
