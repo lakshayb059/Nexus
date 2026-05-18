@@ -12,10 +12,14 @@ const io = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] }
 });
 
-const PORT = process.env.PORT || process.env.NOTIFICATION_SERVICE_PORT || 3003;
+const PORT = process.env.NOTIFICATION_SERVICE_PORT || process.env.PORT || 3003;
 
 app.use(cors());
 app.use(express.json());
+
+// Health Check Endpoints for Uptime Monitoring
+app.get('/health', (req, res) => res.json({ status: 'Notification service is up', timestamp: new Date() }));
+app.get('/', (req, res) => res.json({ status: 'Notification service is active', timestamp: new Date() }));
 
 // --- Socket.io Logic ---
 io.on('connection', (socket) => {

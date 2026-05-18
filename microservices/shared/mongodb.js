@@ -34,6 +34,14 @@ async function connect() {
     }
     db = client.db(dbName);
     console.log(`✅ Connected to MongoDB Database: [${dbName}]`);
+    
+    // Asynchronously create essential indexes to optimize query performance (non-blocking)
+    const contactsCollection = db.collection('contacts');
+    contactsCollection.createIndex({ assignedTo: 1 }).catch(err => console.warn("⚠️ Index creation (assignedTo) skipped/failed:", err.message));
+    contactsCollection.createIndex({ createdAt: -1 }).catch(err => console.warn("⚠️ Index creation (createdAt) skipped/failed:", err.message));
+    contactsCollection.createIndex({ batchId: 1 }).catch(err => console.warn("⚠️ Index creation (batchId) skipped/failed:", err.message));
+    contactsCollection.createIndex({ isDeleted: 1 }).catch(err => console.warn("⚠️ Index creation (isDeleted) skipped/failed:", err.message));
+
     return db;
   } catch (err) {
     console.error("\n❌ MongoDB Connection Error:", err.message);

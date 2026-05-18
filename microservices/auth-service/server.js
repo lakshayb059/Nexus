@@ -8,11 +8,15 @@ const { connect, getCollection } = require('../shared/mongodb');
 const { sign, verify, authorize } = require('../shared/authMiddleware');
 
 const app = express();
-const PORT = process.env.PORT || process.env.AUTH_SERVICE_PORT || 3001;
+const PORT = process.env.AUTH_SERVICE_PORT || process.env.PORT || 3001;
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
+
+// Health Check Endpoints for Uptime Monitoring
+app.get('/health', (req, res) => res.json({ status: 'Auth service is up', timestamp: new Date() }));
+app.get('/', (req, res) => res.json({ status: 'Auth service is active', timestamp: new Date() }));
 
 // --- Auth Routes ---
 app.post('/auth/login', async (req, res) => {

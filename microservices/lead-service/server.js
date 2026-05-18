@@ -5,11 +5,15 @@ const { connect } = require('../shared/mongodb');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || process.env.LEAD_SERVICE_PORT || 3002;
+const PORT = process.env.LEAD_SERVICE_PORT || process.env.PORT || 3002;
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
+
+// Health Check Endpoints for Uptime Monitoring
+app.get('/health', (req, res) => res.json({ status: 'Lead service is up', timestamp: new Date() }));
+app.get('/', (req, res) => res.json({ status: 'Lead service is active', timestamp: new Date() }));
 
 // Routes
 app.use('/contacts', require('./routes/contacts'));

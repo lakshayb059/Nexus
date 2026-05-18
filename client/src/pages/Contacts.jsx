@@ -26,7 +26,15 @@ const Contacts = ({ filterType }) => {
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState(null);
   const [searchTerm, setSearchTerm]   = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
+
+  // Pagination states
+  const [page, setPage]               = useState(1);
+  const [limit]                       = useState(50);
+  const [totalPages, setTotalPages]   = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [totalLeadValue, setTotalLeadValue] = useState(0);
 
   const [selectedContact, setSelectedContact] = useState(null);
   const [dispForm, setDispForm] = useState({ disposition: '', remarks: '', appointmentDt: '', callBackDt: '', leadAmount: '' });
@@ -37,18 +45,39 @@ const Contacts = ({ filterType }) => {
   const [allAgents,        setAllAgents]        = useState([]);
   const [filteredAgents,   setFilteredAgents]   = useState([]);
 
+  // Debouncing search term to prevent spamming queries
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 400);
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchTerm]);
+
+  // Reset page to 1 when filters or search change
+  useEffect(() => {
+    setPage(1);
+  }, [filterType, selectedTl, selectedAgent, debouncedSearchTerm]);
+
   const fetchContacts = async () => {
     try {
-      let query = '';
-      if (filterType === 'leads')        query = '?disposition=Lead';
-      else if (filterType === 'appointments') query = '?disposition=Appointment';
-      else if (filterType === 'workflow') query = '?disposition=pending';
-      const connector = query ? '&' : '?';
-      if (selectedTl)    query += `${connector}tlId=${selectedTl}`;
-      if (selectedAgent) query += `${query.includes('?') ? '&' : '?'}agentId=${selectedAgent}`;
+      setLoading(true);
+      let query = `?page=${page}&limit=${limit}`;
+      
+      if (filterType === 'leads')        query += '&disposition=Lead';
+      else if (filterType === 'appointments') query += '&disposition=Appointment';
+      else if (filterType === 'workflow') query += '&disposition=pending';
+      
+      if (selectedTl)    query += `&tlId=${selectedTl}`;
+      if (selectedAgent) query += `&agentId=${selectedAgent}`;
+      if (debouncedSearchTerm) query += `&search=${encodeURIComponent(debouncedSearchTerm)}`;
 
       const res = await api.get(`/contacts${query}`);
-      setContacts(res.data);
+      
+      // The API returns paginated data structure: { contacts, total, page, limit, pages, totalLeadValue }
+      setContacts(res.data.contacts || []);
+      setTotalRecords(res.data.total || 0);
+      setTotalPages(res.data.pages || 1);
+      setTotalLeadValue(res.data.totalLeadValue || 0);
       setError(null);
 
       if (user?.role === 'admin' && tls.length === 0) {
@@ -72,7 +101,7 @@ const Contacts = ({ filterType }) => {
     const handler = () => fetchContacts();
     ['contacts_updated', 'batch_uploaded', 'users_updated'].forEach(e => socket.on(e, handler));
     return () => ['contacts_updated', 'batch_uploaded', 'users_updated'].forEach(e => socket.off(e, handler));
-  }, [filterType, socket, location.pathname, selectedTl, selectedAgent]);
+  }, [filterType, socket, location.pathname, selectedTl, selectedAgent, page, debouncedSearchTerm]);
 
   useEffect(() => {
     if (selectedTl) {
@@ -82,12 +111,8 @@ const Contacts = ({ filterType }) => {
     }
   }, [selectedTl, allAgents]);
 
-  const filtered = contacts.filter(c => {
-    if (!searchTerm) return true;
-    const q = searchTerm.toLowerCase();
-    return Object.values(c.fields || {}).some(v => String(v).toLowerCase().includes(q)) ||
-           (c.agentName && c.agentName.toLowerCase().includes(q));
-  });
+  // Backward compatible filtered variable which points to contacts directly
+  const filtered = contacts;
 
   const handleDispose = async (e) => {
     e.preventDefault();
@@ -147,8 +172,6 @@ const Contacts = ({ filterType }) => {
     }
   };
 
-  const totalLeadValue = contacts.reduce((s, c) => s + (Number(c.leadAmount) || 0), 0);
-
   const pageInfo = {
     leads:        { title: 'Leads',         icon: <Star size={22} style={{ color: '#10b981' }} /> },
     appointments: { title: 'Appointments',  icon: <Calendar size={22} style={{ color: '#8b5cf6' }} /> },
@@ -176,7 +199,7 @@ const Contacts = ({ filterType }) => {
               <Trash2 size={15} /> Delete Selected ({selectedIds.length})
             </button>
           )}
-          <span className="badge badge-primary" style={{ padding: '7px 14px', fontSize: '0.8rem' }}>{filtered.length} Records</span>
+          <span className="badge badge-primary" style={{ padding: '7px 14px', fontSize: '0.8rem' }}>{totalRecords} Records</span>
         </div>
       </div>
 
@@ -188,7 +211,7 @@ const Contacts = ({ filterType }) => {
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: '0.72rem', fontWeight: 700, opacity: 0.85, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#fff', marginBottom: 6 }}>Total Leads</div>
-            <div style={{ fontSize: '2rem', fontWeight: 800, color: '#fff' }}>{filtered.length}</div>
+            <div style={{ fontSize: '2rem', fontWeight: 800, color: '#fff' }}>{totalRecords}</div>
           </div>
         </div>
       )}
@@ -307,6 +330,84 @@ const Contacts = ({ filterType }) => {
           })
         )}
       </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginTop: 'var(--gap)',
+          padding: '14px 18px',
+          background: 'var(--bg-surface-1)',
+          borderRadius: 'var(--r-lg)',
+          border: '1px solid var(--border)',
+          gap: 16,
+          flexWrap: 'wrap'
+        }} className="glass-panel animate-fade-in">
+          <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            Showing <strong>{(page - 1) * limit + 1}</strong> to <strong>{Math.min(page * limit, totalRecords)}</strong> of <strong>{totalRecords}</strong> records
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button
+              className="btn btn-outline"
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              style={{ padding: '8px 16px', fontSize: '0.8rem' }}
+            >
+              Previous
+            </button>
+            
+            {/* Direct Page Jump Buttons */}
+            {(() => {
+              const pages = [];
+              const startPage = Math.max(1, page - 2);
+              const endPage = Math.min(totalPages, page + 2);
+              
+              if (startPage > 1) {
+                pages.push(
+                  <button key={1} className={`btn ${page === 1 ? 'btn-primary' : 'btn-outline'}`} onClick={() => setPage(1)} style={{ padding: '6px 10px', fontSize: '0.8rem', minWidth: 32 }}>
+                    1
+                  </button>
+                );
+                if (startPage > 2) {
+                  pages.push(<span key="dots-start" style={{ color: 'var(--text-muted)', margin: '0 4px' }}>...</span>);
+                }
+              }
+              
+              for (let i = startPage; i <= endPage; i++) {
+                pages.push(
+                  <button key={i} className={`btn ${page === i ? 'btn-primary' : 'btn-outline'}`} onClick={() => setPage(i)} style={{ padding: '6px 10px', fontSize: '0.8rem', minWidth: 32 }}>
+                    {i}
+                  </button>
+                );
+              }
+              
+              if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                  pages.push(<span key="dots-end" style={{ color: 'var(--text-muted)', margin: '0 4px' }}>...</span>);
+                }
+                pages.push(
+                  <button key={totalPages} className={`btn ${page === totalPages ? 'btn-primary' : 'btn-outline'}`} onClick={() => setPage(totalPages)} style={{ padding: '6px 10px', fontSize: '0.8rem', minWidth: 32 }}>
+                    {totalPages}
+                  </button>
+                );
+              }
+              
+              return pages;
+            })()}
+            
+            <button
+              className="btn btn-outline"
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              style={{ padding: '8px 16px', fontSize: '0.8rem' }}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
 
       {selectedContact && (
         <div className="modal-overlay">

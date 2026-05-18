@@ -5,7 +5,7 @@ const morgan = require('morgan');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || process.env.GATEWAY_PORT || 3000;
+const PORT = process.env.GATEWAY_PORT || process.env.PORT || 3000;
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(morgan('dev'));
@@ -37,7 +37,8 @@ const services = [
 
 // Health check with downstream warmup pings for Render Free plan
 const axios = require('axios');
-app.get('/health', (req, res) => {
+
+const handleHealth = (req, res) => {
   const downstreamUrls = [
     process.env.AUTH_SERVICE_URL || 'http://localhost:3001',
     process.env.LEAD_SERVICE_URL || 'http://localhost:3002',
@@ -57,7 +58,10 @@ app.get('/health', (req, res) => {
     services: 'Warmup pings dispatched to downstream microservices',
     timestamp: new Date() 
   });
-});
+};
+
+app.get('/health', handleHealth);
+app.get('/', handleHealth);
 
 // Setup Proxies
 services.forEach(service => {

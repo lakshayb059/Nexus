@@ -6,14 +6,15 @@ const { consolidateCallbacks, cleanupAllCallbacks, normalizePhone } = require('.
 const { broadcast } = require('../../shared/notificationClient');
 
 // Helper: get contacts based on role (Modified to use shared getCollection)
-async function getAccessibleContacts(user, filters = {}, includeDeleted = false) {
+// Helper: build contacts query based on role (Modified to use shared getCollection)
+async function getAccessibleContactsQuery(user, filters = {}, includeDeleted = false) {
   let query = { ...filters };
   if (!includeDeleted && user?.role !== 'admin') query.isDeleted = { $ne: true };
 
   try {
     if (!user || !user.role) {
       query._id = new ObjectId();
-      return [];
+      return query;
     }
 
     if (user.role === 'agent') {
@@ -42,7 +43,12 @@ async function getAccessibleContacts(user, filters = {}, includeDeleted = false)
   } catch (err) {
     if (user.role !== 'admin') query._id = new ObjectId();
   }
+  return query;
+}
 
+// Helper: get contacts based on role (Backward compatible)
+async function getAccessibleContacts(user, filters = {}, includeDeleted = false) {
+  const query = await getAccessibleContactsQuery(user, filters, includeDeleted);
   const contactsCollection = getCollection('contacts');
   return await contactsCollection.find(query).sort({ createdAt: -1 }).toArray();
 }
@@ -50,7 +56,7 @@ async function getAccessibleContacts(user, filters = {}, includeDeleted = false)
 // GET /contacts
 router.get('/', verify, authorize(['admin', 'tl', 'agent']), async (req, res) => {
   try {
-    const { disposition, agentId, tlId, search, batchId } = req.query;
+    const { disposition, agentId, tlId, search, batchId, page, limit } = req.query;
     const filters = {};
     if (disposition === 'pending') filters.disposition = null;
     else if (disposition) filters.disposition = disposition;
@@ -60,34 +66,110 @@ router.get('/', verify, authorize(['admin', 'tl', 'agent']), async (req, res) =>
       if (/^[0-9a-fA-F]{24}$/.test(agentId)) filters.assignedTo = new ObjectId(agentId);
     }
     if (req.user.role === 'admin' && tlId) filters.tlId = tlId;
-    if (search && typeof search === 'string' && search.trim()) filters.$text = { $search: search.trim() };
-
-    let contacts = await getAccessibleContacts(req.user, filters);
-
-    // Enrichment (Agent Names)
-    try {
-      const validAssignedToIds = contacts
-        .map(c => c.assignedTo)
-        .filter(id => id && /^[0-9a-fA-F]{24}$/.test(id.toString()))
-        .map(id => new ObjectId(id.toString()));
-
-      if (validAssignedToIds.length > 0) {
-        const uniqueIds = [...new Set(validAssignedToIds.map(id => id.toString()))].map(s => new ObjectId(s));
-        const usersCollection = getCollection('users');
-        const agents = await usersCollection.find({ _id: { $in: uniqueIds } }, { projection: { _id: 1, name: 1 } }).toArray();
-        const userMap = agents.reduce((acc, a) => { acc[a._id.toString()] = a.name; return acc; }, {});
-        contacts = contacts.map(c => ({
-          ...c,
-          agentName: c.assignedTo ? (userMap[c.assignedTo.toString()] || 'Unknown Agent') : 'Unassigned'
-        }));
-      } else {
-        contacts = contacts.map(c => ({ ...c, agentName: 'Unassigned' }));
-      }
-    } catch (err) {
-      contacts = contacts.map(c => ({ ...c, agentName: 'Unknown' }));
+    
+    // Server-side regex search for phone, name, mobile, agent name, remarks
+    if (search && typeof search === 'string' && search.trim()) {
+      const cleanSearch = search.trim();
+      const searchRegex = new RegExp(cleanSearch, 'i');
+      filters.$or = [
+        { 'fields.Name': searchRegex },
+        { 'fields.name': searchRegex },
+        { 'fields.Phone': searchRegex },
+        { 'fields.phone': searchRegex },
+        { 'fields.Mobile': searchRegex },
+        { 'fields.mobile': searchRegex },
+        { remarks: searchRegex }
+      ];
     }
-    return res.json(contacts);
+
+    const query = await getAccessibleContactsQuery(req.user, filters);
+    const contactsCollection = getCollection('contacts');
+
+    if (page) {
+      // Pagination Mode
+      const pageNum = parseInt(page) || 1;
+      const limitNum = parseInt(limit) || 50;
+      const skipNum = (pageNum - 1) * limitNum;
+
+      const total = await contactsCollection.countDocuments(query);
+      
+      let contacts = await contactsCollection.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skipNum)
+        .limit(limitNum)
+        .toArray();
+
+      // Enrichment (Agent Names)
+      try {
+        const validAssignedToIds = contacts
+          .map(c => c.assignedTo)
+          .filter(id => id && /^[0-9a-fA-F]{24}$/.test(id.toString()))
+          .map(id => new ObjectId(id.toString()));
+
+        if (validAssignedToIds.length > 0) {
+          const uniqueIds = [...new Set(validAssignedToIds.map(id => id.toString()))].map(s => new ObjectId(s));
+          const usersCollection = getCollection('users');
+          const agents = await usersCollection.find({ _id: { $in: uniqueIds } }, { projection: { _id: 1, name: 1 } }).toArray();
+          const userMap = agents.reduce((acc, a) => { acc[a._id.toString()] = a.name; return acc; }, {});
+          contacts = contacts.map(c => ({
+            ...c,
+            agentName: c.assignedTo ? (userMap[c.assignedTo.toString()] || 'Unknown Agent') : 'Unassigned'
+          }));
+        } else {
+          contacts = contacts.map(c => ({ ...c, agentName: 'Unassigned' }));
+        }
+      } catch (err) {
+        contacts = contacts.map(c => ({ ...c, agentName: 'Unknown' }));
+      }
+
+      // Calculate total lead amount if disposition is Lead for lead stats panel
+      let totalLeadValue = 0;
+      if (disposition === 'Lead') {
+        const leadStats = await contactsCollection.aggregate([
+          { $match: query },
+          { $group: { _id: null, totalAmount: { $sum: { $ifNull: ['$leadAmount', 0] } } } }
+        ]).toArray();
+        totalLeadValue = leadStats[0]?.totalAmount || 0;
+      }
+
+      return res.json({
+        contacts,
+        total,
+        page: pageNum,
+        limit: limitNum,
+        pages: Math.ceil(total / limitNum),
+        totalLeadValue
+      });
+    } else {
+      // Backward Compatible Mode (Fetch all at once)
+      let contacts = await contactsCollection.find(query).sort({ createdAt: -1 }).toArray();
+
+      // Enrichment (Agent Names)
+      try {
+        const validAssignedToIds = contacts
+          .map(c => c.assignedTo)
+          .filter(id => id && /^[0-9a-fA-F]{24}$/.test(id.toString()))
+          .map(id => new ObjectId(id.toString()));
+
+        if (validAssignedToIds.length > 0) {
+          const uniqueIds = [...new Set(validAssignedToIds.map(id => id.toString()))].map(s => new ObjectId(s));
+          const usersCollection = getCollection('users');
+          const agents = await usersCollection.find({ _id: { $in: uniqueIds } }, { projection: { _id: 1, name: 1 } }).toArray();
+          const userMap = agents.reduce((acc, a) => { acc[a._id.toString()] = a.name; return acc; }, {});
+          contacts = contacts.map(c => ({
+            ...c,
+            agentName: c.assignedTo ? (userMap[c.assignedTo.toString()] || 'Unknown Agent') : 'Unassigned'
+          }));
+        } else {
+          contacts = contacts.map(c => ({ ...c, agentName: 'Unassigned' }));
+        }
+      } catch (err) {
+        contacts = contacts.map(c => ({ ...c, agentName: 'Unknown' }));
+      }
+      return res.json(contacts);
+    }
   } catch (err) {
+    console.error('Fetch contacts error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
