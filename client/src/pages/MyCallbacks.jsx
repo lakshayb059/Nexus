@@ -17,7 +17,14 @@ const MyCallbacks = () => {
     try {
       setLoading(true);
       const res = await api.get('/leads/callbacks');
-      setCallbacks(res.data);
+      // Sort chronologically. Urgent/No-date callbacks go first.
+      const sorted = (res.data || []).sort((a, b) => {
+        if (!a.callBackDt && !b.callBackDt) return 0;
+        if (!a.callBackDt) return -1;
+        if (!b.callBackDt) return 1;
+        return new Date(a.callBackDt) - new Date(b.callBackDt);
+      });
+      setCallbacks(sorted);
     } catch (err) {
       console.error('Fetch callbacks failed', err);
     } finally {
@@ -136,9 +143,6 @@ const MyCallbacks = () => {
     };
   };
 
-  const leadFollowUps = callbacks.filter(c => c.source === 'lead');
-  const workflowFollowUps = callbacks.filter(c => c.source !== 'lead');
-
   const renderList = (list, emptyMessage) => {
     if (list.length === 0) {
       return (
@@ -206,6 +210,14 @@ const MyCallbacks = () => {
                   )}
 
                   <div style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span className="badge" style={{ 
+                      backgroundColor: cb.source === 'lead' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(6, 182, 212, 0.15)', 
+                      color: cb.source === 'lead' ? '#10b981' : '#06b6d4', 
+                      fontSize: '0.7rem',
+                      fontWeight: 600
+                    }}>
+                      {cb.source === 'lead' ? 'Leads Follow Up' : 'Workflow Follow Up'}
+                    </span>
                     {cb.disposition === 'Lead' && (
                       <span className="badge badge-success" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                         <Award size={12} /> Lead: ₹{cb.leadAmount?.toLocaleString()}
@@ -298,16 +310,10 @@ const MyCallbacks = () => {
       ) : (
         <>
           <h2 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: 12, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Star size={18} color="var(--success)" /> Leads Follow Ups 
-            <span className="badge" style={{ fontSize: '0.75rem', background: 'var(--bg-surface-2)', color: 'var(--text-muted)' }}>{leadFollowUps.length}</span>
+            <Clock size={18} color="var(--primary)" /> Scheduled Callbacks
+            <span className="badge" style={{ fontSize: '0.75rem', background: 'var(--bg-surface-2)', color: 'var(--text-muted)' }}>{callbacks.length}</span>
           </h2>
-          {renderList(leadFollowUps, 'No follow-ups generated from the Leads page.')}
-
-          <h2 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: 12, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Phone size={18} color="var(--cyan)" /> Workflow Follow Ups
-            <span className="badge" style={{ fontSize: '0.75rem', background: 'var(--bg-surface-2)', color: 'var(--text-muted)' }}>{workflowFollowUps.length}</span>
-          </h2>
-          {renderList(workflowFollowUps, 'No follow-ups scheduled during normal workflow.')}
+          {renderList(callbacks, 'No scheduled follow-up callbacks.')}
         </>
       )}
 
