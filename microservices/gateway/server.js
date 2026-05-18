@@ -7,7 +7,7 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || process.env.GATEWAY_PORT || 3000;
 
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 app.use(morgan('dev'));
 
 // Service Routes
@@ -65,11 +65,29 @@ services.forEach(service => {
     target: service.target,
     changeOrigin: true,
     ws: service.ws || false,
-    secure: false, // For local dev with localhost
+    secure: service.target.startsWith('https:'), // Enable SSL certificate verification for remote HTTPS targets (SNI required by Render)
     pathRewrite: (path) => {
       return path.startsWith('/api') ? path.replace('/api', '') : path;
     },
     logLevel: 'debug',
+    onError: (err, req, res) => {
+      console.error(`❌ [Gateway Proxy Error] Failed to proxy ${req.method} ${req.url} to ${service.target}:`, err.message);
+      if (!res.headersSent) {
+        res.status(502).json({
+          error: 'Bad Gateway',
+          message: 'The API Gateway failed to communicate with the downstream service.',
+          details: err.message,
+          target: service.target,
+          path: req.url
+        });
+      }
+    },
+    onProxyReq: (proxyReq, req, res) => {
+      console.log(`📡 [Gateway Proxy] ${req.method} ${req.url} -> ${service.target}${proxyReq.path}`);
+    },
+    onProxyRes: (proxyRes, req, res) => {
+      console.log(`✅ [Gateway Response] Received ${proxyRes.statusCode} from ${service.target} for ${req.method} ${req.url}`);
+    },
     onProxyReqWs: (proxyReq, req, socket, options, head) => {
       // Ensure WebSocket handshake headers are perfectly preserved
       proxyReq.setHeader('Origin', service.target);
