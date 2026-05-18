@@ -202,6 +202,12 @@ router.get('/callbacks', verify, authorize(['agent', 'tl', 'admin']), async (req
 
     const userMap = allUsers.reduce((acc, u) => { acc[u._id.toString()] = u.name; return acc; }, {});
 
+    // Map callbacks from the callbacksCollection to standard schema, ensuring they have the correct source
+    const mappedCallbacks = callbacks.map(c => ({
+      ...c,
+      source: c.source || (c.status === 'Call Back' || c.status === 'CallBack' || c.leadAmount > 0 ? 'lead' : undefined)
+    }));
+
     // Map contactCbs to standard callback schema
     const mappedContactCbs = contactCbs.map(c => ({
       _id: c._id,
@@ -215,14 +221,14 @@ router.get('/callbacks', verify, authorize(['agent', 'tl', 'admin']), async (req
       disposition: c.disposition,
       status: c.status,
       leadAmount: c.leadAmount,
-      source: c.source || (c.status === 'Call Back' || c.leadAmount > 0 ? 'lead' : undefined),
+      source: c.source || (c.status === 'Call Back' || c.status === 'CallBack' || c.leadAmount > 0 ? 'lead' : undefined),
       createdAt: c.createdAt || c.disposedAt || new Date(),
       lastModified: c.lastModified || new Date()
     }));
 
     // Deduplicate by contactId to prevent double listing
     const mergedMap = new Map();
-    [...callbacks, ...mappedContactCbs].forEach(cb => {
+    [...mappedCallbacks, ...mappedContactCbs].forEach(cb => {
       const cid = cb.contactId ? cb.contactId.toString() : cb._id.toString();
       if (!mergedMap.has(cid) || new Date(cb.createdAt) > new Date(mergedMap.get(cid).createdAt)) {
         mergedMap.set(cid, cb);
@@ -384,6 +390,7 @@ router.put('/:id', verify, authorize(['agent', 'tl', 'admin']), async (req, res)
         callBackDt: callBackDt,
         remarks: req.body.remarks || 'Status changed from Lead to Callback',
         status: 'Call Back',
+        source: 'lead',
         createdAt: new Date(),
         lastModified: new Date()
       });
