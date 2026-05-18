@@ -88,9 +88,18 @@ export const AuthProvider = ({ children }) => {
 
       return { success: true };
     } catch (error) {
+      console.error('❌ Login failure detail:', error);
+      let errorMessage = 'Login failed. Please check credentials.';
+      
+      if (error.response?.status === 502 || error.message === 'Network Error' || !error.response) {
+        errorMessage = '📡 Server is waking up from sleep (Render Free Tier cold start). Please wait 10-15 seconds and try again!';
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+
       return {
         success: false,
-        error: error.response?.data?.error || 'Login failed. Please check credentials.'
+        error: errorMessage
       };
     }
   };
