@@ -16,12 +16,32 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Add a response interceptor to handle auth errors globally
+// Add a response interceptor to handle auth errors globally and auto-retry 502 errors due to Render cold starts
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response && error.response.status === 401) {
-      if (error.config && !error.config.url.includes('/auth/login')) {
+  async (error) => {
+    const { config, response } = error;
+    
+    // Check if the error is a 502 Bad Gateway and we haven't reached max retries yet
+    if (response && response.status === 502) {
+      config.__retryCount = config.__retryCount || 0;
+      const maxRetries = 3;
+      const retryDelay = 4000; // 4 seconds delay between retries
+      
+      if (config.__retryCount < maxRetries) {
+        config.__retryCount += 1;
+        console.warn(`⚠️ [Render Cold Start (502)] detected. Retrying request (${config.__retryCount}/${maxRetries}) in ${retryDelay / 1000}s...`, config.url);
+        
+        // Wait for the delay duration
+        await new Promise((resolve) => setTimeout(resolve, retryDelay));
+        
+        // Retry the request with the same configuration
+        return api(config);
+      }
+    }
+
+    if (response && response.status === 401) {
+      if (config && !config.url.includes('/auth/login')) {
         alert('Session expired. Please relogin to continue.');
         localStorage.removeItem('crm_token');
         localStorage.removeItem('crm_user');
