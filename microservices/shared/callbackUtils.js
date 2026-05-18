@@ -17,40 +17,41 @@ async function consolidateCallbacks(phoneNum) {
     const contactsCollection = getCollection('contacts');
     const phoneRegex = new RegExp(normalized + '$');
 
+    // Sort by createdAt descending to ensure we keep the newest callback and contact record
     const allCallbacks = await callbacksCollection.find({
       $or: [
         { "fields.Phone": { $regex: phoneRegex } },
         { "fields.phone": { $regex: phoneRegex } },
         { "fields.Mobile": { $regex: phoneRegex } }
       ]
-    }).sort({ callBackDt: 1 }).toArray();
+    }).sort({ createdAt: -1 }).toArray();
 
     if (allCallbacks.length <= 1) return;
 
-    const earliestCb = allCallbacks[0];
-    const laterCbs = allCallbacks.slice(1);
+    const newestCb = allCallbacks[0];
+    const olderCbs = allCallbacks.slice(1);
 
-    let mergedRemarks = earliestCb.remarks || '';
-    for (const cb of laterCbs) {
+    let mergedRemarks = newestCb.remarks || '';
+    for (const cb of olderCbs) {
       if (cb.remarks && !mergedRemarks.includes(cb.remarks)) {
-        mergedRemarks += ` | [Later CB Remark: ${cb.remarks}]`;
+        mergedRemarks += ` | [Older CB Remark: ${cb.remarks}]`;
       }
     }
 
     await callbacksCollection.updateOne(
-      { _id: earliestCb._id },
+      { _id: newestCb._id },
       { $set: { remarks: mergedRemarks, lastModified: new Date() } }
     );
 
-    if (earliestCb.contactId) {
+    if (newestCb.contactId) {
       await contactsCollection.updateOne(
-        { _id: new ObjectId(earliestCb.contactId) },
+        { _id: new ObjectId(newestCb.contactId) },
         { $set: { remarks: mergedRemarks, lastModified: new Date() } }
       );
     }
 
-    const callbackIdsToDelete = laterCbs.map(cb => cb._id);
-    const contactIdsToDelete = laterCbs.map(cb => cb.contactId).filter(id => id && String(id) !== String(earliestCb.contactId));
+    const callbackIdsToDelete = olderCbs.map(cb => cb._id);
+    const contactIdsToDelete = olderCbs.map(cb => cb.contactId).filter(id => id && String(id) !== String(newestCb.contactId));
 
     if (callbackIdsToDelete.length > 0) {
       await callbacksCollection.deleteMany({ _id: { $in: callbackIdsToDelete } });
