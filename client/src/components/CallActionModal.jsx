@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, PhoneCall, Star, Calendar, XCircle, RotateCw } from 'lucide-react';
 
 const CallActionModal = ({ lead, onClose, onSubmit }) => {
@@ -12,6 +12,13 @@ const CallActionModal = ({ lead, onClose, onSubmit }) => {
     remarks: ''
   });
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, []);
 
   if (!lead) return null;
 
@@ -161,11 +168,13 @@ const CallActionModal = ({ lead, onClose, onSubmit }) => {
       <style>{`
         .call-modal-overlay {
           position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px);
-          display: flex; align-items: center; justify-content: center; z-index: 99999; padding: 20px;
+          display: flex; align-items: flex-start; justify-content: center; z-index: 99999; padding: 40px 16px;
+          overflow-y: auto;
         }
         .call-modal-content {
           background: var(--bg-surface); width: 100%; max-width: 450px; border-radius: 24px;
-          box-shadow: 0 40px 100px -12px rgba(0, 0, 0, 0.6); border: 1px solid var(--border); overflow: hidden;
+          box-shadow: 0 40px 100px -12px rgba(0, 0, 0, 0.6); border: 1px solid var(--border);
+          margin: 0 auto;
         }
         .call-modal-header { padding: 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
         .call-modal-close { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 8px; border-radius: 10px; transition: all 0.2s; }

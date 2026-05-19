@@ -122,26 +122,61 @@ select.input-field{cursor:pointer;}
 .crm-table tbody td{padding:11px 16px;font-size:0.83rem;vertical-align:middle;}
 
 /* ============================================================
-   MODAL
+   MODAL - LOCKED TO THE TOP CENTER & RESPONSIVE
    ============================================================ */
-.modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,0.4);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:5000;padding:14px;}
-.modal-box{background:rgba(255,255,255,0.96);backdrop-filter:blur(24px);border:1px solid var(--glass-border);border-radius:var(--r-xl);width:100%;max-width:460px;padding:24px;box-shadow:0 18px 50px rgba(15,23,42,0.16);animation:modalIn var(--t-base) var(--ease);}
+.modal-overlay{
+  position:fixed;
+  inset:0;
+  background:rgba(15,23,42,0.6);
+  backdrop-filter:blur(8px);
+  display:flex;
+  align-items:flex-start; /* Lock to the top center */
+  justify-content:center; /* Horizontally center */
+  z-index:5000;
+  padding:40px 16px;
+  overflow-y:auto;
+}
+
+.modal-box{
+  background:rgba(255,255,255,0.98);
+  backdrop-filter:blur(24px);
+  border:1px solid var(--glass-border);
+  border-radius:var(--r-xl);
+  width:100%;
+  max-width:500px;
+  padding:24px;
+  box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);
+  animation:modalIn var(--t-base) var(--ease);
+  margin:0 auto;
+}
+
 .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;}
 .modal-header h2{font-size:1rem;font-weight:800;color:var(--text-primary);}
-@media(max-width:640px){.modal-overlay{align-items:flex-end;padding:0;}.modal-box{max-width:100%;border-radius:var(--r-xl) var(--r-xl) 0 0;padding:20px 16px 36px;animation:slideUp var(--t-base) var(--ease);}}
+
+/* Mobile adjustments */
+@media(max-width:640px){
+  .modal-overlay{
+    padding:20px 12px;
+  }
+  .modal-box{
+    max-width:100%;
+    padding:20px 16px;
+    border-radius:var(--r-xl);
+  }
+}
 
 /* ============================================================
    ANIMATIONS
    ============================================================ */
-@keyframes fadeUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
-@keyframes modalIn{from{opacity:0;transform:scale(0.96) translateY(8px);}to{opacity:1;transform:scale(1) translateY(0);}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:none;}}
+@keyframes modalIn{from{opacity:0;transform:scale(0.96) translateY(8px);}to{opacity:1;transform:none;}}
 @keyframes shimmer{from{background-position:-500px 0;}to{background-position:500px 0;}}
 @keyframes pulseRing{0%{box-shadow:0 0 0 0 rgba(37,99,235,0.28);}70%{box-shadow:0 0 0 8px rgba(37,99,235,0);}100%{box-shadow:0 0 0 0 rgba(37,99,235,0);}}
 @keyframes spin{to{transform:rotate(360deg);}}
 @keyframes bounce{0%,100%{transform:translateY(0);}50%{transform:translateY(-4px);}}
 @keyframes slideUp{from{transform:translateY(100%);}to{transform:translateY(0);}}
-@keyframes scaleUp{from{opacity:0;transform:scale(0.95);}to{opacity:1;transform:scale(1);}}
-@keyframes revealUp{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+@keyframes scaleUp{from{opacity:0;transform:scale(0.95);}to{opacity:1;transform:none;}}
+@keyframes revealUp{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:none;}}
 
 .animate-fade-up{animation:fadeUp var(--t-slow) var(--ease) forwards;}
 .animate-fade-in{animation:fadeUp var(--t-base) var(--ease) forwards;}
@@ -187,8 +222,8 @@ select.input-field{cursor:pointer;}
 /* ============================================================
    STATUS / HISTORY MODAL
    ============================================================ */
-.status-modal-overlay{position:fixed;inset:0;background:var(--bg-overlay);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:3000;padding:16px;}
-.status-modal-content{background:var(--bg-surface);border:1px solid var(--glass-border);border-radius:var(--r-xl);width:100%;box-shadow:var(--shadow-lg);overflow:hidden;display:flex;flex-direction:column;}
+.status-modal-overlay{position:fixed;inset:0;background:var(--bg-overlay);backdrop-filter:blur(8px);display:flex;align-items:flex-start;justify-content:center;z-index:3000;padding:40px 16px;overflow-y:auto;}
+.status-modal-content{background:var(--bg-surface);border:1px solid var(--glass-border);border-radius:var(--r-xl);width:100%;max-width:600px;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;margin:0 auto;}
 .status-modal-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
 .status-modal-body{padding:20px;}
 .status-modal-footer{padding:14px 20px;border-top:1px solid var(--border);background:var(--bg-surface-2);}

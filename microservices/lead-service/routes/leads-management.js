@@ -73,11 +73,18 @@ router.post('/workflow/dispose', verify, authorize(['agent']), async (req, res) 
         callBackDt: new Date(callBackDt), remarks: remarks || '', createdAt: new Date(), lastModified: new Date()
       });
     } else if (disposition === 'CallNotAnswered' || disposition === 'HungUp') {
-      const maxOrderContact = await contactsCollection.find({ assignedTo: new ObjectId(req.user._id), queueOrder: { $lt: 999999 } }).sort({ queueOrder: -1 }).limit(1).toArray();
-      update.queueOrder = maxOrderContact.length > 0 ? (maxOrderContact[0].queueOrder + 1) : 0;
       update.callAttempts = (contact.callAttempts || 0) + 1;
       update.rechurnCount = (contact.rechurnCount || 0) + 1;
       update.lastCallAttempt = new Date();
+      if (update.rechurnCount >= 3) {
+        update.queueOrder = 999999;
+      } else {
+        const maxOrderContact = await contactsCollection.find({
+          assignedTo: new ObjectId(req.user._id),
+          queueOrder: { $lt: 999999 }
+        }).sort({ queueOrder: -1 }).limit(1).toArray();
+        update.queueOrder = maxOrderContact.length > 0 ? (maxOrderContact[0].queueOrder + 1) : 1;
+      }
     }
 
     await contactsCollection.updateOne({ _id: new ObjectId(contactId) }, { $set: update });

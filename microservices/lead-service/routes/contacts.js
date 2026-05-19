@@ -214,8 +214,16 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
       update.cbReminderSent = false; update.queueOrder = 999999; update.status = 'Call Back';
     } else if (disposition === 'CallNotAnswered' || disposition === 'HungUp') {
       update.rechurnCount = (contact.rechurnCount || 0) + 1;
-      update.queueOrder = update.rechurnCount >= 3 ? 999999 : 0;
       update.lastCallAttempt = new Date();
+      if (update.rechurnCount >= 3) {
+        update.queueOrder = 999999;
+      } else {
+        const maxOrderContact = await contactsCollection.find({
+          assignedTo: new ObjectId(req.user._id),
+          queueOrder: { $lt: 999999 }
+        }).sort({ queueOrder: -1 }).limit(1).toArray();
+        update.queueOrder = maxOrderContact.length > 0 ? (maxOrderContact[0].queueOrder + 1) : 1;
+      }
     } else {
       update.queueOrder = 999999;
     }

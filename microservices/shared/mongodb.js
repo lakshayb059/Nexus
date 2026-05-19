@@ -1,4 +1,13 @@
 require('dotenv').config();
+const dns = require('dns');
+
+// Force Node.js to use public DNS servers that support SRV queries to avoid local DNS/ISP SRV lookup failures (ECONNREFUSED/ENOTFOUND)
+try {
+  dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+} catch (e) {
+  console.warn("⚠️ Failed to set public DNS servers, falling back to default:", e.message);
+}
+
 const { MongoClient } = require('mongodb');
 
 let MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://gargabhi999:gargabhi999@crm.8eds5va.mongodb.net/?appName=CRM';

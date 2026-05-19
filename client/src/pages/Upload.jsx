@@ -47,6 +47,17 @@ const Upload = () => {
     return () => events.forEach(e => socket.off(e, fetchData));
   }, [socket, fetchData]);
 
+  useEffect(() => {
+    if (handoverBatch || uploadResult) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [handoverBatch, uploadResult]);
+
   const validateFile = (f) => {
     if (!f) return false;
     const valid = f.name.endsWith('.csv') || f.name.endsWith('.xlsx') || f.name.endsWith('.xls');

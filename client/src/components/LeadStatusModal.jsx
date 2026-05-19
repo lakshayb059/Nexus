@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Check, Calendar, MessageSquare, CreditCard, RotateCw } from 'lucide-react';
 
 const LeadStatusModal = ({ lead, newStatus, onClose, onSave, submitting }) => {
@@ -8,6 +8,13 @@ const LeadStatusModal = ({ lead, newStatus, onClose, onSave, submitting }) => {
     statusDetails: lead.statusDetails || '',
     remarks: lead.remarks || '',
   });
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, []);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -132,10 +139,11 @@ const LeadStatusModal = ({ lead, newStatus, onClose, onSave, submitting }) => {
           background: rgba(15, 23, 42, 0.85);
           backdrop-filter: blur(12px);
           display: flex;
-          align-items: center;
+          align-items: flex-start;
           justify-content: center;
           z-index: 99999; /* Extremely high to beat any other modal */
-          padding: 20px;
+          padding: 40px 16px;
+          overflow-y: auto;
         }
         .detail-modal-content {
           background: var(--bg-surface);
@@ -144,7 +152,7 @@ const LeadStatusModal = ({ lead, newStatus, onClose, onSave, submitting }) => {
           border-radius: 24px;
           box-shadow: 0 40px 100px -12px rgba(0, 0, 0, 0.6);
           border: 1px solid var(--border);
-          overflow: hidden;
+          margin: 0 auto;
         }
         .detail-modal-header {
           padding: 24px;

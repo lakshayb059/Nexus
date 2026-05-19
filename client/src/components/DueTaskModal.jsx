@@ -109,6 +109,17 @@ const DueTaskModal = () => {
     }
   };
 
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
   if (!isOpen || !contact) return null;
 
   return (
@@ -214,19 +225,20 @@ const DueTaskModal = () => {
           background: rgba(0,0,0,0.85);
           backdrop-filter: blur(8px);
           display: flex;
-          align-items: center;
+          align-items: flex-start;
           justify-content: center;
           z-index: 9999;
-          padding: 20px;
+          padding: 40px 16px;
+          overflow-y: auto;
         }
         .due-task-modal {
           background: var(--bg-surface);
           width: 100%;
           max-width: 600px;
           border-radius: 24px;
-          overflow: hidden;
           box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
           border: 1px solid rgba(255,255,255,0.1);
+          margin: 0 auto;
         }
         .due-task-header {
           padding: 20px 24px;

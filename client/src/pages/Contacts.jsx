@@ -111,6 +111,17 @@ const Contacts = ({ filterType }) => {
     }
   }, [selectedTl, allAgents]);
 
+  useEffect(() => {
+    if (selectedContact) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [selectedContact]);
+
   // Backward compatible filtered variable which points to contacts directly
   const filtered = contacts;
 

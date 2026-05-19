@@ -39,6 +39,17 @@ const Users = () => {
     return () => socket.off('users_updated', fetchUsers);
   }, [socket]);
 
+  useEffect(() => {
+    if (isModalOpen || showActionModal || showReactivateModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isModalOpen, showActionModal, showReactivateModal]);
+
   const tls     = users.filter(u => u.role === 'tl');
   const admins  = users.filter(u => u.role === 'admin');
   const agents  = users.filter(u => u.role === 'agent');

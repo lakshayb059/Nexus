@@ -72,6 +72,17 @@ const MyLeads = () => {
     };
   }, [socket]);
 
+  useEffect(() => {
+    if (modalLead || callActionLead || historyContact) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [modalLead, callActionLead, historyContact]);
+
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this lead? This will remove all associated data.')) return;
     try {
