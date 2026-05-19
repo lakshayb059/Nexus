@@ -187,13 +187,37 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
 
     if (!contact) return res.status(404).json({ error: 'Contact not found' });
 
+    const DISP_LABELS = {
+      'Lead': 'Lead',
+      'Appointment': 'Appointment',
+      'CallNotAnswered': 'Call Not Answered',
+      'HungUp': 'Hung Up',
+      'Invalid': 'Invalid / Wrong No.',
+      'DoNotCall': 'Do Not Call',
+      'CallBack': 'Call Back'
+    };
+    const dispositionLabel = DISP_LABELS[disposition] || disposition;
+    const dateStr = new Date().toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true
+    });
+    const agentName = req.user.name || req.user.username || 'Agent';
+    const newRemarkEntry = `[${dispositionLabel} by ${agentName} on ${dateStr}]: ${remarks || ''}`;
+    const updatedRemarks = contact.remarks 
+      ? `${contact.remarks} | ${newRemarkEntry}` 
+      : newRemarkEntry;
+
     const update = {
       disposition,
-      remarks: remarks || '',
+      remarks: updatedRemarks,
       lastModified: new Date(),
       disposedBy: new ObjectId(req.user._id),
       disposedAt: new Date(),
-      agentName: req.user.name,
+      agentName: agentName,
       agentId: new ObjectId(req.user._id)
     };
 
@@ -663,7 +687,18 @@ router.put('/:id/status', verify, authorize(['agent', 'tl', 'admin']), async (re
     if (statusDetails !== undefined) update.statusDetails = statusDetails;
     if (transactionId !== undefined) update.transactionId = transactionId;
     if (remarks !== undefined) {
-      update.remarks = contact.remarks ? `${contact.remarks} | ${remarks}` : remarks;
+      const dateStr = new Date().toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        hour12: true
+      });
+      const updaterName = req.user.name || req.user.username || 'Staff';
+      const actionLabel = status ? `Status: ${status}` : 'Status Update';
+      const newRemarkEntry = `[${actionLabel} by ${updaterName} on ${dateStr}]: ${remarks}`;
+      update.remarks = contact.remarks ? `${contact.remarks} | ${newRemarkEntry}` : newRemarkEntry;
     }
 
     // Handle transitions if status is Call Back, Appointment, or Lead
@@ -754,13 +789,25 @@ router.post('/:id/requeue', verify, authorize(['agent', 'tl', 'admin']), async (
     const contact = await contactsCollection.findOne({ _id: contactId });
     if (!contact) return res.status(404).json({ error: 'Contact not found' });
 
+    const dateStr = new Date().toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true
+    });
+    const adminName = req.user.name || req.user.username || 'Staff';
+    const requeueEntry = `[Requeued by ${adminName} on ${dateStr}]`;
+    const updatedRemarks = contact.remarks ? `${contact.remarks} | ${requeueEntry}` : requeueEntry;
+
     // Set queueOrder to 0 (top of queue) and clear disposition/appointment/callback details
     const update = {
       disposition: null,
       callBackDt: null,
       appointmentDt: null,
       queueOrder: 0,
-      remarks: contact.remarks ? `${contact.remarks} | Requeued by ${req.user.name}` : `Requeued by ${req.user.name}`,
+      remarks: updatedRemarks,
       lastModified: new Date()
     };
 

@@ -326,30 +326,142 @@ const Workflow = () => {
             })}
           </div>
 
-          {contact.remarks && (
-            <div style={{ marginTop: 20, padding: '12px 16px', background: 'var(--bg-surface-2)', borderRadius: 'var(--r-md)', borderLeft: '4px solid var(--primary)' }}>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.05em', marginBottom: 8 }}>Previous Remarks / History</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {contact.remarks.split(' | ').map((remark, idx) => (
-                  <div key={idx} style={{ 
-                    fontSize: '0.9rem',
-                    color: idx === 0 ? 'var(--text-primary)' : 'var(--text-muted)',
-                    fontStyle: 'italic',
-                    paddingLeft: idx === 0 ? 0 : 12,
-                    borderLeft: idx === 0 ? 'none' : '2px solid var(--border)',
-                    lineHeight: 1.4
-                  }}>
-                    {remark.startsWith('[Later CB Remark:') ? (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Clock size={12} style={{ opacity: 0.6 }} />
-                        {remark.replace('[Later CB Remark:', '').replace(']', '').trim()}
-                      </span>
-                    ) : remark}
-                  </div>
-                ))}
+          {(() => {
+            const parseRemark = (remarkStr) => {
+              const requeueRegex = /^\[Requeued by (.+?) on (.+?)\]$/;
+              const standardRegex = /^\[(.+?) by (.+?) on (.+?)\]:\s*(.*)$/;
+              const cbRegex = /^\[Later CB Remark:\s*(.*)\]$/;
+              const oldRequeueRegex = /^Requeued by (.+)$/;
+
+              if (requeueRegex.test(remarkStr)) {
+                const [_, name, date] = remarkStr.match(requeueRegex);
+                return { type: 'requeue', label: 'Requeued', agent: name, date, content: 'Contact was returned to the active calling queue.' };
+              }
+              if (standardRegex.test(remarkStr)) {
+                const [_, disposal, agent, date, content] = remarkStr.match(standardRegex);
+                return { type: 'disposal', label: disposal, agent, date, content };
+              }
+              if (cbRegex.test(remarkStr)) {
+                const [_, content] = remarkStr.match(cbRegex);
+                return { type: 'callback', label: 'Callback', content };
+              }
+              if (oldRequeueRegex.test(remarkStr)) {
+                const [_, name] = remarkStr.match(oldRequeueRegex);
+                return { type: 'requeue', label: 'Requeued', agent: name, content: 'Contact was returned to the active calling queue.' };
+              }
+              return { type: 'legacy', content: remarkStr };
+            };
+
+            const getEntryMeta = (type, label) => {
+              const normLabel = (label || '').toLowerCase();
+              if (normLabel.includes('lead')) return { color: '#10b981', bgColor: 'rgba(16, 185, 129, 0.1)', border: '#10b981' };
+              if (normLabel.includes('appointment')) return { color: '#8b5cf6', bgColor: 'rgba(139, 92, 246, 0.1)', border: '#8b5cf6' };
+              if (normLabel.includes('not answered')) return { color: '#f59e0b', bgColor: 'rgba(245, 158, 11, 0.1)', border: '#f59e0b' };
+              if (normLabel.includes('hung up')) return { color: '#f43f5e', bgColor: 'rgba(244, 63, 94, 0.1)', border: '#f43f5e' };
+              if (normLabel.includes('invalid') || normLabel.includes('wrong')) return { color: '#ef4444', bgColor: 'rgba(239, 68, 68, 0.1)', border: '#ef4444' };
+              if (normLabel.includes('do not call') || normLabel.includes('dnc')) return { color: '#b91c1c', bgColor: 'rgba(185, 28, 28, 0.1)', border: '#b91c1c' };
+              if (normLabel.includes('call back')) return { color: '#06b6d4', bgColor: 'rgba(6, 182, 212, 0.1)', border: '#06b6d4' };
+              if (normLabel.includes('requeued')) return { color: '#3b82f6', bgColor: 'rgba(59, 130, 246, 0.1)', border: '#3b82f6' };
+              if (normLabel.includes('callback')) return { color: '#06b6d4', bgColor: 'rgba(6, 182, 212, 0.1)', border: '#06b6d4' };
+              
+              if (normLabel.includes('status:')) return { color: '#8b5cf6', bgColor: 'rgba(139, 92, 246, 0.1)', border: '#8b5cf6' };
+
+              return { color: 'var(--primary)', bgColor: 'rgba(99, 102, 241, 0.1)', border: 'var(--primary)' };
+            };
+
+            if (!contact.remarks) return null;
+
+            return (
+              <div style={{ marginTop: 24, padding: '20px 24px 24px', background: 'var(--bg-surface-2)', borderRadius: 'var(--r-lg)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 900, letterSpacing: '0.08em', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <TrendingUp size={14} color="var(--primary)" /> Previous Remarks / History
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 0, position: 'relative', paddingLeft: 18, borderLeft: '2px solid var(--border)' }}>
+                  {contact.remarks.split(' | ').reverse().map((remarkStr, idx, arr) => {
+                    const entry = parseRemark(remarkStr);
+                    const meta = getEntryMeta(entry.type, entry.label);
+                    
+                    return (
+                      <div key={idx} style={{ position: 'relative', marginBottom: idx === arr.length - 1 ? 0 : 20 }}>
+                        {/* Timeline indicator node */}
+                        <div style={{ 
+                          position: 'absolute', 
+                          left: -27, 
+                          top: 2, 
+                          width: 16, 
+                          height: 16, 
+                          borderRadius: '50%', 
+                          background: 'var(--bg-surface-2)', 
+                          border: `3px solid ${meta.color}`,
+                          boxShadow: 'var(--shadow-sm)'
+                        }} />
+                        
+                        {/* Entry Header */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                          {entry.label ? (
+                            <span style={{ 
+                              fontSize: '0.68rem', 
+                              fontWeight: 800, 
+                              color: meta.color, 
+                              background: meta.bgColor, 
+                              border: `1px solid ${meta.border}`,
+                              padding: '2px 8px', 
+                              borderRadius: '20px', 
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.02em'
+                            }}>
+                              {entry.label}
+                            </span>
+                          ) : (
+                            <span style={{ 
+                              fontSize: '0.68rem', 
+                              fontWeight: 800, 
+                              color: 'var(--text-muted)', 
+                              background: 'var(--bg-surface-1)', 
+                              border: '1px solid var(--border)',
+                              padding: '2px 8px', 
+                              borderRadius: '20px', 
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.02em'
+                            }}>
+                              Remark
+                            </span>
+                          )}
+                          {entry.agent && (
+                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                              by <strong style={{ color: 'var(--primary)' }}>{entry.agent}</strong>
+                            </span>
+                          )}
+                          {entry.date && (
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                              on {entry.date}
+                            </span>
+                          )}
+                        </div>
+                        
+                        {/* Entry Content (Remarks Text) */}
+                        {entry.content && (
+                          <div style={{ 
+                            fontSize: '0.88rem', 
+                            color: 'var(--text-primary)', 
+                            fontStyle: entry.type === 'legacy' ? 'normal' : 'italic', 
+                            lineHeight: 1.45,
+                            background: 'var(--bg-surface-1)',
+                            padding: '8px 12px',
+                            borderRadius: 'var(--r-md)',
+                            borderLeft: `3px solid ${meta.color}`,
+                            wordBreak: 'break-word'
+                          }}>
+                            {entry.content}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Prominent Call Bar for Mobile Only */}
           {(() => {

@@ -22,6 +22,8 @@ async function verify(req, res, next) {
       return res.status(403).json({ error: 'Account inactive or suspended. Please contact admin.' });
     }
 
+    req.user.name = user.name || user.username;
+
     next();
   } catch (error) {
     res.status(401).json({ error: 'Invalid token.' });
@@ -43,7 +45,7 @@ function authorize(...roles) {
 
 function sign(user) {
   return jwt.sign(
-    { _id: user._id, username: user.username, role: user.role, tlId: user.tlId },
+    { _id: user._id, username: user.username, name: user.name, role: user.role, tlId: user.tlId },
     JWT_SECRET,
     { expiresIn: '2h' }
   );
