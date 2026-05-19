@@ -31,8 +31,10 @@ const AppointmentNotifier = () => {
   };
 
   const requestPermission = () => {
-    if (Notification.permission === 'default') {
-      Notification.requestPermission();
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
     }
   };
 
@@ -41,7 +43,7 @@ const AppointmentNotifier = () => {
   }, []);
 
   const notifyBrowser = (title, message) => {
-    if (Notification.permission === 'granted') {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
       new Notification(title, { body: message });
     }
   };
