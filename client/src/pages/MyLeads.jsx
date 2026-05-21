@@ -117,7 +117,7 @@ const MyLeads = () => {
     try {
       if (type === 'lead') {
         await api.put(`/leads/${target._id}`, { status: newStatus });
-        fetchHistory(historyContact.phone, historyContact.name);
+        if (historyContact) fetchHistory(historyContact.phone, historyContact.name);
       } else {
         // Main dashboard updates use contactId
         const cid = target.contactId || target._id;
@@ -389,6 +389,16 @@ const MyLeads = () => {
                           )}
                           {lead.transactionId && <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>UTR: {lead.transactionId}</span>}
                         </div>
+                        
+                        {(lead.statusDetails || (lead.remarks && lead.remarks !== 'Imported Lead' && lead.remarks !== 'Scheduled')) && (
+                          <div style={{ marginTop: 10, fontSize: '0.75rem', color: 'var(--text-secondary)', background: 'var(--bg-surface)', padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)' }}>
+                            {lead.status === 'Others' && lead.statusDetails ? (
+                              <span style={{ fontStyle: 'italic' }}>Details: {lead.statusDetails}</span>
+                            ) : (
+                              <span style={{ fontStyle: 'italic' }}>Remarks: {lead.remarks || lead.statusDetails}</span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -536,9 +546,9 @@ const MyLeads = () => {
                           </div>
                         )}
                       </div>
-                      {h.remarks && (
+                      {(h.statusDetails || h.remarks) && (
                         <div style={{ marginTop: 12, fontSize: '0.8rem', fontStyle: 'italic', color: 'var(--text-secondary)', background: 'rgba(0,0,0,0.03)', padding: '8px 12px', borderRadius: 8 }}>
-                          "{h.remarks}"
+                          "{h.statusDetails || h.remarks}"
                         </div>
                       )}
                     </div>

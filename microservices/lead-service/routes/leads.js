@@ -43,6 +43,7 @@ router.get('/my-leads', verify, authorize(['agent', 'tl', 'admin']), async (req,
       leadAmount: c.leadAmount || 0,
       status: c.status || 'Converted',
       remarks: c.remarks || 'Imported Lead',
+      statusDetails: c.statusDetails,
       transactionId: c.transactionId || '',
       createdAt: c.createdAt,
       lastModified: c.lastModified
@@ -417,6 +418,7 @@ router.put('/:id', verify, authorize(['agent', 'tl', 'admin']), async (req, res)
               leadAmount: req.body.leadAmount ? parseFloat(req.body.leadAmount) : undefined,
               transactionId: req.body.transactionId,
               remarks: req.body.remarks,
+              statusDetails: req.body.statusDetails,
               callBackDt: req.body.callBackDt ? new Date(req.body.callBackDt) : undefined,
               appointmentDt: req.body.appointmentDt ? new Date(req.body.appointmentDt) : undefined,
               lastModified: new Date()
@@ -438,6 +440,7 @@ router.put('/:id', verify, authorize(['agent', 'tl', 'admin']), async (req, res)
             leadAmount: req.body.leadAmount ? parseFloat(req.body.leadAmount) : undefined,
             transactionId: req.body.transactionId,
             remarks: req.body.remarks,
+            statusDetails: req.body.statusDetails,
             callBackDt: req.body.callBackDt ? new Date(req.body.callBackDt) : undefined,
             appointmentDt: req.body.appointmentDt ? new Date(req.body.appointmentDt) : undefined,
             lastModified: new Date()
@@ -533,6 +536,7 @@ router.get('/history/:phone', verify, authorize(['agent', 'tl', 'admin']), async
       leadAmount: c.leadAmount || 0,
       status: c.status || 'Converted',
       remarks: c.remarks || 'Imported Lead',
+      statusDetails: c.statusDetails,
       transactionId: c.transactionId || '',
       createdAt: c.createdAt || c.disposedAt || new Date(),
       lastModified: c.lastModified || new Date()
