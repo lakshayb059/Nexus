@@ -373,7 +373,7 @@ const MyLeads = () => {
                         )}
 
                         <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                          <select className="input-field" style={{ marginBottom: 0, padding: '2px 8px', fontSize: '0.7rem', height: 28, width: 'auto', minWidth: 110, cursor: isLocked ? 'not-allowed' : 'pointer' }} value={lead.status || ''} disabled={isLocked} onChange={(e) => handleStatusChange(lead, e.target.value, 'contact')}>
+                          <select className="input-field" style={{ marginBottom: 0, padding: '2px 8px', fontSize: '0.7rem', height: 28, width: 'auto', minWidth: 110, cursor: isLocked ? 'not-allowed' : 'pointer' }} value={lead.status || ''} disabled={isLocked} onChange={(e) => handleStatusChange(lead, e.target.value, 'lead')}>
                             <option value="">Set Status</option>
                             <option value="Converted">Converted</option>
                             <option value="Not Interested">Not Interested</option>

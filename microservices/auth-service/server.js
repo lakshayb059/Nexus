@@ -30,11 +30,11 @@ app.post('/auth/login', async (req, res) => {
             { projection: { password: 1, active: 1, _id: 1, username: 1, name: 1, role: 1, tlId: 1 } }
         );
 
-        if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+        if (!user) return res.json({ error: 'Invalid credentials' });
         if (!user.active) return res.json({ error: 'Your ID is inactive. Please contact admin.' });
 
         const valid = await bcrypt.compare(password, user.password);
-        if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+        if (!valid) return res.json({ error: 'Invalid credentials' });
 
         const token = sign(user);
 
