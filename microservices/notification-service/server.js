@@ -107,12 +107,35 @@ async function checkAppointments() {
   } catch (err) { console.error('Worker error:', err); }
 }
 
+async function checkCallbacks() {
+  try {
+    const contactsCollection = getCollection('contacts');
+    const now = new Date();
+    const upcoming = await contactsCollection.find({
+      disposition: 'CallBack',
+      callBackDt: { $gte: now, $lte: new Date(now.getTime() + 2 * 60 * 1000) },
+      cbReminderSent: { $ne: true }
+    }).toArray();
+
+    for (const cb of upcoming) {
+      io.emit('callback_reminder', {
+        callbackId: cb._id,
+        contactName: cb.fields?.Name || cb.fields?.name || 'Unknown',
+        callbackTime: cb.callBackDt,
+        agentId: cb.assignedTo?.toString()
+      });
+      await contactsCollection.updateOne({ _id: cb._id }, { $set: { cbReminderSent: true } });
+    }
+  } catch (err) { console.error('Callback worker error:', err); }
+}
+
 async function start() {
   server.listen(PORT, () => {
     console.log(`🔔 Notification Service running on port: ${PORT}`);
 
     // Start background worker
     setInterval(checkAppointments, 60000);
+    setInterval(checkCallbacks, 60000);
   });
   
   // Connect to MongoDB Atlas in the background to prevent blocking startup checks

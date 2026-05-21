@@ -26,7 +26,11 @@ const CallActionModal = ({ lead, onClose, onSubmit }) => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await onSubmit({ action, ...formData });
+      let payload = { action, ...formData };
+      if (payload.callBackDt) {
+        payload.callBackDt = new Date(payload.callBackDt).toISOString();
+      }
+      await onSubmit(payload);
     } catch (err) {
       console.error(err);
     } finally {

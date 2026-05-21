@@ -18,7 +18,11 @@ const LeadStatusModal = ({ lead, newStatus, onClose, onSave, submitting }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave(formData);
+    let payload = { ...formData };
+    if (payload.callBackDt) {
+      payload.callBackDt = new Date(payload.callBackDt).toISOString();
+    }
+    onSave(payload);
   };
 
   if (!lead || !newStatus) return null;
