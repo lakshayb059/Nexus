@@ -581,7 +581,7 @@ router.post('/:id/clone-and-dispose', verify, authorize(['agent', 'tl', 'admin']
       disposition = 'CallBack';
       finalStatus = 'Call Back';
     } else if (action === 'Not Interested') {
-      disposition = 'DoNotCall';
+      disposition = 'Lead';
       finalStatus = 'Not Interested';
     }
 
