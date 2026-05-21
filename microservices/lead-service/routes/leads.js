@@ -408,23 +408,19 @@ router.put('/:id', verify, authorize(['agent', 'tl', 'admin']), async (req, res)
       if (lead.status === 'Converted' && req.body.status && req.body.status !== 'Converted') {
         return res.status(400).json({ error: 'Cannot change status of a successfully converted lead' });
       }
+      
+      const contactUpdate = { lastModified: new Date() };
+      if (req.body.status) contactUpdate.status = req.body.status;
+      if (req.body.leadAmount) contactUpdate.leadAmount = parseFloat(req.body.leadAmount);
+      if (req.body.transactionId !== undefined) contactUpdate.transactionId = req.body.transactionId;
+      if (req.body.remarks !== undefined) contactUpdate.remarks = req.body.remarks;
+      if (req.body.statusDetails !== undefined) contactUpdate.statusDetails = req.body.statusDetails;
+      if (req.body.callBackDt) contactUpdate.callBackDt = new Date(req.body.callBackDt);
+      if (req.body.appointmentDt) contactUpdate.appointmentDt = new Date(req.body.appointmentDt);
+
       await Promise.all([
         leadsCollection.updateOne({ _id: leadId }, { $set: updateData }),
-        contactsCollection.updateOne(
-          { _id: lead.contactId },
-          { 
-            $set: { 
-              status: req.body.status, 
-              leadAmount: req.body.leadAmount ? parseFloat(req.body.leadAmount) : undefined,
-              transactionId: req.body.transactionId,
-              remarks: req.body.remarks,
-              statusDetails: req.body.statusDetails,
-              callBackDt: req.body.callBackDt ? new Date(req.body.callBackDt) : undefined,
-              appointmentDt: req.body.appointmentDt ? new Date(req.body.appointmentDt) : undefined,
-              lastModified: new Date()
-            } 
-          }
-        )
+        contactsCollection.updateOne({ _id: lead.contactId }, { $set: contactUpdate })
       ]);
     } else {
       // It is a mapped contact lead where lead ID is the contact ID
@@ -432,27 +428,20 @@ router.put('/:id', verify, authorize(['agent', 'tl', 'admin']), async (req, res)
       if (contact && contact.status === 'Converted' && req.body.status && req.body.status !== 'Converted') {
         return res.status(400).json({ error: 'Cannot change status of a successfully converted lead' });
       }
-      await contactsCollection.updateOne(
-        { _id: leadId },
-        {
-          $set: {
-            status: req.body.status,
-            leadAmount: req.body.leadAmount ? parseFloat(req.body.leadAmount) : undefined,
-            transactionId: req.body.transactionId,
-            remarks: req.body.remarks,
-            statusDetails: req.body.statusDetails,
-            callBackDt: req.body.callBackDt ? new Date(req.body.callBackDt) : undefined,
-            appointmentDt: req.body.appointmentDt ? new Date(req.body.appointmentDt) : undefined,
-            lastModified: new Date()
-          }
-        }
-      );
+
+      const contactUpdate = { lastModified: new Date() };
+      if (req.body.status) contactUpdate.status = req.body.status;
+      if (req.body.leadAmount) contactUpdate.leadAmount = parseFloat(req.body.leadAmount);
+      if (req.body.transactionId !== undefined) contactUpdate.transactionId = req.body.transactionId;
+      if (req.body.remarks !== undefined) contactUpdate.remarks = req.body.remarks;
+      if (req.body.statusDetails !== undefined) contactUpdate.statusDetails = req.body.statusDetails;
+      if (req.body.callBackDt) contactUpdate.callBackDt = new Date(req.body.callBackDt);
+      if (req.body.appointmentDt) contactUpdate.appointmentDt = new Date(req.body.appointmentDt);
+
+      await contactsCollection.updateOne({ _id: leadId }, { $set: contactUpdate });
       
       // Also update any matching lead document if it was created later
-      await leadsCollection.updateOne(
-        { contactId: leadId },
-        { $set: updateData }
-      );
+      await leadsCollection.updateOne({ contactId: leadId }, { $set: updateData });
     }
     
     res.json({ success: true });
