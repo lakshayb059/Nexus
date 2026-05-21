@@ -553,4 +553,120 @@ router.get('/history/:phone', verify, authorize(['agent', 'tl', 'admin']), async
   }
 });
 
+// POST /leads/:id/clone-and-dispose - Clone contact and log new conversation
+router.post('/:id/clone-and-dispose', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
+  try {
+    const leadsCollection = getCollection('leads');
+    const contactsCollection = getCollection('contacts');
+    const leadId = new ObjectId(req.params.id);
+    
+    // 1. Find original contact
+    let contact = await contactsCollection.findOne({ _id: leadId });
+    if (!contact) {
+      const lead = await leadsCollection.findOne({ _id: leadId });
+      if (lead && lead.contactId) {
+        contact = await contactsCollection.findOne({ _id: lead.contactId });
+      }
+    }
+    
+    if (!contact) {
+      return res.status(404).json({ error: 'Original contact not found' });
+    }
+
+    const { action, status, remarks, leadAmount, transactionId, statusDetails, callBackDt } = req.body;
+    let disposition = 'Lead';
+    let finalStatus = status || '';
+
+    if (action === 'Followup') {
+      disposition = 'CallBack';
+      finalStatus = 'Call Back';
+    } else if (action === 'Not Interested') {
+      disposition = 'DoNotCall';
+      finalStatus = 'Not Interested';
+    }
+
+    const dateStr = new Date().toLocaleString('en-US', {
+      year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true
+    });
+    const updaterName = req.user.name || req.user.username || 'Agent';
+    const actionLabel = finalStatus || disposition;
+    const formattedRemarks = `[${actionLabel} by ${updaterName} on ${dateStr}]: ${remarks || ''}`;
+
+    // 2. Create new cloned contact
+    const newContact = {
+      fields: contact.fields,
+      batchId: contact.batchId,
+      assignedTo: new ObjectId(req.user._id),
+      agentName: req.user.name,
+      disposition: disposition,
+      status: finalStatus,
+      remarks: formattedRemarks,
+      disposedBy: new ObjectId(req.user._id),
+      disposedAt: new Date(),
+      createdAt: new Date(),
+      lastModified: new Date(),
+      isDeleted: false,
+      queueOrder: 999999
+    };
+
+    if (disposition === 'Lead') {
+      newContact.leadAmount = parseFloat(leadAmount) || 0;
+      newContact.conversionDate = new Date();
+      if (statusDetails) newContact.statusDetails = statusDetails;
+      if (transactionId) newContact.transactionId = transactionId;
+      if (callBackDt) newContact.callBackDt = new Date(callBackDt);
+    } else if (disposition === 'CallBack') {
+      newContact.callBackDt = callBackDt ? new Date(callBackDt) : null;
+    }
+
+    const result = await contactsCollection.insertOne(newContact);
+    const newContactId = result.insertedId;
+
+    // 3. Process the new record into appropriate collections
+    if (disposition === 'Lead') {
+      await leadsCollection.insertOne({
+        contactId: newContactId,
+        fields: newContact.fields,
+        batchId: newContact.batchId,
+        assignedTo: newContact.assignedTo,
+        agentName: newContact.agentName,
+        leadAmount: newContact.leadAmount,
+        status: newContact.status,
+        statusDetails: newContact.statusDetails || '',
+        transactionId: newContact.transactionId || '',
+        remarks: newContact.remarks,
+        callBackDt: newContact.callBackDt,
+        createdAt: new Date(),
+        lastModified: new Date()
+      });
+    } else if (disposition === 'CallBack') {
+      const callbacksCollection = getCollection('callbacks');
+      await callbacksCollection.insertOne({
+        contactId: newContactId,
+        fields: newContact.fields,
+        batchId: newContact.batchId,
+        assignedTo: newContact.assignedTo,
+        agentName: newContact.agentName,
+        callBackDt: newContact.callBackDt,
+        remarks: newContact.remarks,
+        status: newContact.status,
+        source: 'lead',
+        createdAt: new Date(),
+        lastModified: new Date()
+      });
+      const phoneNum = newContact.fields?.Phone || newContact.fields?.phone || newContact.fields?.Mobile;
+      if (phoneNum) await consolidateCallbacks(phoneNum);
+    }
+
+    broadcast('contact_disposed', { contactId: newContactId, disposition, agentName: req.user.name });
+    broadcast('dashboard_update');
+    broadcast('contacts_updated');
+
+    res.json({ success: true, contactId: newContactId });
+  } catch (err) {
+    console.error('Clone and dispose failed:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;
