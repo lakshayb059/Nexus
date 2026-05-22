@@ -412,13 +412,6 @@ router.post('/bulk-delete', verify, authorize(['superadmin', 'admin']), async (r
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.delete('/:id', verify, authorize(['superadmin', 'admin']), async (req, res) => {
-  try {
-    await prisma.contact.delete({ where: { id: req.params.id } });
-    res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: 'Server error' }); }
-});
-
 router.delete('/wipe', verify, authorize(['superadmin']), async (req, res) => {
   try {
     await prisma.contact.deleteMany({});
@@ -430,6 +423,13 @@ router.delete('/wipe', verify, authorize(['superadmin']), async (req, res) => {
 router.delete('/wipe/hungup', verify, authorize(['superadmin']), async (req, res) => {
   try {
     await prisma.contact.deleteMany({ where: { disposition: 'HungUp' } });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+router.delete('/:id', verify, authorize(['superadmin', 'admin']), async (req, res) => {
+  try {
+    await prisma.contact.delete({ where: { id: req.params.id } });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
