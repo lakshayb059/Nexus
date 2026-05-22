@@ -299,7 +299,14 @@ router.delete('/:id', verify, authorize(['superadmin', 'admin']), async (req, re
 router.put('/:id', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
     const leadId = req.params.id;
-    const updateData = { ...req.body };
+    const updateData = {};
+    if (req.body.status !== undefined) updateData.status = req.body.status;
+    if (req.body.leadAmount !== undefined) updateData.leadAmount = parseFloat(req.body.leadAmount) || 0;
+    if (req.body.remarks !== undefined) updateData.remarks = req.body.remarks;
+    if (req.body.assignedTo !== undefined) updateData.assignedTo = req.body.assignedTo;
+    if (req.body.agentName !== undefined) updateData.agentName = req.body.agentName;
+    if (req.body.fields !== undefined) updateData.fields = req.body.fields;
+    
     const lead = await prisma.lead.findUnique({ where: { id: leadId } });
     
     if (req.body.status === 'Call Back' || req.body.status === 'CallBack') {
