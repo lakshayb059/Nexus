@@ -101,7 +101,8 @@ async function checkAppointments() {
         appointmentId: app.id,
         contactName: (app.fields || {}).Name || (app.fields || {}).name || 'Unknown',
         appointmentTime: app.appointmentDt,
-        agentId: app.assignedTo
+        agentId: app.assignedTo,
+        minutesUntil: Math.max(0, Math.round((new Date(app.appointmentDt) - now) / 60000))
       });
       await prisma.contact.update({ where: { id: app.id }, data: { reminderSent: true } });
     }
@@ -124,7 +125,8 @@ async function checkCallbacks() {
         callbackId: cb.id,
         contactName: (cb.fields || {}).Name || (cb.fields || {}).name || 'Unknown',
         callbackTime: cb.callBackDt,
-        agentId: cb.assignedTo
+        agentId: cb.assignedTo,
+        minutesUntil: Math.max(0, Math.round((new Date(cb.callBackDt) - now) / 60000))
       });
       await prisma.contact.update({ where: { id: cb.id }, data: { cbReminderSent: true } });
     }

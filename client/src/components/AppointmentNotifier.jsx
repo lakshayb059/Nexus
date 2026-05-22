@@ -7,9 +7,9 @@ const MAX_TOASTS = 5;
 
 // Sound URLs
 const SOUNDS = {
-  upcoming: 'https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3',
-  late: 'https://assets.mixkit.co/active_storage/sfx/1356/1356-preview.mp3',
-  callback: 'https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3'
+  upcoming: 'https://assets.mixkit.co/active_storage/sfx/2866/2866-preview.mp3',
+  late: 'https://assets.mixkit.co/active_storage/sfx/2866/2866-preview.mp3',
+  callback: 'https://assets.mixkit.co/active_storage/sfx/2866/2866-preview.mp3'
 };
 
 const AppointmentNotifier = () => {

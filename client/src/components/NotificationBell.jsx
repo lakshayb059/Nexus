@@ -80,7 +80,6 @@ const NotificationBell = () => {
 
     socket.on('appointment_reminder', (data) => {
       if (data.agentId === user._id) {
-        playSound();
         const title = data.type === 'late' ? 'LATE APPOINTMENT' : 'Appointment Reminder';
         const msg = `${data.contactName} - ${data.type === 'late' ? 'OVERDUE' : `in ${data.minutesUntil} min`}`;
         notifyBrowser(title, msg);
@@ -111,7 +110,6 @@ const NotificationBell = () => {
 
     socket.on('callback_reminder', (data) => {
       if (data.agentId === user._id) {
-        playSound();
         const title = 'Callback in 2 min';
         const msg = `${data.contactName} - Prepare for call`;
         notifyBrowser(title, msg);
