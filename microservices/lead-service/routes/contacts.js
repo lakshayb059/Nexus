@@ -255,6 +255,34 @@ router.get('/notifications', verify, authorize(['superadmin', 'agent', 'tl', 'ad
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
+router.get('/admin-stats', verify, authorize(['superadmin']), async (req, res) => {
+  try {
+    const admins = await prisma.user.findMany({ where: { role: 'admin', isDeleted: false } });
+    const stats = await Promise.all(admins.map(async (a) => {
+      const q = { adminId: a.id, isDeleted: false };
+      const [leads, appointments, callbacks, leadAgg] = await Promise.all([
+        prisma.contact.count({ where: { ...q, disposition: 'Lead', status: 'Converted' } }),
+        prisma.contact.count({ where: { ...q, disposition: 'Appointment' } }),
+        prisma.contact.count({ where: { ...q, disposition: 'CallBack' } }),
+        prisma.contact.aggregate({ where: { ...q, disposition: 'Lead', status: 'Converted' }, _sum: { leadAmount: true } })
+      ]);
+      return {
+        adminId: a.id,
+        name: a.name,
+        username: a.username,
+        leads,
+        appointments,
+        callbacks,
+        totalLeadAmount: leadAgg._sum.leadAmount || 0
+      };
+    }));
+    res.json(stats);
+  } catch (err) {
+    console.error('Admin stats error:', err);
+    res.status(500).json({ error: 'Failed to fetch admin stats' });
+  }
+});
+
 router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
     const query = { isDeleted: false };
@@ -591,32 +619,6 @@ router.post('/:id/requeue', verify, authorize(['superadmin', 'agent', 'tl', 'adm
   }
 });
 
-router.get('/admin-stats', verify, authorize(['superadmin']), async (req, res) => {
-  try {
-    const admins = await prisma.user.findMany({ where: { role: 'admin', isDeleted: false } });
-    const stats = await Promise.all(admins.map(async (a) => {
-      const q = { adminId: a.id, isDeleted: false };
-      const [leads, appointments, callbacks, leadAgg] = await Promise.all([
-        prisma.contact.count({ where: { ...q, disposition: 'Lead', status: 'Converted' } }),
-        prisma.contact.count({ where: { ...q, disposition: 'Appointment' } }),
-        prisma.contact.count({ where: { ...q, disposition: 'CallBack' } }),
-        prisma.contact.aggregate({ where: { ...q, disposition: 'Lead', status: 'Converted' }, _sum: { leadAmount: true } })
-      ]);
-      return {
-        adminId: a.id,
-        name: a.name,
-        username: a.username,
-        leads,
-        appointments,
-        callbacks,
-        totalLeadAmount: leadAgg._sum.leadAmount || 0
-      };
-    }));
-    res.json(stats);
-  } catch (err) {
-    console.error('Admin stats error:', err);
-    res.status(500).json({ error: 'Failed to fetch admin stats' });
-  }
-});
+
 
 module.exports = router;
