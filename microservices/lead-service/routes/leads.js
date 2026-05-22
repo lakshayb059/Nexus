@@ -495,7 +495,7 @@ router.post('/:id/clone-and-dispose', verify, authorize(['superadmin', 'agent', 
 
     const newContactData = {
       fields: contact.fields || {}, batchId: contact.batchId,
-      assignedTo: req.user._id || req.user.id, agentName: req.user.name,
+      assignedTo: req.user._id || req.user.id, adminId: contact.adminId,
       disposition, status: finalStatus, remarks: formattedRemarks,
       disposedBy: req.user._id || req.user.id, disposedAt: new Date(),
       queueOrder: 999999
