@@ -263,6 +263,8 @@ router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), 
     } else if (req.user.role === 'tl') {
       const agents = await prisma.user.findMany({ where: { tlId: req.user._id || req.user.id } });
       query.assignedTo = { in: agents.map(a => a.id) };
+    } else if (req.user.role === 'admin') {
+      query.adminId = req.user._id || req.user.id;
     }
 
     // Prisma doesn't do conditional aggregation well without raw SQL
@@ -294,6 +296,7 @@ router.get('/agent-queues', verify, authorize(['superadmin', 'admin', 'tl']), as
   try {
     const userQuery = { role: 'agent', isDeleted: false };
     if (req.user.role === 'tl') userQuery.tlId = req.user._id || req.user.id;
+    if (req.user.role === 'admin') userQuery.adminId = req.user._id || req.user.id;
     const agents = await prisma.user.findMany({ where: userQuery });
     
     // Simplistic queue fetching since we don't have raw aggregate easily typed
@@ -581,6 +584,34 @@ router.post('/:id/requeue', verify, authorize(['superadmin', 'agent', 'tl', 'adm
   } catch (err) {
     console.error('Requeue error:', err);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.get('/admin-stats', verify, authorize(['superadmin']), async (req, res) => {
+  try {
+    const admins = await prisma.user.findMany({ where: { role: 'admin', isDeleted: false } });
+    const stats = await Promise.all(admins.map(async (a) => {
+      const q = { adminId: a.id, isDeleted: false };
+      const [leads, appointments, callbacks, leadAgg] = await Promise.all([
+        prisma.contact.count({ where: { ...q, disposition: 'Lead' } }),
+        prisma.contact.count({ where: { ...q, disposition: 'Appointment' } }),
+        prisma.contact.count({ where: { ...q, disposition: 'CallBack' } }),
+        prisma.contact.aggregate({ where: q, _sum: { leadAmount: true } })
+      ]);
+      return {
+        adminId: a.id,
+        name: a.name,
+        username: a.username,
+        leads,
+        appointments,
+        callbacks,
+        totalLeadAmount: leadAgg._sum.leadAmount || 0
+      };
+    }));
+    res.json(stats);
+  } catch (err) {
+    console.error('Admin stats error:', err);
+    res.status(500).json({ error: 'Failed to fetch admin stats' });
   }
 });
 

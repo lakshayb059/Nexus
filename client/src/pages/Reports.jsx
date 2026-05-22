@@ -27,6 +27,7 @@ const Reports = () => {
   const { user }   = useAuth();
   const { socket } = useSocket();
   const [stats,         setStats]         = useState(null);
+  const [adminStats,    setAdminStats]    = useState(null);
   const [agents,        setAgents]        = useState([]);
   const [selectedAgent, setSelectedAgent] = useState('');
   const [reportType,    setReportType]    = useState('workflow');
@@ -37,14 +38,19 @@ const Reports = () => {
     try {
       setLoading(true);
       const query = selectedAgent ? `?agentId=${selectedAgent}` : '';
-      const [statsRes, agentsRes] = await Promise.all([
+      
+      const reqs = [
         api.get(`/contacts/stats${query}`),
         user.role !== 'agent'
           ? api.get(['admin', 'superadmin'].includes(user.role) ? '/users' : '/users/my-agents')
-          : Promise.resolve({ data: [] }),
-      ]);
-      setStats(statsRes.data);
-      if (agentsRes.data) setAgents(agentsRes.data.filter(u => u.role === 'agent'));
+          : Promise.resolve({ data: [] })
+      ];
+      if (user.role === 'superadmin') reqs.push(api.get('/contacts/admin-stats'));
+
+      const responses = await Promise.all(reqs);
+      setStats(responses[0].data);
+      if (responses[1].data) setAgents(responses[1].data.filter(u => u.role === 'agent'));
+      if (user.role === 'superadmin' && responses[2]) setAdminStats(responses[2].data);
     } catch (err) {
       console.error('Reports fetch failed', err);
     } finally {
@@ -273,6 +279,51 @@ const Reports = () => {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Comparison Section for Superadmin */}
+      {user?.role === 'superadmin' && adminStats && adminStats.length > 0 && (
+        <div style={{ marginTop: 32 }}>
+          <h2 style={{ fontSize: '1rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-primary)', marginBottom: 24 }}>
+            Admin Performance Comparison
+          </h2>
+          <div className="grid-2">
+            <div className="glass-panel" style={{ padding: 'var(--card-p)', minHeight: 450 }}>
+              <h3 style={{ fontSize: '0.85rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 24 }}>
+                Leads Generated
+              </h3>
+              <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={adminStats} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                  <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 11, fontWeight: 600 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(99,102,241,0.04)' }} />
+                  <Bar dataKey="leads" name="Leads" radius={[6, 6, 0, 0]} barSize={40} animationDuration={1500}>
+                    {adminStats.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="glass-panel" style={{ padding: 'var(--card-p)', minHeight: 450 }}>
+              <h3 style={{ fontSize: '0.85rem', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 24 }}>
+                Total Revenue
+              </h3>
+              <ResponsiveContainer width="100%" height={350}>
+                <PieChart>
+                  <Pie
+                    data={adminStats}
+                    nameKey="name"
+                    dataKey="totalLeadAmount"
+                    cx="50%" cy="50%" innerRadius={80} outerRadius={125} paddingAngle={5} animationDuration={1200}
+                  >
+                    {adminStats.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} stroke="none" />)}
+                  </Pie>
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" formatter={(v) => <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 600 }}>{v}</span>} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
       )}
