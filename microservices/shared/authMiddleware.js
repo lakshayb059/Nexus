@@ -33,6 +33,9 @@ function authorize(...roles) {
     if (!req.user) {
       return res.status(401).json({ error: 'Access denied. User not authenticated.' });
     }
+    if (req.user.role === 'superadmin') {
+      return next();
+    }
     const allowedRoles = roles.length === 1 && Array.isArray(roles[0]) ? roles[0] : roles;
     if (!allowedRoles.includes(req.user.role)) {
       return res.status(403).json({ error: 'Access denied. Insufficient permissions.' });

@@ -114,8 +114,12 @@ router.get('/', verify, authorize(['superadmin', 'admin', 'tl', 'agent']), async
 router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
   try {
     const { disposition, remarks, appointmentDt, leadAmount, callBackDt, status, statusDetails, transactionId } = req.body;
+    const query = { id: req.params.id, isDeleted: false };
+    if (!['superadmin', 'admin', 'tl'].includes(req.user.role)) {
+      query.assignedTo = req.user._id || req.user.id;
+    }
     const contact = await prisma.contact.findFirst({
-      where: { id: req.params.id, assignedTo: req.user._id || req.user.id, isDeleted: false }
+      where: query
     });
 
     if (!contact) return res.status(404).json({ error: 'Contact not found' });
@@ -203,7 +207,7 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
           contactId: req.params.id, fields: contact.fields || {}, batchId: contact.batchId,
           assignedTo: req.user._id || req.user.id, agentName: req.user.name,
           callBackDt: callBackDt ? new Date(callBackDt) : new Date(),
-          remarks: remarks || '', adminId: contact.adminId
+          remarks: remarks || '', adminId: contact.adminId, source: 'workflow'
         }
       });
       if (phoneNum) await consolidateCallbacks(phoneNum);
@@ -489,7 +493,7 @@ router.put('/:id/status', verify, authorize(['superadmin', 'agent', 'tl', 'admin
           contactId: contact.id, fields: contact.fields || {}, batchId: contact.batchId,
           assignedTo: contact.assignedTo, agentName: contact.agentName || req.user.name,
           callBackDt: update.callBackDt, remarks: remarks || 'Status updated to Call Back',
-          adminId: contact.adminId
+          adminId: contact.adminId, source: 'lead'
         }
       });
       

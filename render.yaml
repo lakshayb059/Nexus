@@ -24,7 +24,7 @@ services:
     buildCommand: npm install
     startCommand: node microservices/auth-service/server.js
     envVars:
-      - key: MONGODB_URI
+      - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET
         sync: false
@@ -37,7 +37,7 @@ services:
     buildCommand: npm install
     startCommand: node microservices/lead-service/server.js
     envVars:
-      - key: MONGODB_URI
+      - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET
         sync: false
@@ -52,7 +52,7 @@ services:
     buildCommand: npm install
     startCommand: node microservices/notification-service/server.js
     envVars:
-      - key: MONGODB_URI
+      - key: DATABASE_URL
         sync: false
 
   # 5. Reporting Service
@@ -63,7 +63,7 @@ services:
     buildCommand: npm install
     startCommand: node microservices/reporting-service/server.js
     envVars:
-      - key: MONGODB_URI
+      - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET
         sync: false

@@ -34,8 +34,12 @@ router.post('/workflow/dispose', verify, authorize(['agent']), async (req, res) 
   try {
     const { contactId, disposition, remarks, appointmentDt, leadAmount, callBackDt } = req.body;
     
+    const query = { id: contactId };
+    if (!['superadmin', 'admin', 'tl'].includes(req.user.role)) {
+      query.assignedTo = req.user._id || req.user.id;
+    }
     const contact = await prisma.contact.findFirst({
-      where: { id: contactId, assignedTo: req.user._id || req.user.id }
+      where: query
     });
     
     if (!contact) return res.status(404).json({ error: 'Contact not found' });
@@ -82,7 +86,7 @@ router.post('/workflow/dispose', verify, authorize(['agent']), async (req, res) 
           contactId, fields: contact.fields, batchId: contact.batchId,
           assignedTo: req.user._id || req.user.id, agentName: req.user.name,
           callBackDt: new Date(callBackDt), remarks: remarks || '',
-          adminId: contact.adminId
+          adminId: contact.adminId, source: 'workflow'
         }
       });
     } else if (disposition === 'CallNotAnswered' || disposition === 'HungUp') {

@@ -40,7 +40,7 @@ const Reports = () => {
       const [statsRes, agentsRes] = await Promise.all([
         api.get(`/contacts/stats${query}`),
         user.role !== 'agent'
-          ? api.get(user.role === 'admin' ? '/users' : '/users/my-agents')
+          ? api.get(['admin', 'superadmin'].includes(user.role) ? '/users' : '/users/my-agents')
           : Promise.resolve({ data: [] }),
       ]);
       setStats(statsRes.data);

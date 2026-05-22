@@ -188,7 +188,7 @@ router.get('/callbacks', verify, authorize(['superadmin', 'agent', 'tl', 'admin'
 
     const mappedCallbacks = callbacks.map(c => ({
       ...c, _id: c.id,
-      source: c.status === 'Call Back' || c.status === 'CallBack' ? 'lead' : undefined
+      source: c.source || (c.status === 'Call Back' || c.status === 'CallBack' ? 'lead' : 'workflow')
     }));
 
     const mappedContactCbs = contactCbs.map(c => ({
@@ -196,7 +196,7 @@ router.get('/callbacks', verify, authorize(['superadmin', 'agent', 'tl', 'admin'
       assignedTo: c.assignedTo, agentName: c.assignedTo ? userMap[c.assignedTo] || 'Unassigned' : 'Unassigned',
       callBackDt: c.callBackDt, remarks: c.remarks || 'Scheduled Follow Up',
       disposition: c.disposition, status: c.status, leadAmount: c.leadAmount,
-      source: c.status === 'Call Back' || c.status === 'CallBack' || c.leadAmount > 0 ? 'lead' : undefined,
+      source: c.source || (c.status === 'Call Back' || c.status === 'CallBack' || c.leadAmount > 0 ? 'lead' : 'workflow'),
       createdAt: c.createdAt || c.disposedAt || new Date(), lastModified: c.lastModified || new Date()
     }));
 
@@ -331,7 +331,7 @@ router.put('/:id', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), as
         data: {
           contactId, fields: leadObj.fields || {}, batchId: leadObj.batchId,
           assignedTo: leadObj.assignedTo, agentName: leadObj.agentName || req.user.name,
-          callBackDt, remarks: req.body.remarks || 'Status changed from Lead to Callback',
+          callBackDt, remarks: req.body.remarks || 'Status changed from Lead to Callback', source: 'lead'
         }
       });
 
@@ -528,7 +528,7 @@ router.post('/:id/clone-and-dispose', verify, authorize(['superadmin', 'agent', 
           contactId: newContactId, adminId: req.user.role === 'admin' ? (req.user._id || req.user.id) : (req.user.adminId || null),
           fields: newContact.fields || {}, batchId: newContact.batchId,
           assignedTo: newContact.assignedTo, agentName: newContact.agentName,
-          callBackDt: newContact.callBackDt, remarks: newContact.remarks,
+          callBackDt: newContact.callBackDt, remarks: newContact.remarks, source: 'lead'
         }
       });
       const fields = newContact.fields || {};
