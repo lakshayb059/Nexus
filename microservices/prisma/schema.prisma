@@ -64,6 +64,7 @@ model Lead {
   adminId      String?  @map("admin_id")
   leadAmount   Float?   @map("lead_amount")
   status       String?
+  remarks      String?
   createdAt    DateTime @default(now()) @map("created_at")
   lastModified DateTime @updatedAt @map("last_modified")
 
