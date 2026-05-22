@@ -221,6 +221,18 @@ app.put('/users/:id', verify, authorize(['superadmin', 'admin']), async (req, re
   }
 });
 
+app.delete('/users/wipe', verify, authorize(['superadmin']), async (req, res) => {
+  try {
+    await prisma.user.deleteMany({
+      where: { role: { not: 'superadmin' } }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Wipe users error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.delete('/users/:id', verify, authorize(['superadmin']), async (req, res) => {
   try {
     const userId = req.params.id;
@@ -232,18 +244,6 @@ app.delete('/users/:id', verify, authorize(['superadmin']), async (req, res) => 
     res.json({ success: true });
   } catch (err) {
     console.error('Delete user error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-app.delete('/users/wipe', verify, authorize(['superadmin']), async (req, res) => {
-  try {
-    await prisma.user.deleteMany({
-      where: { role: { not: 'superadmin' } }
-    });
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Wipe users error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
