@@ -24,7 +24,14 @@ const { execSync } = require('child_process');
 async function start() {
   try {
     console.log('Synchronizing Prisma schema with database...');
-    execSync('npx prisma db push --schema=../prisma/schema.prisma', { stdio: 'inherit' });
+    const dbUrl = process.env.DATABASE_URL.includes('?') 
+      ? `${process.env.DATABASE_URL}&sslmode=require` 
+      : `${process.env.DATABASE_URL}?sslmode=require`;
+    
+    execSync('npx prisma db push --schema=../prisma/schema.prisma', { 
+      stdio: 'inherit',
+      env: { ...process.env, DATABASE_URL: dbUrl }
+    });
     console.log('Prisma schema synchronized successfully.');
   } catch (err) {
     console.error('Failed to synchronize Prisma schema:', err);
