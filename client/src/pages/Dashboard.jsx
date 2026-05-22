@@ -7,6 +7,7 @@ import {
   XCircle, TrendingUp, Database, RefreshCw, PhoneOff,
   AlertCircle, ArrowUpRight, Activity, Zap, Trash2
 } from 'lucide-react';
+import SuperAdminDashboard from './SuperAdminDashboard';
 
 /* ─────────────────────────────────────────
    SKELETON LOADER
@@ -86,6 +87,10 @@ const Dashboard = () => {
   const [queues, setQueues] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  if (user?.role === 'superadmin') {
+    return <SuperAdminDashboard />;
+  }
 
   const fetchDashboardData = async (silent = false) => {
     if (!silent) setLoading(true); else setRefreshing(true);
