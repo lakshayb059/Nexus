@@ -158,7 +158,7 @@ const Dashboard = () => {
 
   const negativeCards = stats ? [
     { title: 'Invalid / Wrong No.', value: stats.invalid || 0, subtext: 'Bad contact info', icon: AlertCircle, accent: '#f97316' },
-    { title: 'Hung Up / Failed', value: stats.hungUp || 0, subtext: 'Max attempts reached', icon: PhoneOff, accent: '#ef4444' },
+    { title: 'Call Not Answered / Hung Up', value: stats.hungUp || 0, subtext: 'Max attempts reached', icon: PhoneOff, accent: '#ef4444' },
     { title: 'Do Not Call', value: stats.doNotCall || 0, subtext: 'Excluded contacts', icon: XCircle, accent: '#64748b' },
   ] : [];
 
