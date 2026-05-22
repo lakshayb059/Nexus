@@ -40,7 +40,7 @@ const SuperStatCard = ({ title, value, subtext, icon: Icon, accent, delay = 0, g
         <div className="sa-card-subtext">{subtext}</div>
       </div>
       <div className="sa-card-icon-wrapper" style={{ background: `${accent}15`, color: accent }}>
-        <Icon size={24} strokeWidth={2} />
+        <Icon size={20} strokeWidth={2.2} />
       </div>
     </div>
     <div className="sa-card-bg-blob" style={{ background: accent }} />
@@ -131,7 +131,7 @@ const SuperAdminDashboard = () => {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
             <div className="sa-icon-box">
-              <Activity size={20} color="#fff" strokeWidth={2.5} />
+              <Activity size={16} color="#fff" strokeWidth={2.5} />
             </div>
             <h1 className="sa-title">Command Center</h1>
           </div>
@@ -141,10 +141,10 @@ const SuperAdminDashboard = () => {
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
           <button onClick={handleGlobalWipe} className="sa-btn sa-btn-danger">
-            <Trash2 size={16} /> Wipe System
+            <Trash2 size={14} /> Wipe System
           </button>
           <button onClick={() => fetchData(true)} disabled={refreshing || loading} className="sa-btn sa-btn-primary">
-            <RefreshCw size={16} className={refreshing ? 'sa-spin' : ''} />
+            <RefreshCw size={14} className={refreshing ? 'sa-spin' : ''} />
             Refresh
           </button>
         </div>

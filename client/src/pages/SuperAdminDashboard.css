@@ -22,7 +22,7 @@
 }
 
 .sa-title {
-  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-size: clamp(1.2rem, 2vw, 1.5rem);
   font-weight: 900;
   color: #0f172a;
   margin: 0;
@@ -30,16 +30,16 @@
 }
 
 .sa-subtitle {
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   color: #64748b;
   margin: 0;
   font-weight: 500;
 }
 
 .sa-icon-box {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
   background: linear-gradient(135deg, #2563eb, #8b5cf6);
   display: flex;
   align-items: center;
@@ -48,8 +48,8 @@
 }
 
 .sa-btn {
-  padding: 10px 18px;
-  font-size: 0.85rem;
+  padding: 8px 14px;
+  font-size: 0.8rem;
   font-weight: 600;
   border-radius: 12px;
   border: none;
@@ -94,7 +94,7 @@
 }
 
 .sa-section-title {
-  font-size: 1rem;
+  font-size: 0.85rem;
   font-weight: 800;
   color: #334155;
   text-transform: uppercase;
@@ -181,16 +181,16 @@
 
 /* STATS TYPOGRAPHY */
 .sa-card-title {
-  font-size: 0.75rem;
+  font-size: 0.65rem;
   font-weight: 800;
   color: #64748b;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .sa-card-value {
-  font-size: clamp(2rem, 4vw, 2.5rem);
+  font-size: clamp(1.4rem, 4vw, 1.9rem);
   font-weight: 900;
   color: #0f172a;
   line-height: 1;
@@ -199,15 +199,15 @@
 }
 
 .sa-card-subtext {
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   color: #94a3b8;
   font-weight: 500;
 }
 
 .sa-card-icon-wrapper {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -225,7 +225,7 @@
 }
 
 .sa-card-header h3 {
-  font-size: 1.1rem;
+  font-size: 0.9rem;
   font-weight: 800;
   color: #0f172a;
   margin: 0;
@@ -253,8 +253,8 @@
 
 .sa-table th {
   text-align: left;
-  padding: 12px 8px;
-  font-size: 0.75rem;
+  padding: 10px 8px;
+  font-size: 0.65rem;
   font-weight: 700;
   color: #64748b;
   text-transform: uppercase;
@@ -263,8 +263,8 @@
 }
 
 .sa-table td {
-  padding: 14px 8px;
-  font-size: 0.9rem;
+  padding: 12px 8px;
+  font-size: 0.8rem;
   color: #475569;
   border-bottom: 1px solid #f1f5f9;
 }
