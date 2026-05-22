@@ -28,7 +28,10 @@ async function start() {
       ? `${process.env.DATABASE_URL}&sslmode=require` 
       : `${process.env.DATABASE_URL}?sslmode=require`;
     
-    execSync('npx prisma db push --schema=../prisma/schema.prisma', { 
+    const path = require('path');
+    const microservicesPath = path.join(__dirname, '..');
+    execSync(`npx prisma db push`, { 
+      cwd: microservicesPath,
       stdio: 'inherit',
       env: { ...process.env, DATABASE_URL: dbUrl }
     });
