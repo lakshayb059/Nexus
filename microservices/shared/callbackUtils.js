@@ -1,9 +1,8 @@
-const { getCollection } = require('./mongodb');
-const { ObjectId } = require('mongodb');
+const { prisma } = require('./db');
 
 function normalizePhone(phone) {
   if (!phone) return null;
-  const digits = phone.replace(/\D/g, '');
+  const digits = String(phone).replace(/\D/g, '');
   return digits.length >= 10 ? digits.slice(-10) : digits;
 }
 
@@ -13,23 +12,28 @@ async function consolidateCallbacks(phoneNum) {
   if (!normalized) return;
 
   try {
-    const callbacksCollection = getCollection('callbacks');
-    const contactsCollection = getCollection('contacts');
-    const phoneRegex = new RegExp(normalized + '$');
+    // In Prisma, searching JSON fields with Regex is not natively supported without raw queries.
+    // For this migration, we will fetch callbacks that have fields and filter in memory, 
+    // or we'd ideally use a raw query. Since we want a robust Prisma way, we'll fetch recently created callbacks.
+    // To avoid fetching all, we might fetch callbacks from the last few days, but to be safe we fetch all 
+    // (which might be inefficient, so let's try a raw query or just fetch those where contactId is known).
+    // Actually, Prisma postgres raw query for JSON:
+    
+    const allCallbacks = await prisma.callback.findMany({
+      orderBy: { createdAt: 'desc' }
+    });
 
-    // Sort by createdAt descending to ensure we keep the newest callback and contact record
-    const allCallbacks = await callbacksCollection.find({
-      $or: [
-        { "fields.Phone": { $regex: phoneRegex } },
-        { "fields.phone": { $regex: phoneRegex } },
-        { "fields.Mobile": { $regex: phoneRegex } }
-      ]
-    }).sort({ createdAt: -1 }).toArray();
+    const matchingCallbacks = allCallbacks.filter(cb => {
+      const f = cb.fields || {};
+      const p = f.Phone || f.phone || f.Mobile;
+      if (!p) return false;
+      return String(p).endsWith(normalized);
+    });
 
-    if (allCallbacks.length <= 1) return;
+    if (matchingCallbacks.length <= 1) return;
 
-    const newestCb = allCallbacks[0];
-    const olderCbs = allCallbacks.slice(1);
+    const newestCb = matchingCallbacks[0];
+    const olderCbs = matchingCallbacks.slice(1);
 
     let mergedRemarks = newestCb.remarks || '';
     for (const cb of olderCbs) {
@@ -38,26 +42,26 @@ async function consolidateCallbacks(phoneNum) {
       }
     }
 
-    await callbacksCollection.updateOne(
-      { _id: newestCb._id },
-      { $set: { remarks: mergedRemarks, lastModified: new Date() } }
-    );
+    await prisma.callback.update({
+      where: { id: newestCb.id },
+      data: { remarks: mergedRemarks, lastModified: new Date() }
+    });
 
     if (newestCb.contactId) {
-      await contactsCollection.updateOne(
-        { _id: new ObjectId(newestCb.contactId) },
-        { $set: { remarks: mergedRemarks, lastModified: new Date() } }
-      );
+      await prisma.contact.update({
+        where: { id: newestCb.contactId },
+        data: { remarks: mergedRemarks, lastModified: new Date() }
+      });
     }
 
-    const callbackIdsToDelete = olderCbs.map(cb => cb._id);
+    const callbackIdsToDelete = olderCbs.map(cb => cb.id);
     const contactIdsToDelete = olderCbs.map(cb => cb.contactId).filter(id => id && String(id) !== String(newestCb.contactId));
 
     if (callbackIdsToDelete.length > 0) {
-      await callbacksCollection.deleteMany({ _id: { $in: callbackIdsToDelete } });
+      await prisma.callback.deleteMany({ where: { id: { in: callbackIdsToDelete } } });
     }
     if (contactIdsToDelete.length > 0) {
-      await contactsCollection.deleteMany({ _id: { $in: contactIdsToDelete.map(id => new ObjectId(id)) } });
+      await prisma.contact.deleteMany({ where: { id: { in: contactIdsToDelete } } });
     }
   } catch (error) {
     console.error(`[CONSOLIDATE] Error:`, error);
@@ -70,26 +74,25 @@ async function cleanupAllCallbacks(phoneNum) {
   if (!normalized) return;
 
   try {
-    const callbacksCollection = getCollection('callbacks');
-    const contactsCollection = getCollection('contacts');
-    const phoneRegex = new RegExp(normalized + '$');
+    const allCallbacks = await prisma.callback.findMany();
 
-    const allCallbacks = await callbacksCollection.find({
-      $or: [
-        { "fields.Phone": { $regex: phoneRegex } },
-        { "fields.phone": { $regex: phoneRegex } },
-        { "fields.Mobile": { $regex: phoneRegex } }
-      ]
-    }).toArray();
+    const matchingCallbacks = allCallbacks.filter(cb => {
+      const f = cb.fields || {};
+      const p = f.Phone || f.phone || f.Mobile;
+      if (!p) return false;
+      return String(p).endsWith(normalized);
+    });
 
-    if (allCallbacks.length === 0) return;
+    if (matchingCallbacks.length === 0) return;
 
-    const callbackIds = allCallbacks.map(cb => cb._id);
-    const contactIds = allCallbacks.map(cb => cb.contactId).filter(Boolean);
+    const callbackIds = matchingCallbacks.map(cb => cb.id);
+    const contactIds = matchingCallbacks.map(cb => cb.contactId).filter(Boolean);
 
-    await callbacksCollection.deleteMany({ _id: { $in: callbackIds } });
+    if (callbackIds.length > 0) {
+      await prisma.callback.deleteMany({ where: { id: { in: callbackIds } } });
+    }
     if (contactIds.length > 0) {
-      await contactsCollection.deleteMany({ _id: { $in: contactIds.map(id => new ObjectId(id)) } });
+      await prisma.contact.deleteMany({ where: { id: { in: contactIds } } });
     }
   } catch (error) {
     console.error(`[CLEANUP] Error:`, error);

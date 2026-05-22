@@ -2,9 +2,8 @@ const router = require('express').Router();
 const multer = require('multer');
 const csvSync = require('csv-parse/sync');
 const XLSX = require('xlsx');
-const { getCollection } = require('../../shared/mongodb');
+const { prisma } = require('../../shared/db');
 const { authorize, verify } = require('../../shared/authMiddleware');
-const { ObjectId } = require('mongodb');
 const { normalizePhone } = require('../../shared/callbackUtils');
 const { broadcast } = require('../../shared/notificationClient');
 
@@ -26,10 +25,9 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
     const { agentId, batchName, isLeadUpload } = req.body;
     if (!agentId) return res.status(400).json({ error: 'Agent ID required' });
 
-    const usersCollection = getCollection('users');
     let selectedAgent = null;
     if (agentId !== 'multi') {
-      selectedAgent = await usersCollection.findOne({ _id: new ObjectId(agentId) });
+      selectedAgent = await prisma.user.findUnique({ where: { id: agentId } });
       if (!selectedAgent) return res.status(404).json({ error: 'Selected agent not found' });
       if (selectedAgent.active === false || selectedAgent.isDeleted) return res.status(400).json({ error: 'Selected agent is inactive or deleted' });
       if (selectedAgent.role === 'tl') return res.status(400).json({ error: 'Selected user is a Team Leader (only Agents can be assigned contacts)' });
@@ -39,9 +37,19 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
     if (!records.length) return res.status(400).json({ error: 'No records found' });
 
     const batchId = 'batch_' + Date.now();
-    const contactsCollection = getCollection('contacts');
-    const allUsers = await usersCollection.find({ role: { $in: ['agent', 'tl'] }, active: { $ne: false }, isDeleted: { $ne: true } }).toArray();
-    const userMap = allUsers.reduce((acc, u) => { acc[u.name.toLowerCase()] = u; acc[u._id.toString()] = u; return acc; }, {});
+    const allUsers = await prisma.user.findMany({ 
+      where: { 
+        role: { in: ['agent', 'tl'] }, 
+        active: true, 
+        isDeleted: false 
+      } 
+    });
+    
+    const userMap = allUsers.reduce((acc, u) => { 
+      acc[u.name.toLowerCase()] = u; 
+      acc[u.id.toString()] = u; 
+      return acc; 
+    }, {});
 
     const isLead = String(isLeadUpload) === 'true';
 
@@ -49,7 +57,7 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
     const uploadErrors = [];
 
     records.forEach((row, index) => {
-      let assignedId = selectedAgent?._id;
+      let assignedId = selectedAgent?.id;
       const agentCol = Object.keys(row).find(k => k.toLowerCase().includes('agent'));
       
       let errorReason = null;
@@ -62,7 +70,7 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
             if (u.role === 'tl') {
               errorReason = `User '${row[agentCol]}' is a Team Leader (only Agents can be assigned contacts).`;
             } else {
-              assignedId = u._id;
+              assignedId = u.id;
             }
           } else {
             errorReason = `Agent '${row[agentCol]}' not found or inactive.`;
@@ -87,11 +95,10 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
       }
       
       const contactDoc = {
-        assignedTo: new ObjectId(assignedId),
+        assignedTo: assignedId,
         batchId,
+        adminId: req.user.role === 'admin' ? (req.user._id || req.user.id) : (req.user.adminId ? req.user.adminId : null),
         fields: row,
-        createdAt: new Date(),
-        lastModified: new Date(),
         isDeleted: false,
         disposition: isLead ? 'Lead' : null,
         queueOrder: 0
@@ -100,8 +107,9 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
       if (isLead) {
         contactDoc.status = row.Status || row.status || 'Converted';
         contactDoc.leadAmount = Number(row.LeadAmount || row.leadAmount || row.Amount || 0);
-        contactDoc.transactionId = row.TransactionId || row.transactionId || '';
-        contactDoc.remarks = row.Remarks || row.remarks || 'Uploaded via Lead Template';
+        // Note: transactionId doesn't exist in Prisma Schema for Contact, we can put it in remarks or fields
+        const transactionId = row.TransactionId || row.transactionId || '';
+        contactDoc.remarks = (row.Remarks || row.remarks || 'Uploaded via Lead Template') + (transactionId ? ` (TXN: ${transactionId})` : '');
       }
 
       contacts.push(contactDoc);
@@ -114,16 +122,16 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
       return res.status(400).json({ error: 'No valid assignments could be created from the uploaded file.' });
     }
 
-    await contactsCollection.insertMany(contacts);
+    await prisma.contact.createMany({ data: contacts });
     
-    const batchesCollection = getCollection('batches');
-    await batchesCollection.insertOne({
-      _id: batchId,
-      name: batchName || `Upload - ${new Date().toLocaleDateString()}`,
-      uploadedBy: new ObjectId(req.user._id),
-      uploadedAt: new Date(),
-      totalContacts: contacts.length,
-      fileName: req.file.originalname
+    await prisma.batch.create({
+      data: {
+        id: batchId,
+        name: batchName || `Upload - ${new Date().toLocaleDateString()}`,
+        adminId: req.user.role === 'admin' ? (req.user._id || req.user.id) : (req.user.adminId ? req.user.adminId : null),
+        contactCount: contacts.length,
+        status: 'uploaded'
+      }
     });
 
     broadcast('batch_uploaded', { batchId, totalUploaded: contacts.length });
@@ -137,11 +145,20 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
 });
 
 // GET /upload/batches - Fetch historical data uploads
-router.get('/batches', verify, authorize(['admin', 'tl']), async (req, res) => {
+router.get('/batches', verify, authorize(['superadmin', 'admin', 'tl']), async (req, res) => {
   try {
-    const batchesCollection = getCollection('batches');
-    const batches = await batchesCollection.find().sort({ uploadedAt: -1 }).toArray();
-    res.json(batches);
+    let where = {};
+    if (req.user.role === 'admin') {
+      where.adminId = req.user._id || req.user.id;
+    } else if (req.user.role === 'tl') {
+      if (req.user.adminId) where.adminId = req.user.adminId;
+    }
+    const batches = await prisma.batch.findMany({ 
+      where, 
+      orderBy: { createdAt: 'desc' } 
+    });
+    // Map id to _id and createdAt to uploadedAt for UI compatibility
+    res.json(batches.map(b => ({ ...b, _id: b.id, uploadedAt: b.createdAt })));
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch batches' });
   }
@@ -174,8 +191,7 @@ router.get('/template', verify, authorize(['admin', 'tl', 'agent']), async (req,
     XLSX.utils.book_append_sheet(wb, ws, 'Template');
 
     try {
-      const usersCollection = getCollection('users');
-      const agents = await usersCollection.find({ role: 'agent', isDeleted: { $ne: true } }).toArray();
+      const agents = await prisma.user.findMany({ where: { role: 'agent', isDeleted: false } });
       const referenceData = [['Agents available for assignment (Use exact name in Agent column)']];
       agents.forEach(a => referenceData.push([a.name]));
       

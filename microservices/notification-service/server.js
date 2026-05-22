@@ -2,8 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
-const { connect, getCollection } = require('../shared/mongodb');
-const { ObjectId } = require('mongodb');
+const { prisma } = require('../shared/db');
 require('dotenv').config();
 
 const app = express();
@@ -38,44 +37,45 @@ app.post('/notifications/broadcast', (req, res) => {
 
 // --- Missed Alerts Endpoint ---
 app.get('/notifications/alerts', async (req, res) => {
-  // In a real app, we'd verify the user here via shared middleware.
-  // For now, we'll implement the logic from the old auth route.
   try {
-    const contactsCollection = getCollection('contacts');
     const now = new Date();
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-    // Note: We need a userId here. We'll assume it's passed as a query param 
-    // or we'll need to apply the verify middleware.
     const userId = req.query.userId;
     if (!userId) return res.json([]);
 
     const [pastAppts, pastCbs] = await Promise.all([
-      contactsCollection.find({
-        assignedTo: new ObjectId(userId),
-        disposition: 'Appointment',
-        appointmentDt: { $lte: now, $gte: yesterday },
-        lateNotified: { $ne: true }
-      }).limit(10).toArray(),
-      contactsCollection.find({
-        assignedTo: new ObjectId(userId),
-        disposition: 'CallBack',
-        callBackDt: { $lte: now, $gte: yesterday },
-        cbReminderSent: { $ne: true }
-      }).limit(10).toArray()
+      prisma.contact.findMany({
+        where: {
+          assignedTo: userId,
+          disposition: 'Appointment',
+          appointmentDt: { lte: now, gte: yesterday },
+          lateNotified: { not: true }
+        },
+        take: 10
+      }),
+      prisma.contact.findMany({
+        where: {
+          assignedTo: userId,
+          disposition: 'CallBack',
+          callBackDt: { lte: now, gte: yesterday },
+          cbReminderSent: { not: true }
+        },
+        take: 10
+      })
     ]);
 
     const alerts = [
       ...pastAppts.map(a => ({
         type: 'appointment',
         title: '⚠️ Missed Appointment',
-        message: `${a.fields?.Name || a.fields?.name || 'Contact'} — was at ${new Date(a.appointmentDt).toLocaleTimeString()}`,
+        message: `${(a.fields || {}).Name || (a.fields || {}).name || 'Contact'} — was at ${a.appointmentDt ? new Date(a.appointmentDt).toLocaleTimeString() : ''}`,
         path: '/appointments'
       })),
       ...pastCbs.map(c => ({
         type: 'callback',
         title: '⚠️ Missed Callback',
-        message: `${c.fields?.Name || c.fields?.name || 'Contact'} — was at ${new Date(c.callBackDt).toLocaleTimeString()}`,
+        message: `${(c.fields || {}).Name || (c.fields || {}).name || 'Contact'} — was at ${c.callBackDt ? new Date(c.callBackDt).toLocaleTimeString() : ''}`,
         path: '/callbacks'
       }))
     ];
@@ -87,44 +87,46 @@ app.get('/notifications/alerts', async (req, res) => {
 // --- Appointment & Callback Background Worker ---
 async function checkAppointments() {
   try {
-    const contactsCollection = getCollection('contacts');
     const now = new Date();
-    const upcoming = await contactsCollection.find({
-      disposition: 'Appointment',
-      appointmentDt: { $gte: now, $lte: new Date(now.getTime() + 2 * 60 * 1000) },
-      reminderSent: { $ne: true }
-    }).toArray();
+    const upcoming = await prisma.contact.findMany({
+      where: {
+        disposition: 'Appointment',
+        appointmentDt: { gte: now, lte: new Date(now.getTime() + 2 * 60 * 1000) },
+        reminderSent: { not: true }
+      }
+    });
 
     for (const app of upcoming) {
       io.emit('appointment_reminder', {
-        appointmentId: app._id,
-        contactName: app.fields?.Name || app.fields?.name || 'Unknown',
+        appointmentId: app.id,
+        contactName: (app.fields || {}).Name || (app.fields || {}).name || 'Unknown',
         appointmentTime: app.appointmentDt,
-        agentId: app.assignedTo?.toString()
+        agentId: app.assignedTo
       });
-      await contactsCollection.updateOne({ _id: app._id }, { $set: { reminderSent: true } });
+      await prisma.contact.update({ where: { id: app.id }, data: { reminderSent: true } });
     }
   } catch (err) { console.error('Worker error:', err); }
 }
 
 async function checkCallbacks() {
   try {
-    const contactsCollection = getCollection('contacts');
     const now = new Date();
-    const upcoming = await contactsCollection.find({
-      disposition: 'CallBack',
-      callBackDt: { $gte: now, $lte: new Date(now.getTime() + 2 * 60 * 1000) },
-      cbReminderSent: { $ne: true }
-    }).toArray();
+    const upcoming = await prisma.contact.findMany({
+      where: {
+        disposition: 'CallBack',
+        callBackDt: { gte: now, lte: new Date(now.getTime() + 2 * 60 * 1000) },
+        cbReminderSent: { not: true }
+      }
+    });
 
     for (const cb of upcoming) {
       io.emit('callback_reminder', {
-        callbackId: cb._id,
-        contactName: cb.fields?.Name || cb.fields?.name || 'Unknown',
+        callbackId: cb.id,
+        contactName: (cb.fields || {}).Name || (cb.fields || {}).name || 'Unknown',
         callbackTime: cb.callBackDt,
-        agentId: cb.assignedTo?.toString()
+        agentId: cb.assignedTo
       });
-      await contactsCollection.updateOne({ _id: cb._id }, { $set: { cbReminderSent: true } });
+      await prisma.contact.update({ where: { id: cb.id }, data: { cbReminderSent: true } });
     }
   } catch (err) { console.error('Callback worker error:', err); }
 }
@@ -136,11 +138,6 @@ async function start() {
     // Start background worker
     setInterval(checkAppointments, 60000);
     setInterval(checkCallbacks, 60000);
-  });
-  
-  // Connect to MongoDB Atlas in the background to prevent blocking startup checks
-  connect().catch(err => {
-    console.error("❌ Deferred MongoDB Connection Failure in Notification Service:", err.message);
   });
 }
 

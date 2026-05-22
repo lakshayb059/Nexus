@@ -1,7 +1,6 @@
 const router = require('express').Router();
-const { getCollection } = require('../../shared/mongodb');
+const { prisma } = require('../../shared/db');
 const { verify, authorize } = require('../../shared/authMiddleware');
-const { ObjectId } = require('mongodb');
 const XLSX = require('xlsx');
 
 const DISP_LABELS = {
@@ -13,35 +12,51 @@ const DISP_LABELS = {
   CallBack: 'Call Back',
 };
 
-router.get('/download', verify, authorize(['admin', 'tl', 'agent']), async (req, res) => {
+router.get('/download', verify, authorize(['superadmin', 'admin', 'tl', 'agent']), async (req, res) => {
   try {
     const { format = 'csv', agentId, disposition, batchId, reportType } = req.query;
-    const query = { isDeleted: { $ne: true } };
-    if (reportType === 'lead') query.disposition = 'Lead';
+    let where = { isDeleted: false };
+    
+    if (reportType === 'lead') where.disposition = 'Lead';
     else {
-      if (disposition === 'pending') query.disposition = null;
-      else if (disposition) query.disposition = disposition;
+      if (disposition === 'pending') where.disposition = null;
+      else if (disposition) where.disposition = disposition;
     }
-    if (batchId) query.batchId = batchId;
+    if (batchId) where.batchId = batchId;
 
-    const usersCollection = getCollection('users');
     if (req.user.role === 'tl') {
-      const agents = await usersCollection.find({ role: 'agent', tlId: new ObjectId(req.user._id) }).toArray();
-      const agentIds = agents.map(a => a._id);
-      if (agentId && agentIds.some(id => id.equals(new ObjectId(agentId)))) query.assignedTo = new ObjectId(agentId);
-      else query.assignedTo = { $in: agentIds };
-    } else if (req.user.role === 'agent') query.assignedTo = new ObjectId(req.user._id);
-    else if (agentId) query.assignedTo = new ObjectId(agentId);
+      const agents = await prisma.user.findMany({ where: { role: 'agent', tlId: req.user._id || req.user.id } });
+      const agentIds = agents.map(a => a.id);
+      if (agentId && agentIds.includes(agentId)) {
+        where.assignedTo = agentId;
+      } else {
+        where.assignedTo = { in: agentIds };
+      }
+    } else if (req.user.role === 'agent') {
+      where.assignedTo = req.user._id || req.user.id;
+    } else if (req.user.role === 'admin') {
+      where.adminId = req.user._id || req.user.id;
+      if (agentId) where.assignedTo = agentId;
+    } else if (req.user.role === 'superadmin') {
+      if (agentId) where.assignedTo = agentId;
+    }
 
-    const contactsCollection = getCollection('contacts');
-    const contacts = await contactsCollection.find(query).sort({ assignedTo: 1, queueOrder: 1 }).toArray();
+    const contacts = await prisma.contact.findMany({
+      where,
+      orderBy: [
+        { assignedTo: 'asc' },
+        { queueOrder: 'asc' }
+      ]
+    });
 
     const fieldCols = [...new Set(contacts.flatMap(c => Object.keys(c.fields || {})))];
     const userCache = {};
     const rows = await Promise.all(contacts.map(async c => {
       let agentName = 'Unknown';
       if (c.assignedTo) {
-        if (!userCache[c.assignedTo]) userCache[c.assignedTo] = await usersCollection.findOne({ _id: new ObjectId(c.assignedTo) });
+        if (!userCache[c.assignedTo]) {
+          userCache[c.assignedTo] = await prisma.user.findUnique({ where: { id: c.assignedTo } });
+        }
         agentName = userCache[c.assignedTo]?.name || 'Unknown';
       }
       const row = { 'Agent': agentName };
@@ -49,7 +64,7 @@ router.get('/download', verify, authorize(['admin', 'tl', 'agent']), async (req,
       row['Disposition'] = c.disposition ? (DISP_LABELS[c.disposition] || c.disposition) : 'Pending';
       row['Lead Amount'] = c.leadAmount || '';
       row['Lead Status'] = c.status || '';
-      row['Other Remarks'] = c.statusDetails || '';
+      row['Other Remarks'] = c.remarks || ''; // Map statusDetails/remarks appropriately
       row['Agent Remarks'] = c.remarks || '';
       row['Appointment Date & Time'] = c.appointmentDt ? new Date(c.appointmentDt).toLocaleString('en-IN') : '';
       row['Last Modified'] = c.lastModified ? new Date(c.lastModified).toLocaleString('en-IN') : '';

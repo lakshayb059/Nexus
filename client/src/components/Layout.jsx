@@ -92,15 +92,15 @@ const Layout = () => {
             <div
               className="topbar-role-chip"
               style={{
-                background: role === 'admin'
+                background: (role === 'admin' || role === 'superadmin')
                   ? 'rgba(245,158,11,0.12)'
                   : role === 'tl'
                   ? 'var(--primary-light)'
                   : 'var(--success-light)',
-                color: role === 'admin' ? '#f59e0b' : role === 'tl' ? 'var(--primary)' : 'var(--success)',
+                color: (role === 'admin' || role === 'superadmin') ? '#f59e0b' : role === 'tl' ? 'var(--primary)' : 'var(--success)',
               }}
             >
-              {role === 'admin' ? 'Admin' : role === 'tl' ? 'Team Lead' : 'Agent'}
+              {role === 'superadmin' ? 'Super Admin' : role === 'admin' ? 'Admin' : role === 'tl' ? 'Team Lead' : 'Agent'}
             </div>
           </div>
         </header>

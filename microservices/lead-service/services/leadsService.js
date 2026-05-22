@@ -1,5 +1,4 @@
-const { getCollection } = require('../../shared/mongodb');
-const { ObjectId } = require('mongodb');
+const { prisma } = require('../../shared/db');
 const { consolidateCallbacks, cleanupAllCallbacks } = require('../../shared/callbackUtils');
 
 class LeadsService {
@@ -9,21 +8,24 @@ class LeadsService {
 
   async getNextContact(agentId) {
     try {
-      const contactsCollection = getCollection('contacts');
       const now = new Date();
       
-      const dueCallbacks = await contactsCollection.find({
-        assignedTo: new ObjectId(agentId),
-        disposition: 'CallBack',
-        callBackDt: { $lte: now },
-        queueOrder: { $lt: 999999 }
-      }).sort({ callBackDt: 1 }).limit(1).toArray();
+      const dueCallbacks = await prisma.contact.findMany({
+        where: {
+          assignedTo: agentId,
+          disposition: 'CallBack',
+          callBackDt: { lte: now },
+          queueOrder: { lt: 999999 }
+        },
+        orderBy: { callBackDt: 'asc' },
+        take: 1
+      });
 
       if (dueCallbacks.length > 0) {
-        await contactsCollection.updateOne(
-          { _id: dueCallbacks[0]._id },
-          { $set: { queueOrder: 0, callBackDt: null } }
-        );
+        await prisma.contact.update({
+          where: { id: dueCallbacks[0].id },
+          data: { queueOrder: 0, callBackDt: null }
+        });
         return {
           contact: dueCallbacks[0],
           type: 'callback_due',
@@ -31,14 +33,20 @@ class LeadsService {
         };
       }
 
-      const nextContact = await contactsCollection.findOne({
-        assignedTo: new ObjectId(agentId),
-        queueOrder: { $lt: 999999 },
-        $or: [
-          { disposition: null },
-          { disposition: 'CallNotAnswered' }
+      const nextContact = await prisma.contact.findFirst({
+        where: {
+          assignedTo: agentId,
+          queueOrder: { lt: 999999 },
+          OR: [
+            { disposition: null },
+            { disposition: 'CallNotAnswered' }
+          ]
+        },
+        orderBy: [
+          { queueOrder: 'asc' },
+          { createdAt: 'asc' }
         ]
-      }).sort({ queueOrder: 1, createdAt: 1 });
+      });
 
       return {
         contact: nextContact || null,
@@ -52,33 +60,26 @@ class LeadsService {
 
   async getQueueStats(agentId) {
     try {
-      const contactsCollection = getCollection('contacts');
-      const stats = await contactsCollection.aggregate([
-        { $match: { assignedTo: new ObjectId(agentId) } },
-        {
-          $group: {
-            _id: null,
-            total: { $sum: 1 },
-            pending: {
-              $sum: {
-                $cond: [
-                  { $or: [{ $eq: ['$disposition', null] }, { $eq: ['$disposition', 'CallNotAnswered'] }] },
-                  1, 0
-                ]
-              }
-            },
-            disposed: {
-              $sum: {
-                $cond: [
-                  { $and: [{ $ne: ['$disposition', null] }, { $ne: ['$disposition', 'CallNotAnswered'] }] },
-                  1, 0
-                ]
-              }
-            }
+      const [total, pending] = await Promise.all([
+        prisma.contact.count({
+          where: { assignedTo: agentId }
+        }),
+        prisma.contact.count({
+          where: {
+            assignedTo: agentId,
+            OR: [
+              { disposition: null },
+              { disposition: 'CallNotAnswered' }
+            ]
           }
-        }
-      ]).toArray();
-      return stats[0] || { total: 0, pending: 0, disposed: 0 };
+        })
+      ]);
+
+      return {
+        total,
+        pending,
+        disposed: total - pending
+      };
     } catch (error) {
       return { total: 0, pending: 0, disposed: 0 };
     }

@@ -1,6 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { getCollection } = require('./mongodb');
-const { ObjectId } = require('mongodb');
+const { prisma } = require('./db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'crm-super-secret-jwt-key-2024-change-in-production-use-strong-random-string';
 
@@ -15,8 +14,7 @@ async function verify(req, res, next) {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
 
-    const usersCollection = getCollection('users');
-    const user = await usersCollection.findOne({ _id: new ObjectId(decoded._id) });
+    const user = await prisma.user.findUnique({ where: { id: decoded._id || decoded.id } });
 
     if (!user || (user.role === 'agent' && !user.active)) {
       return res.status(403).json({ error: 'Account inactive or suspended. Please contact admin.' });
@@ -45,7 +43,7 @@ function authorize(...roles) {
 
 function sign(user) {
   return jwt.sign(
-    { _id: user._id, username: user.username, name: user.name, role: user.role, tlId: user.tlId },
+    { _id: user._id || user.id, id: user.id || user._id, username: user.username, name: user.name, role: user.role, tlId: user.tlId, adminId: user.adminId },
     JWT_SECRET,
     { expiresIn: '2h' }
   );

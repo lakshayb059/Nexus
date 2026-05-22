@@ -34,7 +34,7 @@ const Sidebar = ({ isOpen, onClose }) => {
     { path: '/reports', icon: BarChart2, label: 'Reports', roles: ['admin', 'tl'] },
   ];
 
-  const filteredItems = navItems.filter(item => !item.roles || item.roles.includes(role));
+  const filteredItems = navItems.filter(item => !item.roles || item.roles.includes(role) || (role === 'superadmin' && item.roles.includes('admin')));
 
   return (
     <>
@@ -78,7 +78,7 @@ const Sidebar = ({ isOpen, onClose }) => {
           </div>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.name}</div>
-            <div style={{ fontSize: '0.75rem', color: '#6b7280', textTransform: 'capitalize' }}>{role}</div>
+            <div style={{ fontSize: '0.75rem', color: '#6b7280', textTransform: 'capitalize' }}>{role === 'superadmin' ? 'Super Admin' : role}</div>
           </div>
         </div>
 

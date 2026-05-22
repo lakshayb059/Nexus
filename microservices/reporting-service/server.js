@@ -1,6 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const { connect } = require('../shared/mongodb');
 require('dotenv').config();
 
 const app = express();
@@ -20,11 +19,6 @@ app.use('/upload', require('./routes/upload'));
 async function start() {
   app.listen(PORT, () => {
     console.log(`📊 Reporting Service running on port: ${PORT}`);
-  });
-  
-  // Connect to MongoDB Atlas in the background to prevent blocking startup checks
-  connect().catch(err => {
-    console.error("❌ Deferred MongoDB Connection Failure in Reporting Service:", err.message);
   });
 }
 

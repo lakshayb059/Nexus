@@ -1,55 +1,47 @@
 const router = require('express').Router();
-const { getCollection } = require('../../shared/mongodb');
+const { prisma } = require('../../shared/db');
 const { authorize, verify } = require('../../shared/authMiddleware');
-const { ObjectId } = require('mongodb');
 const { consolidateCallbacks } = require('../../shared/callbackUtils');
 const { broadcast } = require('../../shared/notificationClient');
 
 // GET /api/leads/my-leads
-router.get('/my-leads', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
+router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
-    const leadsCollection = getCollection('leads');
-    const contactsCollection = getCollection('contacts');
-    const usersCollection = getCollection('users');
-
-    const matchQuery = { isDeleted: { $ne: true } };
+    let whereQuery = {};
     if (req.user.role === 'agent') {
-      matchQuery.assignedTo = new ObjectId(req.user._id);
+      whereQuery.assignedTo = req.user._id || req.user.id;
     } else if (req.user.role === 'tl') {
-      const agents = await usersCollection.find({ tlId: new ObjectId(req.user._id) }).toArray();
-      matchQuery.assignedTo = { $in: agents.map(a => a._id) };
+      const agents = await prisma.user.findMany({ where: { tlId: req.user._id || req.user.id } });
+      whereQuery.assignedTo = { in: agents.map(a => a.id) };
+    } else if (req.user.role === 'admin') {
+      whereQuery.adminId = req.user._id || req.user.id;
     }
 
-    // Fetch from both leads collection and contacts collection where disposition is 'Lead'
     const [leads, contactLeads, allUsers] = await Promise.all([
-      leadsCollection.find(matchQuery).toArray(),
-      contactsCollection.find({ ...matchQuery, disposition: 'Lead' }).toArray(),
-      usersCollection.find({ role: { $in: ['agent', 'tl'] } }).toArray()
+      prisma.lead.findMany({ where: whereQuery }),
+      prisma.contact.findMany({ where: { ...whereQuery, disposition: 'Lead', isDeleted: false } }),
+      prisma.user.findMany({ where: { role: { in: ['agent', 'tl'] } } })
     ]);
 
-    const userMap = allUsers.reduce((acc, u) => { acc[u._id.toString()] = u.name; return acc; }, {});
-
-    // Map contactLeads to match the lead schema, filtering out duplicates already in leadsCollection
-    const leadContactIds = new Set(leads.map(l => l.contactId ? l.contactId.toString() : ''));
-    const uniqueContactLeads = contactLeads.filter(c => !leadContactIds.has(c._id.toString()));
+    const userMap = allUsers.reduce((acc, u) => { acc[u.id] = u.name; return acc; }, {});
+    const leadContactIds = new Set(leads.map(l => l.contactId));
+    const uniqueContactLeads = contactLeads.filter(c => !leadContactIds.has(c.id));
 
     const mappedContactLeads = uniqueContactLeads.map(c => ({
-      _id: c._id,
-      contactId: c._id,
+      _id: c.id,
+      contactId: c.id,
       fields: c.fields,
       batchId: c.batchId,
       assignedTo: c.assignedTo,
-      agentName: c.agentName || (c.assignedTo ? userMap[c.assignedTo.toString()] : 'Unassigned'),
+      agentName: c.assignedTo ? userMap[c.assignedTo] || 'Unassigned' : 'Unassigned',
       leadAmount: c.leadAmount || 0,
       status: c.status || 'Converted',
       remarks: c.remarks || 'Imported Lead',
-      statusDetails: c.statusDetails,
-      transactionId: c.transactionId || '',
       createdAt: c.createdAt,
       lastModified: c.lastModified
     }));
 
-    const combinedLeads = [...leads, ...mappedContactLeads];
+    const combinedLeads = [...leads.map(l => ({ ...l, _id: l.id })), ...mappedContactLeads];
     const groupedMap = new Map();
 
     const normalize = (phone) => {
@@ -59,7 +51,8 @@ router.get('/my-leads', verify, authorize(['agent', 'tl', 'admin']), async (req,
     };
 
     combinedLeads.forEach(lead => {
-      const rawPhone = lead.fields?.Phone || lead.fields?.phone || lead.fields?.Mobile || 'N/A';
+      const fields = lead.fields || {};
+      const rawPhone = fields.Phone || fields.phone || fields.Mobile || 'N/A';
       const normPhone = normalize(rawPhone);
       if (!groupedMap.has(normPhone)) {
         groupedMap.set(normPhone, { ...lead, totalAmount: 0, leadsCount: 0 });
@@ -87,86 +80,73 @@ router.get('/my-leads', verify, authorize(['agent', 'tl', 'admin']), async (req,
 });
 
 // GET /api/leads/stats
-router.get('/stats', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
+router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
-    const leadsCollection = getCollection('leads');
-    const contactsCollection = getCollection('contacts');
-    
-    let query = {};
-    if (req.user.role !== 'admin') {
-      query.isDeleted = { $ne: true };
-    }
+    let whereQuery = {};
     if (req.user.role === 'agent') {
-      query.assignedTo = new ObjectId(req.user._id);
+      whereQuery.assignedTo = req.user._id || req.user.id;
     } else if (req.user.role === 'tl') {
-      const usersCollection = getCollection('users');
-      const agents = await usersCollection.find({ tlId: new ObjectId(req.user._id) }).toArray();
-      query.assignedTo = { $in: agents.map(a => a._id) };
+      const agents = await prisma.user.findMany({ where: { tlId: req.user._id || req.user.id } });
+      whereQuery.assignedTo = { in: agents.map(a => a.id) };
+    } else if (req.user.role === 'admin') {
+      whereQuery.adminId = req.user._id || req.user.id;
     }
-    
+
     const [leads, contactLeads] = await Promise.all([
-      leadsCollection.find(query).toArray(),
-      contactsCollection.find({ ...query, disposition: 'Lead' }).toArray()
+      prisma.lead.findMany({ where: whereQuery }),
+      prisma.contact.findMany({ where: { ...whereQuery, disposition: 'Lead', isDeleted: false } })
     ]);
     
-    const leadContactIds = new Set(leads.map(l => l.contactId ? l.contactId.toString() : ''));
-    const uniqueContactLeads = contactLeads.filter(c => !leadContactIds.has(c._id.toString()));
+    const leadContactIds = new Set(leads.map(l => l.contactId));
+    const uniqueContactLeads = contactLeads.filter(c => !leadContactIds.has(c.id));
     
     const totalLeads = leads.length + uniqueContactLeads.length;
     const totalAmount = leads.reduce((sum, l) => sum + (parseFloat(l.leadAmount) || 0), 0) +
                         uniqueContactLeads.reduce((sum, c) => sum + (parseFloat(c.leadAmount) || 0), 0);
     
-    res.json({
-      totalLeads,
-      totalAmount
-    });
+    res.json({ totalLeads, totalAmount });
   } catch (err) {
     console.error('Leads stats failed:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// GET /leads/appointments - Fetch scheduled appointments
-router.get('/appointments', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
+// GET /leads/appointments
+router.get('/appointments', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
-    const appointmentsCollection = getCollection('appointments');
-    const contactsCollection = getCollection('contacts');
-    const usersCollection = getCollection('users');
-
-    let query = { isDeleted: { $ne: true } };
+    let whereQuery = {};
+    let contactsWhereQuery = { isDeleted: false };
     if (req.user.role === 'agent') {
-      query.assignedTo = new ObjectId(req.user._id);
+      whereQuery.assignedTo = req.user._id || req.user.id;
+      contactsWhereQuery.assignedTo = req.user._id || req.user.id;
     } else if (req.user.role === 'tl') {
-      const agents = await usersCollection.find({ tlId: new ObjectId(req.user._id) }).toArray();
-      query.assignedTo = { $in: agents.map(a => a._id) };
+      const agents = await prisma.user.findMany({ where: { tlId: req.user._id || req.user.id } });
+      const ids = agents.map(a => a.id);
+      whereQuery.assignedTo = { in: ids };
+      contactsWhereQuery.assignedTo = { in: ids };
+    } else if (req.user.role === 'admin') {
+      whereQuery.adminId = req.user._id || req.user.id;
+      contactsWhereQuery.adminId = req.user._id || req.user.id;
     }
 
     const [appointments, contactAppts, allUsers] = await Promise.all([
-      appointmentsCollection.find(query).toArray(),
-      contactsCollection.find({ ...query, disposition: 'Appointment' }).toArray(),
-      usersCollection.find({ role: { $in: ['agent', 'tl'] } }).toArray()
+      prisma.appointment.findMany({ where: whereQuery }),
+      prisma.contact.findMany({ where: { ...contactsWhereQuery, disposition: 'Appointment' } }),
+      prisma.user.findMany({ where: { role: { in: ['agent', 'tl'] } } })
     ]);
 
-    const userMap = allUsers.reduce((acc, u) => { acc[u._id.toString()] = u.name; return acc; }, {});
+    const userMap = allUsers.reduce((acc, u) => { acc[u.id] = u.name; return acc; }, {});
 
-    // Map contactAppts to standard appointment schema
     const mappedContactAppts = contactAppts.map(c => ({
-      _id: c._id,
-      contactId: c._id,
-      fields: c.fields,
-      batchId: c.batchId,
-      assignedTo: c.assignedTo,
-      agentName: c.agentName || (c.assignedTo ? userMap[c.assignedTo.toString()] : 'Unassigned'),
-      appointmentDt: c.appointmentDt,
-      remarks: c.remarks || 'Scheduled',
-      createdAt: c.createdAt || c.disposedAt || new Date(),
-      lastModified: c.lastModified || new Date()
+      _id: c.id, contactId: c.id, fields: c.fields, batchId: c.batchId,
+      assignedTo: c.assignedTo, agentName: c.assignedTo ? userMap[c.assignedTo] || 'Unassigned' : 'Unassigned',
+      appointmentDt: c.appointmentDt, remarks: c.remarks || 'Scheduled',
+      createdAt: c.createdAt || c.disposedAt || new Date(), lastModified: c.lastModified || new Date()
     }));
 
-    // Deduplicate by contactId to prevent double listing
     const mergedMap = new Map();
-    [...appointments, ...mappedContactAppts].forEach(app => {
-      const cid = app.contactId ? app.contactId.toString() : app._id.toString();
+    [...appointments.map(a => ({ ...a, _id: a.id })), ...mappedContactAppts].forEach(app => {
+      const cid = app.contactId ? app.contactId : app._id;
       if (!mergedMap.has(cid) || new Date(app.createdAt) > new Date(mergedMap.get(cid).createdAt)) {
         mergedMap.set(cid, app);
       }
@@ -180,57 +160,49 @@ router.get('/appointments', verify, authorize(['agent', 'tl', 'admin']), async (
   }
 });
 
-// GET /leads/callbacks - Fetch scheduled callbacks
-router.get('/callbacks', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
+// GET /leads/callbacks
+router.get('/callbacks', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
-    const callbacksCollection = getCollection('callbacks');
-    const contactsCollection = getCollection('contacts');
-    const usersCollection = getCollection('users');
-
-    let query = { isDeleted: { $ne: true } };
+    let whereQuery = {};
+    let contactsWhereQuery = { isDeleted: false };
     if (req.user.role === 'agent') {
-      query.assignedTo = new ObjectId(req.user._id);
+      whereQuery.assignedTo = req.user._id || req.user.id;
+      contactsWhereQuery.assignedTo = req.user._id || req.user.id;
     } else if (req.user.role === 'tl') {
-      const agents = await usersCollection.find({ tlId: new ObjectId(req.user._id) }).toArray();
-      query.assignedTo = { $in: agents.map(a => a._id) };
+      const agents = await prisma.user.findMany({ where: { tlId: req.user._id || req.user.id } });
+      const ids = agents.map(a => a.id);
+      whereQuery.assignedTo = { in: ids };
+      contactsWhereQuery.assignedTo = { in: ids };
+    } else if (req.user.role === 'admin') {
+      whereQuery.adminId = req.user._id || req.user.id;
+      contactsWhereQuery.adminId = req.user._id || req.user.id;
     }
 
     const [callbacks, contactCbs, allUsers] = await Promise.all([
-      callbacksCollection.find(query).toArray(),
-      contactsCollection.find({ ...query, disposition: 'CallBack' }).toArray(),
-      usersCollection.find({ role: { $in: ['agent', 'tl'] } }).toArray()
+      prisma.callback.findMany({ where: whereQuery }),
+      prisma.contact.findMany({ where: { ...contactsWhereQuery, disposition: 'CallBack' } }),
+      prisma.user.findMany({ where: { role: { in: ['agent', 'tl'] } } })
     ]);
 
-    const userMap = allUsers.reduce((acc, u) => { acc[u._id.toString()] = u.name; return acc; }, {});
+    const userMap = allUsers.reduce((acc, u) => { acc[u.id] = u.name; return acc; }, {});
 
-    // Map callbacks from the callbacksCollection to standard schema, ensuring they have the correct source
     const mappedCallbacks = callbacks.map(c => ({
-      ...c,
-      source: c.source || (c.status === 'Call Back' || c.status === 'CallBack' || c.leadAmount > 0 ? 'lead' : undefined)
+      ...c, _id: c.id,
+      source: c.status === 'Call Back' || c.status === 'CallBack' ? 'lead' : undefined
     }));
 
-    // Map contactCbs to standard callback schema
     const mappedContactCbs = contactCbs.map(c => ({
-      _id: c._id,
-      contactId: c._id,
-      fields: c.fields,
-      batchId: c.batchId,
-      assignedTo: c.assignedTo,
-      agentName: c.agentName || (c.assignedTo ? userMap[c.assignedTo.toString()] : 'Unassigned'),
-      callBackDt: c.callBackDt,
-      remarks: c.remarks || 'Scheduled Follow Up',
-      disposition: c.disposition,
-      status: c.status,
-      leadAmount: c.leadAmount,
-      source: c.source || (c.status === 'Call Back' || c.status === 'CallBack' || c.leadAmount > 0 ? 'lead' : undefined),
-      createdAt: c.createdAt || c.disposedAt || new Date(),
-      lastModified: c.lastModified || new Date()
+      _id: c.id, contactId: c.id, fields: c.fields, batchId: c.batchId,
+      assignedTo: c.assignedTo, agentName: c.assignedTo ? userMap[c.assignedTo] || 'Unassigned' : 'Unassigned',
+      callBackDt: c.callBackDt, remarks: c.remarks || 'Scheduled Follow Up',
+      disposition: c.disposition, status: c.status, leadAmount: c.leadAmount,
+      source: c.status === 'Call Back' || c.status === 'CallBack' || c.leadAmount > 0 ? 'lead' : undefined,
+      createdAt: c.createdAt || c.disposedAt || new Date(), lastModified: c.lastModified || new Date()
     }));
 
-    // Deduplicate by contactId to prevent double listing
     const mergedMap = new Map();
     [...mappedCallbacks, ...mappedContactCbs].forEach(cb => {
-      const cid = cb.contactId ? cb.contactId.toString() : cb._id.toString();
+      const cid = cb.contactId ? cb.contactId : cb._id;
       if (!mergedMap.has(cid) || new Date(cb.createdAt) > new Date(mergedMap.get(cid).createdAt)) {
         mergedMap.set(cid, cb);
       }
@@ -244,97 +216,79 @@ router.get('/callbacks', verify, authorize(['agent', 'tl', 'admin']), async (req
   }
 });
 
-// DELETE /leads/appointments/:id - Delete individual appointment
-router.get('/appointments/wipe', verify, authorize(['admin']), async (req, res) => {
+router.get('/appointments/wipe', verify, authorize(['superadmin']), async (req, res) => {
   try {
-    await getCollection('appointments').deleteMany({});
+    await prisma.appointment.deleteMany({});
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.delete('/appointments/:id', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
+router.delete('/appointments/:id', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
-    const appointmentsCollection = getCollection('appointments');
-    const query = { _id: new ObjectId(req.params.id) };
-    if (req.user.role === 'agent') query.assignedTo = new ObjectId(req.user._id);
-    await appointmentsCollection.deleteOne(query);
+    const query = { id: req.params.id };
+    if (req.user.role === 'agent') query.assignedTo = req.user._id || req.user.id;
+    await prisma.appointment.deleteMany({ where: query });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-// POST /leads/appointments/bulk-delete - Bulk delete appointments
-router.post('/appointments/bulk-delete', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
+router.post('/appointments/bulk-delete', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
     const { ids } = req.body;
     if (!ids || !ids.length) return res.status(400).json({ error: 'No IDs provided' });
-    const appointmentsCollection = getCollection('appointments');
-    const query = { _id: { $in: ids.map(id => new ObjectId(id)) } };
-    if (req.user.role === 'agent') query.assignedTo = new ObjectId(req.user._id);
-    await appointmentsCollection.deleteMany(query);
+    const query = { id: { in: ids } };
+    if (req.user.role === 'agent') query.assignedTo = req.user._id || req.user.id;
+    await prisma.appointment.deleteMany({ where: query });
     res.json({ success: true });
   } catch (err) {
-    console.error('Bulk delete appointments failed:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// DELETE /leads/callbacks/:id - Delete individual callback
-router.get('/callbacks/wipe', verify, authorize(['admin']), async (req, res) => {
+router.get('/callbacks/wipe', verify, authorize(['superadmin']), async (req, res) => {
   try {
-    await getCollection('callbacks').deleteMany({});
+    await prisma.callback.deleteMany({});
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.delete('/callbacks/:id', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
+router.delete('/callbacks/:id', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
-    const callbacksCollection = getCollection('callbacks');
-    const query = { _id: new ObjectId(req.params.id) };
-    if (req.user.role === 'agent') query.assignedTo = new ObjectId(req.user._id);
-    await callbacksCollection.deleteOne(query);
+    const query = { id: req.params.id };
+    if (req.user.role === 'agent') query.assignedTo = req.user._id || req.user.id;
+    await prisma.callback.deleteMany({ where: query });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
-// POST /leads/callbacks/bulk-delete - Bulk delete callbacks
-router.post('/callbacks/bulk-delete', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
+router.post('/callbacks/bulk-delete', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
     const { ids } = req.body;
     if (!ids || !ids.length) return res.status(400).json({ error: 'No IDs provided' });
-    const callbacksCollection = getCollection('callbacks');
-    const query = { _id: { $in: ids.map(id => new ObjectId(id)) } };
-    if (req.user.role === 'agent') query.assignedTo = new ObjectId(req.user._id);
-    await callbacksCollection.deleteMany(query);
+    const query = { id: { in: ids } };
+    if (req.user.role === 'agent') query.assignedTo = req.user._id || req.user.id;
+    await prisma.callback.deleteMany({ where: query });
     res.json({ success: true });
   } catch (err) {
-    console.error('Bulk delete callbacks failed:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// DELETE /leads/:id - Delete individual lead
-router.delete('/:id', verify, authorize(['admin']), async (req, res) => {
+router.delete('/:id', verify, authorize(['superadmin', 'admin']), async (req, res) => {
   try {
-    const leadsCollection = getCollection('leads');
-    const contactsCollection = getCollection('contacts');
-    
-    const leadId = new ObjectId(req.params.id);
-    
-    // Check if it exists in leadsCollection
-    const lead = await leadsCollection.findOne({ _id: leadId });
+    const leadId = req.params.id;
+    const lead = await prisma.lead.findUnique({ where: { id: leadId } });
     if (lead) {
       await Promise.all([
-        leadsCollection.deleteOne({ _id: leadId }),
-        contactsCollection.updateOne({ _id: lead.contactId }, { $set: { isDeleted: true } })
+        prisma.lead.delete({ where: { id: leadId } }),
+        prisma.contact.update({ where: { id: lead.contactId }, data: { isDeleted: true } })
       ]);
     } else {
-      // It is a mapped contact lead where lead ID is the contact ID
       await Promise.all([
-        leadsCollection.deleteMany({ contactId: leadId }),
-        contactsCollection.updateOne({ _id: leadId }, { $set: { isDeleted: true } })
+        prisma.lead.deleteMany({ where: { contactId: leadId } }),
+        prisma.contact.update({ where: { id: leadId }, data: { isDeleted: true } })
       ]);
     }
-    
     res.json({ success: true });
   } catch (err) {
     console.error('Delete lead error:', err);
@@ -342,61 +296,40 @@ router.delete('/:id', verify, authorize(['admin']), async (req, res) => {
   }
 });
 
-// PUT /leads/:id - Update lead details/status
-router.put('/:id', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
+router.put('/:id', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
-    const leadsCollection = getCollection('leads');
-    const contactsCollection = getCollection('contacts');
+    const leadId = req.params.id;
+    const updateData = { ...req.body };
+    const lead = await prisma.lead.findUnique({ where: { id: leadId } });
     
-    const leadId = new ObjectId(req.params.id);
-    const updateData = { ...req.body, lastModified: new Date() };
-    
-    // Find the lead in leadsCollection
-    const lead = await leadsCollection.findOne({ _id: leadId });
-    
-    // If status is changed to Call Back, remove from lead tracking and add to callbacks follow-up
     if (req.body.status === 'Call Back' || req.body.status === 'CallBack') {
       const contactId = lead ? (lead.contactId || leadId) : leadId;
-      const leadObj = lead || await contactsCollection.findOne({ _id: leadId });
+      const leadObj = lead || await prisma.contact.findUnique({ where: { id: leadId } });
       if (!leadObj) return res.status(404).json({ error: 'Lead not found' });
 
-      // 1. Delete from leadsCollection
-      await leadsCollection.deleteOne({ _id: leadId });
-      await leadsCollection.deleteMany({ contactId });
+      await prisma.lead.deleteMany({ where: { id: leadId } });
+      await prisma.lead.deleteMany({ where: { contactId } });
 
-      // 2. Update contactsCollection
       const callBackDt = req.body.callBackDt ? new Date(req.body.callBackDt) : new Date();
-      await contactsCollection.updateOne(
-        { _id: contactId },
-        {
-          $set: {
-            disposition: 'CallBack',
-            status: 'Call Back',
-            callBackDt: callBackDt,
-            remarks: req.body.remarks || 'Status changed from Lead to Callback',
-            lastModified: new Date()
-          }
+      await prisma.contact.update({
+        where: { id: contactId },
+        data: {
+          disposition: 'CallBack', status: 'Call Back', callBackDt,
+          remarks: req.body.remarks || 'Status changed from Lead to Callback',
         }
-      );
-
-      // 3. Upsert into callbacksCollection
-      const callbacksCollection = getCollection('callbacks');
-      await callbacksCollection.deleteMany({ contactId });
-      await callbacksCollection.insertOne({
-        contactId,
-        fields: leadObj.fields || {},
-        batchId: leadObj.batchId,
-        assignedTo: leadObj.assignedTo,
-        agentName: leadObj.agentName || req.user.name,
-        callBackDt: callBackDt,
-        remarks: req.body.remarks || 'Status changed from Lead to Callback',
-        status: 'Call Back',
-        source: 'lead',
-        createdAt: new Date(),
-        lastModified: new Date()
       });
 
-      const phoneNum = leadObj.fields?.Phone || leadObj.fields?.phone || leadObj.fields?.Mobile;
+      await prisma.callback.deleteMany({ where: { contactId } });
+      await prisma.callback.create({
+        data: {
+          contactId, fields: leadObj.fields || {}, batchId: leadObj.batchId,
+          assignedTo: leadObj.assignedTo, agentName: leadObj.agentName || req.user.name,
+          callBackDt, remarks: req.body.remarks || 'Status changed from Lead to Callback',
+        }
+      });
+
+      const fields = leadObj.fields || {};
+      const phoneNum = fields.Phone || fields.phone || fields.Mobile;
       if (phoneNum) await consolidateCallbacks(phoneNum);
 
       broadcast('dashboard_update');
@@ -409,39 +342,32 @@ router.put('/:id', verify, authorize(['agent', 'tl', 'admin']), async (req, res)
         return res.status(400).json({ error: 'Cannot change status of a successfully converted lead' });
       }
       
-      const contactUpdate = { lastModified: new Date() };
+      const contactUpdate = {};
       if (req.body.status) contactUpdate.status = req.body.status;
       if (req.body.leadAmount) contactUpdate.leadAmount = parseFloat(req.body.leadAmount);
-      if (req.body.transactionId !== undefined) contactUpdate.transactionId = req.body.transactionId;
       if (req.body.remarks !== undefined) contactUpdate.remarks = req.body.remarks;
-      if (req.body.statusDetails !== undefined) contactUpdate.statusDetails = req.body.statusDetails;
       if (req.body.callBackDt) contactUpdate.callBackDt = new Date(req.body.callBackDt);
       if (req.body.appointmentDt) contactUpdate.appointmentDt = new Date(req.body.appointmentDt);
 
       await Promise.all([
-        leadsCollection.updateOne({ _id: leadId }, { $set: updateData }),
-        contactsCollection.updateOne({ _id: lead.contactId }, { $set: contactUpdate })
+        prisma.lead.update({ where: { id: leadId }, data: updateData }),
+        prisma.contact.update({ where: { id: lead.contactId }, data: contactUpdate })
       ]);
     } else {
-      // It is a mapped contact lead where lead ID is the contact ID
-      const contact = await contactsCollection.findOne({ _id: leadId });
+      const contact = await prisma.contact.findUnique({ where: { id: leadId } });
       if (contact && contact.status === 'Converted' && req.body.status && req.body.status !== 'Converted') {
         return res.status(400).json({ error: 'Cannot change status of a successfully converted lead' });
       }
 
-      const contactUpdate = { lastModified: new Date() };
+      const contactUpdate = {};
       if (req.body.status) contactUpdate.status = req.body.status;
       if (req.body.leadAmount) contactUpdate.leadAmount = parseFloat(req.body.leadAmount);
-      if (req.body.transactionId !== undefined) contactUpdate.transactionId = req.body.transactionId;
       if (req.body.remarks !== undefined) contactUpdate.remarks = req.body.remarks;
-      if (req.body.statusDetails !== undefined) contactUpdate.statusDetails = req.body.statusDetails;
       if (req.body.callBackDt) contactUpdate.callBackDt = new Date(req.body.callBackDt);
       if (req.body.appointmentDt) contactUpdate.appointmentDt = new Date(req.body.appointmentDt);
 
-      await contactsCollection.updateOne({ _id: leadId }, { $set: contactUpdate });
-      
-      // Also update any matching lead document if it was created later
-      await leadsCollection.updateOne({ contactId: leadId }, { $set: updateData });
+      await prisma.contact.update({ where: { id: leadId }, data: contactUpdate });
+      await prisma.lead.updateMany({ where: { contactId: leadId }, data: updateData });
     }
     
     res.json({ success: true });
@@ -451,28 +377,21 @@ router.put('/:id', verify, authorize(['agent', 'tl', 'admin']), async (req, res)
   }
 });
 
-// POST /leads/bulk-delete - Bulk delete leads
-router.post('/bulk-delete', verify, authorize(['admin']), async (req, res) => {
+router.post('/bulk-delete', verify, authorize(['superadmin', 'admin']), async (req, res) => {
   try {
     const { ids } = req.body;
     if (!ids || !ids.length) return res.status(400).json({ error: 'No IDs provided' });
     
-    const leadsCollection = getCollection('leads');
-    const contactsCollection = getCollection('contacts');
-    
-    const objectIds = ids.map(id => new ObjectId(id));
-    
-    // Find matching leads to get contactIds
-    const leads = await leadsCollection.find({ _id: { $in: objectIds } }).toArray();
+    const leads = await prisma.lead.findMany({ where: { id: { in: ids } } });
     const leadContactIds = leads.map(l => l.contactId).filter(Boolean);
     
     await Promise.all([
-      leadsCollection.deleteMany({ _id: { $in: objectIds } }),
-      leadsCollection.deleteMany({ contactId: { $in: objectIds } }),
-      contactsCollection.updateMany(
-        { _id: { $in: [...objectIds, ...leadContactIds] } },
-        { $set: { isDeleted: true } }
-      )
+      prisma.lead.deleteMany({ where: { id: { in: ids } } }),
+      prisma.lead.deleteMany({ where: { contactId: { in: ids } } }),
+      prisma.contact.updateMany({
+        where: { id: { in: [...ids, ...leadContactIds] } },
+        data: { isDeleted: true }
+      })
     ]);
     
     res.json({ success: true });
@@ -482,56 +401,41 @@ router.post('/bulk-delete', verify, authorize(['admin']), async (req, res) => {
   }
 });
 
-// GET /api/leads/history/:phone
-router.get('/history/:phone', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
+router.get('/history/:phone', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
     const phoneParam = req.params.phone;
-    if (!phoneParam) {
-      return res.status(400).json({ error: 'Phone parameter is required' });
-    }
+    if (!phoneParam) return res.status(400).json({ error: 'Phone parameter is required' });
 
-    const leadsCollection = getCollection('leads');
-    const contactsCollection = getCollection('contacts');
-    const usersCollection = getCollection('users');
-
-    const matchQuery = { isDeleted: { $ne: true } };
+    let whereQuery = { isDeleted: false };
     if (req.user.role === 'agent') {
-      matchQuery.assignedTo = new ObjectId(req.user._id);
+      whereQuery.assignedTo = req.user._id || req.user.id;
     } else if (req.user.role === 'tl') {
-      const agents = await usersCollection.find({ tlId: new ObjectId(req.user._id) }).toArray();
-      matchQuery.assignedTo = { $in: agents.map(a => a._id) };
+      const agents = await prisma.user.findMany({ where: { tlId: req.user._id || req.user.id } });
+      whereQuery.assignedTo = { in: agents.map(a => a.id) };
+    } else if (req.user.role === 'admin') {
+      whereQuery.adminId = req.user._id || req.user.id;
     }
 
-    // Fetch matching data
     const [leads, contactLeads, allUsers] = await Promise.all([
-      leadsCollection.find(matchQuery).toArray(),
-      contactsCollection.find({ ...matchQuery, disposition: 'Lead' }).toArray(),
-      usersCollection.find({ role: { $in: ['agent', 'tl'] } }).toArray()
+      prisma.lead.findMany({ where: { ...whereQuery, isDeleted: undefined } }), // isDeleted is on Contact, not Lead model
+      prisma.contact.findMany({ where: { ...whereQuery, disposition: 'Lead' } }),
+      prisma.user.findMany({ where: { role: { in: ['agent', 'tl'] } } })
     ]);
 
-    const userMap = allUsers.reduce((acc, u) => { acc[u._id.toString()] = u.name; return acc; }, {});
-
-    // Map contactLeads to match the lead schema, filtering out duplicates already in leadsCollection
-    const leadContactIds = new Set(leads.map(l => l.contactId ? l.contactId.toString() : ''));
-    const uniqueContactLeads = contactLeads.filter(c => !leadContactIds.has(c._id.toString()));
+    const userMap = allUsers.reduce((acc, u) => { acc[u.id] = u.name; return acc; }, {});
+    const leadContactIds = new Set(leads.map(l => l.contactId));
+    const uniqueContactLeads = contactLeads.filter(c => !leadContactIds.has(c.id));
 
     const mappedContactLeads = uniqueContactLeads.map(c => ({
-      _id: c._id,
-      contactId: c._id,
-      fields: c.fields,
-      batchId: c.batchId,
-      assignedTo: c.assignedTo,
-      agentName: c.agentName || (c.assignedTo ? userMap[c.assignedTo.toString()] : 'Unassigned'),
-      leadAmount: c.leadAmount || 0,
-      status: c.status || 'Converted',
+      _id: c.id, contactId: c.id, fields: c.fields, batchId: c.batchId,
+      assignedTo: c.assignedTo, agentName: c.assignedTo ? userMap[c.assignedTo] || 'Unassigned' : 'Unassigned',
+      leadAmount: c.leadAmount || 0, status: c.status || 'Converted',
       remarks: c.remarks || 'Imported Lead',
-      statusDetails: c.statusDetails,
-      transactionId: c.transactionId || '',
       createdAt: c.createdAt || c.disposedAt || new Date(),
       lastModified: c.lastModified || new Date()
     }));
 
-    const combined = [...leads, ...mappedContactLeads];
+    const combined = [...leads.map(l => ({ ...l, _id: l.id })), ...mappedContactLeads];
 
     const normalize = (phone) => {
       if (!phone) return 'N/A';
@@ -542,7 +446,8 @@ router.get('/history/:phone', verify, authorize(['agent', 'tl', 'admin']), async
     const targetNormPhone = normalize(phoneParam);
 
     const history = combined.filter(lead => {
-      const rawPhone = lead.fields?.Phone || lead.fields?.phone || lead.fields?.Mobile || 'N/A';
+      const fields = lead.fields || {};
+      const rawPhone = fields.Phone || fields.phone || fields.Mobile || 'N/A';
       return normalize(rawPhone) === targetNormPhone;
     }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
@@ -553,37 +458,26 @@ router.get('/history/:phone', verify, authorize(['agent', 'tl', 'admin']), async
   }
 });
 
-// POST /leads/:id/clone-and-dispose - Clone contact and log new conversation
-router.post('/:id/clone-and-dispose', verify, authorize(['agent', 'tl', 'admin']), async (req, res) => {
+router.post('/:id/clone-and-dispose', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
-    const leadsCollection = getCollection('leads');
-    const contactsCollection = getCollection('contacts');
-    const leadId = new ObjectId(req.params.id);
+    const leadId = req.params.id;
+    let contact = await prisma.contact.findUnique({ where: { id: leadId } });
     
-    // 1. Find original contact
-    let contact = await contactsCollection.findOne({ _id: leadId });
     if (!contact) {
-      const lead = await leadsCollection.findOne({ _id: leadId });
+      const lead = await prisma.lead.findUnique({ where: { id: leadId } });
       if (lead && lead.contactId) {
-        contact = await contactsCollection.findOne({ _id: lead.contactId });
+        contact = await prisma.contact.findUnique({ where: { id: lead.contactId } });
       }
     }
     
-    if (!contact) {
-      return res.status(404).json({ error: 'Original contact not found' });
-    }
+    if (!contact) return res.status(404).json({ error: 'Original contact not found' });
 
     const { action, status, remarks, leadAmount, transactionId, statusDetails, callBackDt } = req.body;
     let disposition = 'Lead';
     let finalStatus = status || '';
 
-    if (action === 'Followup') {
-      disposition = 'CallBack';
-      finalStatus = 'Call Back';
-    } else if (action === 'Not Interested') {
-      disposition = 'Lead';
-      finalStatus = 'Not Interested';
-    }
+    if (action === 'Followup') { disposition = 'CallBack'; finalStatus = 'Call Back'; } 
+    else if (action === 'Not Interested') { disposition = 'Lead'; finalStatus = 'Not Interested'; }
 
     const dateStr = new Date().toLocaleString('en-US', {
       year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true
@@ -592,69 +486,46 @@ router.post('/:id/clone-and-dispose', verify, authorize(['agent', 'tl', 'admin']
     const actionLabel = finalStatus || disposition;
     const formattedRemarks = `[${actionLabel} by ${updaterName} on ${dateStr}]: ${remarks || ''}`;
 
-    // 2. Create new cloned contact
-    const newContact = {
-      fields: contact.fields,
-      batchId: contact.batchId,
-      assignedTo: new ObjectId(req.user._id),
-      agentName: req.user.name,
-      disposition: disposition,
-      status: finalStatus,
-      remarks: formattedRemarks,
-      disposedBy: new ObjectId(req.user._id),
-      disposedAt: new Date(),
-      createdAt: new Date(),
-      lastModified: new Date(),
-      isDeleted: false,
+    const newContactData = {
+      fields: contact.fields || {}, batchId: contact.batchId,
+      assignedTo: req.user._id || req.user.id, agentName: req.user.name,
+      disposition, status: finalStatus, remarks: formattedRemarks,
+      disposedBy: req.user._id || req.user.id, disposedAt: new Date(),
       queueOrder: 999999
     };
 
     if (disposition === 'Lead') {
-      newContact.leadAmount = parseFloat(leadAmount) || 0;
-      newContact.conversionDate = new Date();
-      if (statusDetails) newContact.statusDetails = statusDetails;
-      if (transactionId) newContact.transactionId = transactionId;
-      if (callBackDt) newContact.callBackDt = new Date(callBackDt);
+      newContactData.leadAmount = parseFloat(leadAmount) || 0;
+      newContactData.conversionDate = new Date();
+      if (callBackDt) newContactData.callBackDt = new Date(callBackDt);
     } else if (disposition === 'CallBack') {
-      newContact.callBackDt = callBackDt ? new Date(callBackDt) : null;
+      newContactData.callBackDt = callBackDt ? new Date(callBackDt) : null;
     }
 
-    const result = await contactsCollection.insertOne(newContact);
-    const newContactId = result.insertedId;
+    const newContact = await prisma.contact.create({ data: newContactData });
+    const newContactId = newContact.id;
 
-    // 3. Process the new record into appropriate collections
     if (disposition === 'Lead') {
-      await leadsCollection.insertOne({
-        contactId: newContactId,
-        fields: newContact.fields,
-        batchId: newContact.batchId,
-        assignedTo: newContact.assignedTo,
-        agentName: newContact.agentName,
-        leadAmount: newContact.leadAmount,
-        status: newContact.status,
-        statusDetails: newContact.statusDetails || '',
-        transactionId: newContact.transactionId || '',
-        remarks: newContact.remarks,
-        callBackDt: newContact.callBackDt,
-        createdAt: new Date(),
-        lastModified: new Date()
+      await prisma.lead.create({
+        data: {
+          contactId: newContactId, adminId: req.user.role === 'admin' ? (req.user._id || req.user.id) : (req.user.adminId || null),
+          fields: newContact.fields || {}, batchId: newContact.batchId,
+          assignedTo: newContact.assignedTo, agentName: newContact.agentName,
+          leadAmount: newContact.leadAmount || 0, status: newContact.status,
+          remarks: newContact.remarks
+        }
       });
     } else if (disposition === 'CallBack') {
-      const callbacksCollection = getCollection('callbacks');
-      await callbacksCollection.insertOne({
-        contactId: newContactId,
-        fields: newContact.fields,
-        batchId: newContact.batchId,
-        assignedTo: newContact.assignedTo,
-        agentName: newContact.agentName,
-        callBackDt: newContact.callBackDt,
-        remarks: newContact.remarks,
-        status: newContact.status,
-        source: 'lead',
-        createdAt: new Date(),
-        lastModified: new Date()
+      await prisma.callback.create({
+        data: {
+          contactId: newContactId, adminId: req.user.role === 'admin' ? (req.user._id || req.user.id) : (req.user.adminId || null),
+          fields: newContact.fields || {}, batchId: newContact.batchId,
+          assignedTo: newContact.assignedTo, agentName: newContact.agentName,
+          callBackDt: newContact.callBackDt, remarks: newContact.remarks,
+        }
       });
-      const phoneNum = newContact.fields?.Phone || newContact.fields?.phone || newContact.fields?.Mobile;
+      const fields = newContact.fields || {};
+      const phoneNum = fields.Phone || fields.phone || fields.Mobile;
       if (phoneNum) await consolidateCallbacks(phoneNum);
     }
 

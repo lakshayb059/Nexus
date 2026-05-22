@@ -213,7 +213,7 @@ const Dashboard = () => {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: 'rgba(248,251,255,0.4)' }}>
-                  {['Agent', user?.role === 'admin' && 'Team Lead', 'Total', 'Pending', 'Disposed', 'Leads', 'Revenue', 'Appts', 'Progress'].filter(Boolean).map(h => (
+                  {['Agent', (user?.role === 'admin' || user?.role === 'superadmin') && 'Team Lead', 'Total', 'Pending', 'Disposed', 'Leads', 'Revenue', 'Appts', 'Progress'].filter(Boolean).map(h => (
                     <th key={h} style={{ padding: '13px 20px', textAlign: 'left', fontSize: '0.7rem', fontWeight: 900, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap', borderBottom: '1px solid rgba(37,99,235,0.06)' }}>
                       {h}
                     </th>
@@ -248,7 +248,7 @@ const Dashboard = () => {
                           </div>
                         </div>
                       </td>
-                      {user?.role === 'admin' && (
+                      {(user?.role === 'admin' || user?.role === 'superadmin') && (
                         <td style={{ padding: '14px 20px' }}>
                           <span style={{ padding: '4px 10px', borderRadius: 999, background: 'rgba(217,119,6,0.1)', color: '#d97706', fontSize: '0.72rem', fontWeight: 800 }}>
                             {q.tlName || '—'}

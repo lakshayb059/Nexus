@@ -55,7 +55,7 @@ const Users = () => {
   const agents  = users.filter(u => u.role === 'agent');
 
   const filtered = users
-    .filter(u => u.role !== 'admin')
+    .filter(u => user?.role === 'superadmin' ? u.role === 'admin' : u.role !== 'admin')
     .filter(u =>
       u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       u.username.toLowerCase().includes(searchTerm.toLowerCase())
@@ -68,7 +68,7 @@ const Users = () => {
       setFormData({ name: u.name, username: u.username, password: '', role: u.role, active: u.active, tlId: u.tlId || '' });
     } else {
       setEditingUser(null);
-      setFormData({ name: '', username: '', password: '', role: 'agent', active: true, tlId: '' });
+      setFormData({ name: '', username: '', password: '', role: user?.role === 'superadmin' ? 'admin' : 'agent', active: true, tlId: '' });
     }
     setIsModalOpen(true);
   };
@@ -140,7 +140,7 @@ const Users = () => {
     agent: { label: 'Agent',     cls: 'badge-success' },
   };
 
-  if (user?.role !== 'admin') {
+  if (user?.role !== 'superadmin' && user?.role !== 'admin') {
     return (
       <div className="glass-panel" style={{ padding: 60, textAlign: 'center' }}>
         <Shield size={48} style={{ opacity: 0.15, margin: '0 auto 16px', display: 'block' }} />
@@ -274,9 +274,15 @@ const Users = () => {
                 <div className="input-group">
                   <label>Role</label>
                   <select className="input-field" value={formData.role} onChange={e => setFormData(p => ({ ...p, role: e.target.value }))}>
-                    <option value="agent">Agent</option>
-                    <option value="tl">Team Lead</option>
-                    <option value="admin">Admin</option>
+                    {user?.role !== 'superadmin' && (
+                      <>
+                        <option value="agent">Agent</option>
+                        <option value="tl">Team Lead</option>
+                      </>
+                    )}
+                    {user?.role === 'superadmin' && (
+                      <option value="admin">Admin</option>
+                    )}
                   </select>
                 </div>
               )}

@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+  engineType = "library"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid()) @map("_id")
+  username  String   @unique
+  password  String
+  name      String
+  role      String
+  tlId      String?  @map("tl_id")
+  adminId   String?  @map("admin_id")
+  active    Boolean  @default(true)
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Contact {
+  id                String    @id @default(uuid()) @map("_id")
+  fields            Json?
+  batchId           String?   @map("batch_id")
+  assignedTo        String?   @map("assigned_to")
+  adminId           String?   @map("admin_id")
+  status            String?
+  disposition       String?
+  remarks           String?
+  queueOrder        Int?      @map("queue_order")
+  callAttempts      Int       @default(0) @map("call_attempts")
+  rechurnCount      Int       @default(0) @map("rechurn_count")
+  lastCallAttempt   DateTime? @map("last_call_attempt")
+  disposedBy        String?   @map("disposed_by")
+  disposedAt        DateTime? @map("disposed_at")
+  leadAmount        Float?    @map("lead_amount")
+  appointmentDt     DateTime? @map("appointment_dt")
+  appointmentStatus String?   @map("appointment_status")
+  callBackDt        DateTime? @map("call_back_dt")
+  conversionDate    DateTime? @map("conversion_date")
+  isDeleted         Boolean   @default(false) @map("is_deleted")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  lastModified      DateTime  @updatedAt @map("last_modified")
+
+  @@index([assignedTo])
+  @@index([createdAt])
+  @@index([batchId])
+  @@index([isDeleted])
+  @@map("contacts")
+}
+
+model Lead {
+  id           String   @id @default(uuid()) @map("_id")
+  contactId    String   @map("contact_id")
+  fields       Json?
+  batchId      String?  @map("batch_id")
+  assignedTo   String?  @map("assigned_to")
+  agentName    String?  @map("agent_name")
+  adminId      String?  @map("admin_id")
+  leadAmount   Float?   @map("lead_amount")
+  status       String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  lastModified DateTime @updatedAt @map("last_modified")
+
+  @@map("leads")
+}
+
+model Appointment {
+  id            String   @id @default(uuid()) @map("_id")
+  contactId     String   @map("contact_id")
+  fields        Json?
+  batchId       String?  @map("batch_id")
+  assignedTo    String?  @map("assigned_to")
+  agentName     String?  @map("agent_name")
+  adminId       String?  @map("admin_id")
+  appointmentDt DateTime @map("appointment_dt")
+  remarks       String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  lastModified  DateTime @updatedAt @map("last_modified")
+
+  @@map("appointments")
+}
+
+model Callback {
+  id           String   @id @default(uuid()) @map("_id")
+  contactId    String   @map("contact_id")
+  fields       Json?
+  batchId      String?  @map("batch_id")
+  assignedTo   String?  @map("assigned_to")
+  agentName    String?  @map("agent_name")
+  adminId      String?  @map("admin_id")
+  callBackDt   DateTime @map("call_back_dt")
+  remarks      String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  lastModified DateTime @updatedAt @map("last_modified")
+
+  @@map("callbacks")
+}
+
+model Batch {
+  id           String   @id @default(uuid()) @map("_id")
+  name         String
+  adminId      String?  @map("admin_id")
+  status       String   @default("uploaded")
+  contactCount Int      @default(0) @map("contact_count")
+  isDeleted    Boolean  @default(false) @map("is_deleted")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("batches")
+}
