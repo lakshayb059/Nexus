@@ -272,13 +272,13 @@ router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), 
     const [total, pending, lead, appointment, callBack, invalid, hungUp, doNotCall, leadAgg, totalAdmins] = await Promise.all([
       prisma.contact.count({ where: query }),
       prisma.contact.count({ where: { ...query, OR: [{ disposition: null }, { disposition: '' }] } }),
-      prisma.contact.count({ where: { ...query, disposition: 'Lead' } }),
+      prisma.contact.count({ where: { ...query, disposition: 'Lead', status: 'Converted' } }),
       prisma.contact.count({ where: { ...query, disposition: 'Appointment' } }),
       prisma.contact.count({ where: { ...query, disposition: 'CallBack' } }),
       prisma.contact.count({ where: { ...query, disposition: 'Invalid' } }),
       prisma.contact.count({ where: { ...query, disposition: { in: ['HungUp', 'CallNotAnswered'] } } }),
       prisma.contact.count({ where: { ...query, disposition: 'DoNotCall' } }),
-      prisma.contact.aggregate({ where: query, _sum: { leadAmount: true } }),
+      prisma.contact.aggregate({ where: { ...query, disposition: 'Lead', status: 'Converted' }, _sum: { leadAmount: true } }),
       prisma.user.count({ where: { role: 'admin', isDeleted: false } })
     ]);
 
@@ -306,9 +306,9 @@ router.get('/agent-queues', verify, authorize(['superadmin', 'admin', 'tl']), as
       const [total, pending, lead, appointment, agg] = await Promise.all([
         prisma.contact.count({ where: q }),
         prisma.contact.count({ where: { ...q, OR: [{ disposition: null }, { disposition: '' }] } }),
-        prisma.contact.count({ where: { ...q, disposition: 'Lead' } }),
+        prisma.contact.count({ where: { ...q, disposition: 'Lead', status: 'Converted' } }),
         prisma.contact.count({ where: { ...q, disposition: 'Appointment' } }),
-        prisma.contact.aggregate({ where: q, _sum: { leadAmount: true } })
+        prisma.contact.aggregate({ where: { ...q, disposition: 'Lead', status: 'Converted' }, _sum: { leadAmount: true } })
       ]);
       let tlName = '—';
       if (a.tlId) {
@@ -594,10 +594,10 @@ router.get('/admin-stats', verify, authorize(['superadmin']), async (req, res) =
     const stats = await Promise.all(admins.map(async (a) => {
       const q = { adminId: a.id, isDeleted: false };
       const [leads, appointments, callbacks, leadAgg] = await Promise.all([
-        prisma.contact.count({ where: { ...q, disposition: 'Lead' } }),
+        prisma.contact.count({ where: { ...q, disposition: 'Lead', status: 'Converted' } }),
         prisma.contact.count({ where: { ...q, disposition: 'Appointment' } }),
         prisma.contact.count({ where: { ...q, disposition: 'CallBack' } }),
-        prisma.contact.aggregate({ where: q, _sum: { leadAmount: true } })
+        prisma.contact.aggregate({ where: { ...q, disposition: 'Lead', status: 'Converted' }, _sum: { leadAmount: true } })
       ]);
       return {
         adminId: a.id,
