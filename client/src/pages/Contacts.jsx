@@ -454,14 +454,14 @@ const Contacts = ({ filterType }) => {
               {dispForm.disposition === 'Appointment' && (
                 <div className="input-group">
                   <label htmlFor="modalApptDt">Appointment Date & Time</label>
-                  <input id="modalApptDt" name="appointmentDt" type="datetime-local" className="input-field" value={dispForm.appointmentDt} onChange={e => setDispForm({ ...dispForm, appointmentDt: e.target.value })} required />
+                  <input id="modalApptDt" name="appointmentDt" type="datetime-local" className="input-field" value={dispForm.appointmentDt} min={new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)} onChange={e => setDispForm({ ...dispForm, appointmentDt: e.target.value })} required />
                 </div>
               )}
 
               {dispForm.disposition === 'CallBack' && (
                 <div className="input-group">
                   <label htmlFor="modalCBDt">Callback Date & Time</label>
-                  <input id="modalCBDt" name="callBackDt" type="datetime-local" className="input-field" value={dispForm.callBackDt} onChange={e => setDispForm({ ...dispForm, callBackDt: e.target.value })} required />
+                  <input id="modalCBDt" name="callBackDt" type="datetime-local" className="input-field" value={dispForm.callBackDt} min={new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)} onChange={e => setDispForm({ ...dispForm, callBackDt: e.target.value })} required />
                 </div>
               )}
 

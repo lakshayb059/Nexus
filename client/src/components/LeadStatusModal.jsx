@@ -91,6 +91,7 @@ const LeadStatusModal = ({ lead, newStatus, onClose, onSave, submitting }) => {
                   type="datetime-local" 
                   className="input-field" 
                   value={formData.callBackDt} 
+                  min={new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
                   onChange={e => setFormData(p => ({ ...p, callBackDt: e.target.value }))}
                   required
                   autoFocus

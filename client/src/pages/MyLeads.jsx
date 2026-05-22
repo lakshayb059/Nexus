@@ -291,11 +291,11 @@ const MyLeads = () => {
       <div className="grid-stats" style={{ marginBottom: 20 }}>
         <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{ width: 44, height: 44, background: 'var(--success-light)', color: 'var(--success)', borderRadius: 'var(--r-md)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Target size={20} /></div>
-          <div><div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--text-primary)' }}>{stats.totalLeads}</div><div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase' }}>Total Leads</div></div>
+          <div><div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--text-primary)' }}>{stats.totalLeads}</div><div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase' }}>Total Converted Leads</div></div>
         </div>
         <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{ width: 44, height: 44, background: 'var(--violet-light)', color: 'var(--violet)', borderRadius: 'var(--r-md)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><TrendingUp size={20} /></div>
-          <div><div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--text-primary)' }}>₹{stats.totalAmount.toLocaleString()}</div><div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase' }}>Total Revenue</div></div>
+          <div><div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--text-primary)' }}>₹{stats.totalAmount.toLocaleString()}</div><div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase' }}>Total Converted Revenue</div></div>
         </div>
       </div>
 
@@ -527,8 +527,8 @@ const MyLeads = () => {
                           className="input-field"
                           style={{ marginBottom: 0, padding: '2px 8px', fontSize: '0.7rem', height: 28, width: 'auto', minWidth: 120 }}
                           value={h.status || ''}
-                          disabled={h.status === 'Converted' && h.transactionId && user?.role !== 'admin'}
-                          title={h.status === 'Converted' && h.transactionId && user?.role !== 'admin' ? "Locked conversions cannot be modified by agents." : ""}
+                          disabled={h.status === 'Converted'}
+                          title={h.status === 'Converted' ? "Locked conversions cannot be modified." : ""}
                           onChange={(e) => handleStatusChange(h, e.target.value, 'lead')}
                         >
                           <option value="">Set Status</option>

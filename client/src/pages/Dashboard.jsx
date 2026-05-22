@@ -136,9 +136,13 @@ const Dashboard = () => {
   const primaryCards = stats ? [
     { title: 'Total Contacts', value: stats.total || 0, subtext: 'In system', icon: Users, accent: '#6366f1' },
     { title: 'Pending Queue', value: stats.pending || 0, subtext: 'Awaiting disposition', icon: Clock, accent: '#f59e0b' },
-    { title: 'Leads Converted', value: stats.lead || 0, subtext: 'Successfully closed', icon: Star, accent: '#10b981' },
-    { title: 'Total Revenue', value: `₹${(stats.totalLeadValue || 0).toLocaleString()}`, subtext: 'Aggregate lead value', icon: TrendingUp, accent: '#8b5cf6' },
+    { title: 'Total Converted Leads', value: stats.lead || 0, subtext: 'Successfully closed', icon: Star, accent: '#10b981' },
+    { title: 'Total Converted Revenue', value: `₹${(stats.totalLeadValue || 0).toLocaleString()}`, subtext: 'Aggregate lead value', icon: TrendingUp, accent: '#8b5cf6' },
   ] : [];
+
+  if (user?.role === 'superadmin' && stats) {
+    primaryCards.push({ title: 'Total Admins', value: stats.totalAdmins || 0, subtext: 'Active admin accounts', icon: Users, accent: '#ec4899' });
+  }
 
   const activityCards = stats ? [
     { title: 'Appointments', value: stats.appointment || 0, subtext: 'Scheduled', icon: Calendar, accent: '#a855f7' },

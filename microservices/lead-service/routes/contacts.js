@@ -269,7 +269,7 @@ router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), 
 
     // Prisma doesn't do conditional aggregation well without raw SQL
     // Doing multi-count fallback
-    const [total, pending, lead, appointment, callBack, invalid, hungUp, doNotCall, leadAgg] = await Promise.all([
+    const [total, pending, lead, appointment, callBack, invalid, hungUp, doNotCall, leadAgg, totalAdmins] = await Promise.all([
       prisma.contact.count({ where: query }),
       prisma.contact.count({ where: { ...query, OR: [{ disposition: null }, { disposition: '' }] } }),
       prisma.contact.count({ where: { ...query, disposition: 'Lead' } }),
@@ -278,12 +278,13 @@ router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), 
       prisma.contact.count({ where: { ...query, disposition: 'Invalid' } }),
       prisma.contact.count({ where: { ...query, disposition: { in: ['HungUp', 'CallNotAnswered'] } } }),
       prisma.contact.count({ where: { ...query, disposition: 'DoNotCall' } }),
-      prisma.contact.aggregate({ where: query, _sum: { leadAmount: true } })
+      prisma.contact.aggregate({ where: query, _sum: { leadAmount: true } }),
+      prisma.user.count({ where: { role: 'admin', isDeleted: false } })
     ]);
 
     const result = {
       total, pending, lead, appointment, callBack, invalid, hungUp, doNotCall,
-      totalLeadAmount: leadAgg._sum.leadAmount || 0
+      totalLeadAmount: leadAgg._sum.leadAmount || 0, totalAdmins
     };
     res.json(result);
   } catch (err) {

@@ -374,7 +374,7 @@ const Workflow = () => {
             return (
               <div style={{ marginTop: 24, padding: '20px 24px 24px', background: 'var(--bg-surface-2)', borderRadius: 'var(--r-lg)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 900, letterSpacing: '0.08em', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <TrendingUp size={14} color="var(--primary)" /> Previous Remarks / History
+                  <TrendingUp size={14} color="var(--primary)" /> Client 360
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 0, position: 'relative', paddingLeft: 18, borderLeft: '2px solid var(--border)' }}>
                   {contact.remarks.split(' | ').reverse().map((remarkStr, idx, arr) => {
@@ -526,7 +526,7 @@ const Workflow = () => {
                 {dispForm.status === 'Call Back' && (
                   <div className="input-group">
                     <label htmlFor="leadCallBackDt">Callback Schedule</label>
-                    <input id="leadCallBackDt" name="callBackDt" type="datetime-local" className="input-field" value={dispForm.callBackDt} onChange={e => setDispForm(p => ({ ...p, callBackDt: e.target.value }))} required />
+                    <input id="leadCallBackDt" name="callBackDt" type="datetime-local" className="input-field" value={dispForm.callBackDt} min={new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)} onChange={e => setDispForm(p => ({ ...p, callBackDt: e.target.value }))} required />
                   </div>
                 )}
                 {dispForm.status === 'Others' && (
@@ -541,14 +541,14 @@ const Workflow = () => {
             {dispForm.disposition === 'Appointment' && (
               <div className="input-group animate-slide-up">
                 <label htmlFor="appointmentDt">Appointment Date & Time</label>
-                <input id="appointmentDt" name="appointmentDt" type="datetime-local" className="input-field" value={dispForm.appointmentDt} onChange={e => setDispForm(p => ({ ...p, appointmentDt: e.target.value }))} required />
+                <input id="appointmentDt" name="appointmentDt" type="datetime-local" className="input-field" value={dispForm.appointmentDt} min={new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)} onChange={e => setDispForm(p => ({ ...p, appointmentDt: e.target.value }))} required />
               </div>
             )}
 
             {dispForm.disposition === 'CallBack' && (
               <div className="input-group animate-slide-up">
                 <label htmlFor="callBackDt">Callback Date & Time</label>
-                <input id="callBackDt" name="callBackDt" type="datetime-local" className="input-field" value={dispForm.callBackDt} onChange={e => setDispForm(p => ({ ...p, callBackDt: e.target.value }))} required />
+                <input id="callBackDt" name="callBackDt" type="datetime-local" className="input-field" value={dispForm.callBackDt} min={new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)} onChange={e => setDispForm(p => ({ ...p, callBackDt: e.target.value }))} required />
               </div>
             )}
 

@@ -135,7 +135,7 @@ const CallActionModal = ({ lead, onClose, onSubmit }) => {
                   {formData.status === 'Call Back' && (
                     <div className="input-group animate-slide-up">
                       <label>Callback Date & Time *</label>
-                      <input type="datetime-local" className="input-field" value={formData.callBackDt} onChange={e => setFormData(p => ({...p, callBackDt: e.target.value}))} required />
+                      <input type="datetime-local" className="input-field" value={formData.callBackDt} min={new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)} onChange={e => setFormData(p => ({...p, callBackDt: e.target.value}))} required />
                     </div>
                   )}
                   {formData.status === 'Others' && (
@@ -150,7 +150,7 @@ const CallActionModal = ({ lead, onClose, onSubmit }) => {
               {action === 'Followup' && (
                 <div className="input-group">
                   <label>Callback Date & Time *</label>
-                  <input type="datetime-local" className="input-field" value={formData.callBackDt} onChange={e => setFormData(p => ({...p, callBackDt: e.target.value}))} required autoFocus />
+                  <input type="datetime-local" className="input-field" value={formData.callBackDt} min={new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)} onChange={e => setFormData(p => ({...p, callBackDt: e.target.value}))} required autoFocus />
                 </div>
               )}
 

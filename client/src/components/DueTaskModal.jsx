@@ -194,14 +194,14 @@ const DueTaskModal = () => {
               {dispForm.disposition === 'Appointment' && (
                 <div className="input-group animate-slide-up">
                   <label htmlFor="dueAppointmentDt">New Appointment Date & Time</label>
-                  <input id="dueAppointmentDt" name="appointmentDt" type="datetime-local" className="input-field" value={dispForm.appointmentDt} onChange={e => setDispForm(p => ({ ...p, appointmentDt: e.target.value }))} required />
+                  <input id="dueAppointmentDt" name="appointmentDt" type="datetime-local" className="input-field" value={dispForm.appointmentDt} min={new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)} onChange={e => setDispForm(p => ({ ...p, appointmentDt: e.target.value }))} required />
                 </div>
               )}
 
               {dispForm.disposition === 'CallBack' && (
                 <div className="input-group animate-slide-up">
                   <label htmlFor="dueCallBackDt">New Callback Date & Time</label>
-                  <input id="dueCallBackDt" name="callBackDt" type="datetime-local" className="input-field" value={dispForm.callBackDt} onChange={e => setDispForm(p => ({ ...p, callBackDt: e.target.value }))} required />
+                  <input id="dueCallBackDt" name="callBackDt" type="datetime-local" className="input-field" value={dispForm.callBackDt} min={new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)} onChange={e => setDispForm(p => ({ ...p, callBackDt: e.target.value }))} required />
                 </div>
               )}
 

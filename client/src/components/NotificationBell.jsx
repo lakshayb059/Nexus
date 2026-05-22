@@ -68,7 +68,7 @@ const NotificationBell = () => {
 
   const playSound = () => {
     try {
-      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3');
+      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2866/2866-preview.mp3');
       audio.play().catch(e => console.log('Sound blocked by browser policy'));
     } catch (e) {
       console.error('Audio playback failed', e);
