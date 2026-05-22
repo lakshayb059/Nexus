@@ -349,7 +349,15 @@ const Contacts = ({ filterType }) => {
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
-                  <span style={{ fontSize: '0.75rem' }}>Agent: <strong>{contact.agentName}</strong></span>
+                  <span style={{ fontSize: '0.75rem' }}>
+                    Agent: <strong>{contact.agentName}</strong>
+                    {user?.role === 'superadmin' && contact.tlName && contact.tlName !== 'N/A' && (
+                      <> | TL: <strong>{contact.tlName}</strong></>
+                    )}
+                    {user?.role === 'superadmin' && contact.adminName && contact.adminName !== 'N/A' && (
+                      <> | Admin: <strong>{contact.adminName}</strong></>
+                    )}
+                  </span>
                   <div style={{ display: 'flex', gap: 8 }}>
                     {user?.role === 'admin' && <button className="btn btn-ghost btn-icon" onClick={() => handleDelete(contact._id)}><Trash2 size={15} style={{ color: 'var(--danger)' }} /></button>}
                   </div>

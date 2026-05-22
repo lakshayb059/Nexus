@@ -69,16 +69,22 @@ router.get('/', verify, authorize(['superadmin', 'admin', 'tl', 'agent']), async
       });
 
       const userMap = {};
-      const uniqueAgentIds = [...new Set(contacts.map(c => c.assignedTo).filter(Boolean))];
-      if (uniqueAgentIds.length > 0) {
-        const users = await prisma.user.findMany({ where: { id: { in: uniqueAgentIds } } });
-        users.forEach(u => userMap[u.id] = u.name);
-      }
+      // Fetch all users to map hierarchy since an agent might belong to a TL, who belongs to an Admin
+      const allUsers = await prisma.user.findMany({ select: { id: true, name: true, tlId: true, adminId: true } });
+      allUsers.forEach(u => userMap[u.id] = u);
 
-      contacts = contacts.map(c => ({
-        ...c, _id: c.id,
-        agentName: c.assignedTo ? (userMap[c.assignedTo] || 'Unknown Agent') : 'Unassigned'
-      }));
+      contacts = contacts.map(c => {
+        const agent = c.assignedTo ? userMap[c.assignedTo] : null;
+        const tl = agent?.tlId ? userMap[agent.tlId] : null;
+        const admin = agent?.adminId ? userMap[agent.adminId] : (c.adminId ? userMap[c.adminId] : null);
+        
+        return {
+          ...c, _id: c.id,
+          agentName: agent ? agent.name : 'Unassigned',
+          tlName: tl ? tl.name : 'N/A',
+          adminName: admin ? admin.name : 'N/A'
+        };
+      });
 
       let totalLeadValue = 0;
       if (disposition === 'Lead') {
@@ -93,16 +99,21 @@ router.get('/', verify, authorize(['superadmin', 'admin', 'tl', 'agent']), async
     } else {
       let contacts = await prisma.contact.findMany({ where: whereQuery, orderBy: { createdAt: 'desc' } });
       const userMap = {};
-      const uniqueAgentIds = [...new Set(contacts.map(c => c.assignedTo).filter(Boolean))];
-      if (uniqueAgentIds.length > 0) {
-        const users = await prisma.user.findMany({ where: { id: { in: uniqueAgentIds } } });
-        users.forEach(u => userMap[u.id] = u.name);
-      }
+      const allUsers = await prisma.user.findMany({ select: { id: true, name: true, tlId: true, adminId: true } });
+      allUsers.forEach(u => userMap[u.id] = u);
 
-      contacts = contacts.map(c => ({
-        ...c, _id: c.id,
-        agentName: c.assignedTo ? (userMap[c.assignedTo] || 'Unknown Agent') : 'Unassigned'
-      }));
+      contacts = contacts.map(c => {
+        const agent = c.assignedTo ? userMap[c.assignedTo] : null;
+        const tl = agent?.tlId ? userMap[agent.tlId] : null;
+        const admin = agent?.adminId ? userMap[agent.adminId] : (c.adminId ? userMap[c.adminId] : null);
+        
+        return {
+          ...c, _id: c.id,
+          agentName: agent ? agent.name : 'Unassigned',
+          tlName: tl ? tl.name : 'N/A',
+          adminName: admin ? admin.name : 'N/A'
+        };
+      });
       return res.json(contacts);
     }
   } catch (err) {

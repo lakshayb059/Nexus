@@ -5,6 +5,23 @@ import api from '../utils/api';
 import { Star, TrendingUp, Users, Calendar, Search, PhoneCall, Award, Target, Trash2, X, CheckSquare, Square, RotateCw } from 'lucide-react';
 import LeadStatusModal from '../components/LeadStatusModal';
 import CallActionModal from '../components/CallActionModal';
+import './SuperAdminDashboard.css';
+
+const StatCard = ({ title, value, subtext, icon: Icon, accent, delay = 0, glow = false }) => (
+  <div className={`sa-glass-card sa-slide-up ${glow ? 'sa-glow' : ''}`} style={{ animationDelay: `${delay}ms`, '--card-accent': accent }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 2 }}>
+      <div>
+        <div className="sa-card-title">{title}</div>
+        <div className="sa-card-value">{value}</div>
+        <div className="sa-card-subtext">{subtext}</div>
+      </div>
+      <div className="sa-card-icon-wrapper" style={{ background: `${accent}15`, color: accent }}>
+        <Icon size={20} strokeWidth={2.2} />
+      </div>
+    </div>
+    <div className="sa-card-bg-blob" style={{ background: accent }} />
+  </div>
+);
 
 const MyLeads = () => {
   const { user } = useAuth();
@@ -288,15 +305,11 @@ const MyLeads = () => {
         </div>
       </div>
 
-      <div className="grid-stats" style={{ marginBottom: 20 }}>
-        <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{ width: 44, height: 44, background: 'var(--success-light)', color: 'var(--success)', borderRadius: 'var(--r-md)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Target size={20} /></div>
-          <div><div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--text-primary)' }}>{stats.totalLeads}</div><div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase' }}>Total Converted Leads</div></div>
-        </div>
-        <div className="glass-panel" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{ width: 44, height: 44, background: 'var(--violet-light)', color: 'var(--violet)', borderRadius: 'var(--r-md)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><TrendingUp size={20} /></div>
-          <div><div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--text-primary)' }}>₹{stats.totalAmount.toLocaleString()}</div><div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase' }}>Total Converted Revenue</div></div>
-        </div>
+      <div className="sa-grid-4" style={{ marginBottom: 24 }}>
+        <StatCard title="Total Leads" value={stats.allLeads || 0} subtext="All acquired leads" icon={Star} accent="#3b82f6" delay={0} />
+        <StatCard title="Total Revenue" value={`₹${(stats.allLeadsAmount || 0).toLocaleString()}`} subtext="Expected lead value" icon={TrendingUp} accent="#0ea5e9" delay={50} />
+        <StatCard title="Converted Leads" value={stats.totalLeads || 0} subtext="Successfully closed" icon={Star} accent="#10b981" delay={100} glow={true} />
+        <StatCard title="Converted Revenue" value={`₹${(stats.totalAmount || 0).toLocaleString()}`} subtext="Aggregate lead value" icon={TrendingUp} accent="#8b5cf6" delay={150} glow={true} />
       </div>
 
       <div className="glass-panel" style={{ marginBottom: 20, padding: 12, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -387,6 +400,12 @@ const MyLeads = () => {
                         {lead.agentName && (
                           <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4, fontWeight: 700 }}>
                             Agent: <span style={{ color: 'var(--primary)' }}>{lead.agentName}</span>
+                            {user?.role === 'superadmin' && lead.tlName && lead.tlName !== 'N/A' && (
+                              <> <span style={{ margin: '0 4px', opacity: 0.5 }}>|</span> TL: <span style={{ color: 'var(--violet)' }}>{lead.tlName}</span></>
+                            )}
+                            {user?.role === 'superadmin' && lead.adminName && lead.adminName !== 'N/A' && (
+                              <> <span style={{ margin: '0 4px', opacity: 0.5 }}>|</span> Admin: <span style={{ color: 'var(--success)' }}>{lead.adminName}</span></>
+                            )}
                           </div>
                         )}
 

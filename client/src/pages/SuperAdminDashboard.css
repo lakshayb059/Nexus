@@ -137,6 +137,30 @@
   }
 }
 
+@media (max-width: 768px) {
+  .sa-header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 16px;
+  }
+  .sa-grid-4, .sa-grid-3 {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .sa-title {
+    font-size: clamp(1.1rem, 2vw, 1.3rem);
+  }
+  .sa-card-value {
+    font-size: clamp(1.2rem, 4vw, 1.5rem);
+  }
+  .sa-glass-card {
+    padding: 16px;
+  }
+  .sa-chart-container {
+    padding: 16px;
+  }
+}
+
 /* GLASS CARDS */
 .sa-glass-card {
   position: relative;

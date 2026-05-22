@@ -20,28 +20,48 @@ router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']
     const [leads, contactLeads, allUsers] = await Promise.all([
       prisma.lead.findMany({ where: whereQuery }),
       prisma.contact.findMany({ where: { ...whereQuery, disposition: 'Lead', isDeleted: false } }),
-      prisma.user.findMany({ where: { role: { in: ['agent', 'tl'] } } })
+      prisma.user.findMany({})
     ]);
 
-    const userMap = allUsers.reduce((acc, u) => { acc[u.id] = u.name; return acc; }, {});
+    const userMap = allUsers.reduce((acc, u) => { acc[u.id] = u; return acc; }, {});
     const leadContactIds = new Set(leads.map(l => l.contactId));
     const uniqueContactLeads = contactLeads.filter(c => !leadContactIds.has(c.id));
 
-    const mappedContactLeads = uniqueContactLeads.map(c => ({
-      _id: c.id,
-      contactId: c.id,
-      fields: c.fields,
-      batchId: c.batchId,
-      assignedTo: c.assignedTo,
-      agentName: c.assignedTo ? userMap[c.assignedTo] || 'Unassigned' : 'Unassigned',
-      leadAmount: c.leadAmount || 0,
-      status: c.status || 'Converted',
-      remarks: c.remarks || 'Imported Lead',
-      createdAt: c.createdAt,
-      lastModified: c.lastModified
-    }));
+    const mappedContactLeads = uniqueContactLeads.map(c => {
+      const agent = c.assignedTo ? userMap[c.assignedTo] : null;
+      const tl = agent?.tlId ? userMap[agent.tlId] : null;
+      const admin = agent?.adminId ? userMap[agent.adminId] : (c.adminId ? userMap[c.adminId] : null);
 
-    const combinedLeads = [...leads.map(l => ({ ...l, _id: l.id })), ...mappedContactLeads];
+      return {
+        _id: c.id,
+        contactId: c.id,
+        fields: c.fields,
+        batchId: c.batchId,
+        assignedTo: c.assignedTo,
+        agentName: agent ? agent.name : 'Unassigned',
+        tlName: tl ? tl.name : 'N/A',
+        adminName: admin ? admin.name : 'N/A',
+        leadAmount: c.leadAmount || 0,
+        status: c.status || 'Converted',
+        remarks: c.remarks || 'Imported Lead',
+        createdAt: c.createdAt,
+        lastModified: c.lastModified
+      };
+    });
+
+    const combinedLeads = [...leads.map(l => {
+      const agent = l.assignedTo ? userMap[l.assignedTo] : null;
+      const tl = agent?.tlId ? userMap[agent.tlId] : null;
+      const admin = agent?.adminId ? userMap[agent.adminId] : (l.adminId ? userMap[l.adminId] : null);
+
+      return {
+        ...l, 
+        _id: l.id,
+        agentName: agent ? agent.name : 'Unassigned',
+        tlName: tl ? tl.name : 'N/A',
+        adminName: admin ? admin.name : 'N/A',
+      };
+    }), ...mappedContactLeads];
     const groupedMap = new Map();
 
     const normalize = (phone) => {
@@ -92,19 +112,30 @@ router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), 
       whereQuery.adminId = req.user._id || req.user.id;
     }
 
-    const [leads, contactLeads] = await Promise.all([
+    const [leads, contactLeads, allLeadsArr, allContactLeads] = await Promise.all([
       prisma.lead.findMany({ where: { ...whereQuery, status: 'Converted' } }),
-      prisma.contact.findMany({ where: { ...whereQuery, disposition: 'Lead', status: 'Converted', isDeleted: false } })
+      prisma.contact.findMany({ where: { ...whereQuery, disposition: 'Lead', status: 'Converted', isDeleted: false } }),
+      prisma.lead.findMany({ where: { ...whereQuery } }),
+      prisma.contact.findMany({ where: { ...whereQuery, disposition: 'Lead', isDeleted: false } })
     ]);
     
+    // Converted Leads
     const leadContactIds = new Set(leads.map(l => l.contactId));
     const uniqueContactLeads = contactLeads.filter(c => !leadContactIds.has(c.id));
     
     const totalLeads = leads.length + uniqueContactLeads.length;
     const totalAmount = leads.reduce((sum, l) => sum + (parseFloat(l.leadAmount) || 0), 0) +
                         uniqueContactLeads.reduce((sum, c) => sum + (parseFloat(c.leadAmount) || 0), 0);
+                        
+    // All Leads
+    const allLeadContactIds = new Set(allLeadsArr.map(l => l.contactId));
+    const uniqueAllContactLeads = allContactLeads.filter(c => !allLeadContactIds.has(c.id));
     
-    res.json({ totalLeads, totalAmount });
+    const allLeadsCount = allLeadsArr.length + uniqueAllContactLeads.length;
+    const allLeadsAmount = allLeadsArr.reduce((sum, l) => sum + (parseFloat(l.leadAmount) || 0), 0) +
+                           uniqueAllContactLeads.reduce((sum, c) => sum + (parseFloat(c.leadAmount) || 0), 0);
+    
+    res.json({ totalLeads, totalAmount, allLeads: allLeadsCount, allLeadsAmount });
   } catch (err) {
     console.error('Leads stats failed:', err);
     res.status(500).json({ error: 'Server error' });
