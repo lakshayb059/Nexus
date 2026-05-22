@@ -5,7 +5,8 @@
   "description": "Spike CRM - Microservices Architecture",
   "scripts": {
     "install:all": "npm install && cd client && npm install",
-    "start": "node -e \"console.log('Root service idle')\""
+    "start": "node -e \"console.log('Root service idle')\"",
+    "postinstall": "prisma generate --schema=microservices/prisma/schema.prisma"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
