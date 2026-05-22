@@ -172,6 +172,19 @@ const Contacts = ({ filterType }) => {
     }
   };
 
+  const handleWipeContacts = async () => {
+    const confirmation = window.prompt("WARNING: This will delete ALL contacts in the system. Type 'DELETE' to confirm.");
+    if (confirmation === 'DELETE') {
+      try {
+        await api.delete('/contacts/wipe');
+        fetchContacts();
+        alert('All contacts have been wiped.');
+      } catch (err) {
+        alert(err.response?.data?.error || 'Failed to wipe data');
+      }
+    }
+  };
+
   const toggleSelect = (id) =>
     setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
 
@@ -199,6 +212,11 @@ const Contacts = ({ filterType }) => {
           <p className="page-subtitle">{filterType === 'workflow' ? 'Your pending contacts to call' : `Manage and view your ${title.toLowerCase()}`}</p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          {user?.role === 'superadmin' && (!filterType || filterType === 'all') && (
+            <button className="btn btn-danger" onClick={handleWipeContacts} style={{ padding: '7px 14px', fontSize: '0.8rem' }}>
+              <Trash2 size={15} /> Wipe All Contacts
+            </button>
+          )}
           {user?.role === 'admin' && (
             <button className="btn btn-outline" onClick={toggleSelectAll} style={{ padding: '7px 14px', fontSize: '0.8rem' }}>
               {selectedIds.length === filtered.length ? <CheckSquare size={15} /> : <Square size={15} />} 

@@ -143,6 +143,19 @@ const Users = () => {
     }
   };
 
+  const handleWipeUsers = async () => {
+    const confirmation = window.prompt("WARNING: This will delete ALL users except SuperAdmin. Type 'DELETE' to confirm.");
+    if (confirmation === 'DELETE') {
+      try {
+        await api.delete('/users/wipe');
+        fetchUsers();
+        alert('All other users have been deleted.');
+      } catch (err) {
+        alert(err.response?.data?.error || 'Failed to wipe users');
+      }
+    }
+  };
+
   const otherTls = tls.filter(t => t._id !== editingUser?._id && t.active);
 
   const roleStyles = {
@@ -171,9 +184,16 @@ const Users = () => {
           </h1>
           <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 4 }}>Manage team leads and agents</p>
         </div>
-        <button id="add-user-btn" className="btn btn-primary" onClick={() => openModal()} style={{ padding: '10px 20px' }}>
-          <Plus size={16} /> Add User
-        </button>
+        <div>
+          {user?.role === 'superadmin' && (
+            <button className="btn btn-danger" onClick={handleWipeUsers} style={{ padding: '10px 20px', marginRight: '10px' }}>
+              <Trash2 size={16} /> Wipe All Users
+            </button>
+          )}
+          <button id="add-user-btn" className="btn btn-primary" onClick={() => openModal()} style={{ padding: '10px 20px' }}>
+            <Plus size={16} /> Add User
+          </button>
+        </div>
       </div>
 
       <div className="grid-stats" style={{ marginBottom: 20 }}>
@@ -255,7 +275,7 @@ const Users = () => {
                     <td style={{ textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                         <button className="btn btn-outline btn-icon" onClick={() => openModal(u)} title="Edit"><Edit2 size={15} /></button>
-                        {user?.role === 'superadmin' && (
+                        {user?.role === 'superadmin' && u.role !== 'superadmin' && (
                           <button className="btn btn-outline btn-icon" style={{ color: 'var(--danger)', borderColor: 'var(--danger-light)' }} onClick={() => handleDelete(u._id)} title="Delete User">
                             <Trash2 size={15} />
                           </button>

@@ -105,6 +105,19 @@ const MyLeads = () => {
     }
   };
 
+  const handleWipeLeads = async () => {
+    const confirmation = window.prompt("WARNING: This will delete ALL leads and lead history. Type 'DELETE' to confirm.");
+    if (confirmation === 'DELETE') {
+      try {
+        await api.delete('/leads/wipe');
+        fetchData();
+        alert('All leads have been wiped.');
+      } catch (err) {
+        alert(err.response?.data?.error || 'Failed to wipe leads');
+      }
+    }
+  };
+
   const handleStatusChange = async (target, newStatus, type = 'contact') => {
     // If it's a special status requiring input, show modal
     if (['Converted', 'Call Back', 'Others'].includes(newStatus)) {
@@ -251,6 +264,11 @@ const MyLeads = () => {
           <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 4 }}>Track and manage your successful conversions</p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          {user?.role === 'superadmin' && (
+            <button className="btn btn-danger" onClick={handleWipeLeads} style={{ fontSize: '0.75rem', padding: '6px 12px' }}>
+              <Trash2 size={14} /> Wipe All Leads
+            </button>
+          )}
           {user?.role === 'admin' && filtered.length > 0 && (
             <>
               <button className="btn btn-outline" onClick={toggleSelectAll} style={{ fontSize: '0.75rem', padding: '6px 12px' }}>

@@ -5,7 +5,7 @@ import api from '../utils/api';
 import {
   Users, PhoneCall, Star, Calendar, Clock,
   XCircle, TrendingUp, Database, RefreshCw, PhoneOff,
-  AlertCircle, ArrowUpRight, Activity, Zap
+  AlertCircle, ArrowUpRight, Activity, Zap, Trash2
 } from 'lucide-react';
 
 /* ─────────────────────────────────────────
@@ -113,6 +113,26 @@ const Dashboard = () => {
     return () => events.forEach(e => socket.off(e, handler));
   }, [socket, user]);
 
+  const handleGlobalWipe = async () => {
+    const confirmation = window.prompt("GLOBAL SYSTEM WIPE. This will delete EVERY record in the database except your superadmin account. Type 'DELETE' to confirm.");
+    if (confirmation === 'DELETE') {
+      try {
+        await Promise.all([
+          api.delete('/users/wipe'),
+          api.delete('/contacts/wipe'),
+          api.delete('/leads/wipe'),
+          api.delete('/leads/appointments/wipe'),
+          api.delete('/leads/callbacks/wipe')
+        ]);
+        alert('GLOBAL WIPE SUCCESSFUL. All data has been deleted.');
+        window.location.reload();
+      } catch (err) {
+        alert('Failed during global wipe. Check console for details.');
+        console.error(err);
+      }
+    }
+  };
+
   const primaryCards = stats ? [
     { title: 'Total Contacts', value: stats.total || 0, subtext: 'In system', icon: Users, accent: '#6366f1' },
     { title: 'Pending Queue', value: stats.pending || 0, subtext: 'Awaiting disposition', icon: Clock, accent: '#f59e0b' },
@@ -151,19 +171,33 @@ const Dashboard = () => {
             Welcome, <strong style={{ color: 'var(--text-primary)', fontWeight: 800 }}>{user?.name}</strong>
           </p>
         </div>
-        <button
-          onClick={() => fetchDashboardData(true)}
-          disabled={refreshing || loading}
-          className="btn btn-outline"
-          style={{
-            fontSize: '0.8rem',
-            padding: '8px 14px',
-            opacity: (refreshing || loading) ? 0.6 : 1
-          }}
-        >
-          <RefreshCw size={14} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-          Refresh
-        </button>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {user?.role === 'superadmin' && (
+            <button
+              onClick={handleGlobalWipe}
+              className="btn btn-danger"
+              style={{
+                fontSize: '0.8rem',
+                padding: '8px 14px',
+              }}
+            >
+              <Trash2 size={14} /> Global System Wipe
+            </button>
+          )}
+          <button
+            onClick={() => fetchDashboardData(true)}
+            disabled={refreshing || loading}
+            className="btn btn-outline"
+            style={{
+              fontSize: '0.8rem',
+              padding: '8px 14px',
+              opacity: (refreshing || loading) ? 0.6 : 1
+            }}
+          >
+            <RefreshCw size={14} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* ── PRIMARY KPI SECTION ── */}

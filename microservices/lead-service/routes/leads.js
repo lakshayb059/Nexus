@@ -216,7 +216,7 @@ router.get('/callbacks', verify, authorize(['superadmin', 'agent', 'tl', 'admin'
   }
 });
 
-router.get('/appointments/wipe', verify, authorize(['superadmin']), async (req, res) => {
+router.delete('/appointments/wipe', verify, authorize(['superadmin']), async (req, res) => {
   try {
     await prisma.appointment.deleteMany({});
     res.json({ success: true });
@@ -245,7 +245,7 @@ router.post('/appointments/bulk-delete', verify, authorize(['superadmin', 'agent
   }
 });
 
-router.get('/callbacks/wipe', verify, authorize(['superadmin']), async (req, res) => {
+router.delete('/callbacks/wipe', verify, authorize(['superadmin']), async (req, res) => {
   try {
     await prisma.callback.deleteMany({});
     res.json({ success: true });
@@ -272,6 +272,14 @@ router.post('/callbacks/bulk-delete', verify, authorize(['superadmin', 'agent', 
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
+});
+
+router.delete('/wipe', verify, authorize(['superadmin']), async (req, res) => {
+  try {
+    await prisma.leadHistory.deleteMany({});
+    await prisma.lead.deleteMany({});
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
 router.delete('/:id', verify, authorize(['superadmin', 'admin']), async (req, res) => {

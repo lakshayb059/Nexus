@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import api from '../utils/api';
-import { PhoneOff, Search, PhoneCall, Calendar } from 'lucide-react';
+import { PhoneOff, Search, PhoneCall, Calendar, Trash2 } from 'lucide-react';
 
 
 const HungUp = () => {
@@ -54,6 +54,19 @@ const HungUp = () => {
            (c.agentName && c.agentName.toLowerCase().includes(q));
   });
 
+  const handleWipeHungUp = async () => {
+    const confirmation = window.prompt("WARNING: This will delete ALL failed/hung-up contacts. Type 'DELETE' to confirm.");
+    if (confirmation === 'DELETE') {
+      try {
+        await api.delete('/contacts/wipe/hungup');
+        fetchData();
+        alert('All hung-up contacts have been wiped.');
+      } catch (err) {
+        alert(err.response?.data?.error || 'Failed to wipe hung-up contacts');
+      }
+    }
+  };
+
 
 
   return (
@@ -65,9 +78,16 @@ const HungUp = () => {
           </h1>
           <p className="page-subtitle">Contacts removed from workflow after 3 unsuccessful attempts</p>
         </div>
-        <span className="badge badge-danger" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
-          {filtered.length} Contacts
-        </span>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {user?.role === 'superadmin' && (
+            <button className="btn btn-danger" onClick={handleWipeHungUp} style={{ fontSize: '0.75rem', padding: '6px 12px' }}>
+              <Trash2 size={14} /> Wipe Failed Calls
+            </button>
+          )}
+          <span className="badge badge-danger" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
+            {filtered.length} Contacts
+          </span>
+        </div>
       </div>
 
       {/* Search */}

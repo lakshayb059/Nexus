@@ -127,6 +127,19 @@ const Upload = () => {
     }
   };
 
+  const handleWipeBatches = async () => {
+    const confirmation = window.prompt("WARNING: This will delete ALL batches and ALL contacts. Type 'DELETE' to confirm.");
+    if (confirmation === 'DELETE') {
+      try {
+        await api.delete('/contacts/wipe');
+        fetchData();
+        alert('All uploaded data has been wiped.');
+      } catch (err) {
+        alert(err.response?.data?.error || 'Failed to wipe data');
+      }
+    }
+  };
+
   const toggleSelectBatch = (id) => {
     setSelectedBatchIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
@@ -171,6 +184,13 @@ const Upload = () => {
             <UploadCloud size={24} style={{ color: 'var(--primary)' }} /> Data Import
           </h1>
           <p className="page-subtitle">Upload CSV/Excel contacts and assign them to agents in real-time</p>
+        </div>
+        <div>
+          {user?.role === 'superadmin' && (
+            <button className="btn btn-danger" onClick={handleWipeBatches} style={{ padding: '10px 20px' }}>
+              <Trash2 size={16} /> Wipe All Uploads
+            </button>
+          )}
         </div>
       </div>
 

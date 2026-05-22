@@ -236,6 +236,18 @@ app.delete('/users/:id', verify, authorize(['superadmin']), async (req, res) => 
   }
 });
 
+app.delete('/users/wipe', verify, authorize(['superadmin']), async (req, res) => {
+  try {
+    await prisma.user.deleteMany({
+      where: { role: { not: 'superadmin' } }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Wipe users error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 async function start() {
   app.listen(PORT, () => {
     console.log(`🔐 Auth Service running on port: ${PORT}`);

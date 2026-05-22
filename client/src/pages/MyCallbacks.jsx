@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
-import { Phone, Clock, ChevronRight, Bell, User, AlertTriangle, X, Check, Award, Star } from 'lucide-react';
+import { Phone, Clock, ChevronRight, Bell, User, AlertTriangle, X, Check, Award, Star, Trash2 } from 'lucide-react';
 
 const MyCallbacks = () => {
   const { user } = useAuth();
@@ -73,6 +73,19 @@ const MyCallbacks = () => {
       fetchCallbacks();
     } catch (err) {
       alert('Bulk delete failed');
+    }
+  };
+
+  const handleWipeCallbacks = async () => {
+    const confirmation = window.prompt("WARNING: This will delete ALL scheduled callbacks. Type 'DELETE' to confirm.");
+    if (confirmation === 'DELETE') {
+      try {
+        await api.delete('/leads/callbacks/wipe');
+        fetchCallbacks();
+        alert('All callbacks have been wiped.');
+      } catch (err) {
+        alert(err.response?.data?.error || 'Failed to wipe callbacks');
+      }
     }
   };
 
@@ -260,9 +273,16 @@ const MyCallbacks = () => {
           </h1>
           <p className="page-subtitle">Your scheduled follow-up calls with potential leads</p>
         </div>
-        <span className="badge badge-primary" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
-          {callbacks.length} Scheduled
-        </span>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {user?.role === 'superadmin' && (
+            <button className="btn btn-danger" onClick={handleWipeCallbacks} style={{ fontSize: '0.75rem', padding: '6px 12px' }}>
+              <Trash2 size={14} /> Wipe All Callbacks
+            </button>
+          )}
+          <span className="badge badge-primary" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
+            {callbacks.length} Scheduled
+          </span>
+        </div>
       </div>
 
       {callbacks.length > 0 && (

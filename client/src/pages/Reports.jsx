@@ -3,7 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 import api from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
-import { BarChart2, Download, FileSpreadsheet, User, Filter } from 'lucide-react';
+import { BarChart2, Download, FileSpreadsheet, User, Filter, Trash2 } from 'lucide-react';
 
 const PALETTE = ['#10b981', '#f59e0b', '#6366f1', '#ef4444', '#8b5cf6', '#06b6d4'];
 
@@ -79,6 +79,26 @@ const Reports = () => {
     }
   };
 
+  const handleGlobalWipe = async () => {
+    const confirmation = window.prompt("GLOBAL SYSTEM WIPE. This will delete EVERY record in the database except your superadmin account. Type 'DELETE' to confirm.");
+    if (confirmation === 'DELETE') {
+      try {
+        await Promise.all([
+          api.delete('/users/wipe'),
+          api.delete('/contacts/wipe'),
+          api.delete('/leads/wipe'),
+          api.delete('/leads/appointments/wipe'),
+          api.delete('/leads/callbacks/wipe')
+        ]);
+        alert('GLOBAL WIPE SUCCESSFUL. All data has been deleted.');
+        window.location.reload();
+      } catch (err) {
+        alert('Failed during global wipe. Check console for details.');
+        console.error(err);
+      }
+    }
+  };
+
   const chartData = stats ? (reportType === 'workflow' ? [
     { name: 'Pending',      value: stats.pending || 0 },
     { name: 'Leads',        value: stats.lead || 0 },
@@ -123,6 +143,15 @@ const Reports = () => {
           <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 4 }}>Tracking performance and funnel efficiency</p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          {user?.role === 'superadmin' && (
+            <button
+              onClick={handleGlobalWipe}
+              className="btn btn-danger"
+              style={{ height: 36, padding: '0 12px' }}
+            >
+              <Trash2 size={14} /> <span className="hide-mobile">Global System Wipe</span>
+            </button>
+          )}
           <select 
             className="input-field" 
             style={{ marginBottom: 0, minWidth: 140, height: 36, fontSize: '0.8rem' }}

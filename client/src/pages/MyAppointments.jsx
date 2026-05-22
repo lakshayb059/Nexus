@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
-import { Calendar, Clock, Phone, ChevronRight, Bell, User, AlertTriangle, X, Check } from 'lucide-react';
+import { Calendar, Clock, Phone, ChevronRight, Bell, User, AlertTriangle, X, Check, Trash2 } from 'lucide-react';
 
 const MyAppointments = () => {
   const { user }   = useAuth();
@@ -66,6 +66,19 @@ const MyAppointments = () => {
       fetchAppointments();
     } catch (err) {
       alert('Bulk delete failed');
+    }
+  };
+
+  const handleWipeAppointments = async () => {
+    const confirmation = window.prompt("WARNING: This will delete ALL scheduled appointments. Type 'DELETE' to confirm.");
+    if (confirmation === 'DELETE') {
+      try {
+        await api.delete('/leads/appointments/wipe');
+        fetchAppointments();
+        alert('All appointments have been wiped.');
+      } catch (err) {
+        alert(err.response?.data?.error || 'Failed to wipe appointments');
+      }
     }
   };
 
@@ -138,9 +151,16 @@ const MyAppointments = () => {
           </h1>
           <p className="page-subtitle">Your scheduled callbacks and meetings with potential leads</p>
         </div>
-        <span className="badge badge-primary" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
-          {appointments.length} Scheduled
-        </span>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {user?.role === 'superadmin' && (
+            <button className="btn btn-danger" onClick={handleWipeAppointments} style={{ fontSize: '0.75rem', padding: '6px 12px' }}>
+              <Trash2 size={14} /> Wipe All Appointments
+            </button>
+          )}
+          <span className="badge badge-primary" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
+            {appointments.length} Scheduled
+          </span>
+        </div>
       </div>
 
       {appointments.length > 0 && (

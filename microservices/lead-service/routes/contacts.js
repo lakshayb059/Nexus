@@ -419,6 +419,21 @@ router.delete('/:id', verify, authorize(['superadmin', 'admin']), async (req, re
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
 
+router.delete('/wipe', verify, authorize(['superadmin']), async (req, res) => {
+  try {
+    await prisma.contact.deleteMany({});
+    await prisma.batch.deleteMany({});
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+router.delete('/wipe/hungup', verify, authorize(['superadmin']), async (req, res) => {
+  try {
+    await prisma.contact.deleteMany({ where: { disposition: 'HungUp' } });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
 router.post('/bulk-delete-batches', verify, authorize(['superadmin', 'admin']), async (req, res) => {
   try {
     const { batchIds } = req.body;
