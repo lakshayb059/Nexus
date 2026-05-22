@@ -44,6 +44,9 @@ model Contact {
   callBackDt        DateTime? @map("call_back_dt")
   conversionDate    DateTime? @map("conversion_date")
   isDeleted         Boolean   @default(false) @map("is_deleted")
+  reminderSent      Boolean   @default(false) @map("reminder_sent")
+  cbReminderSent    Boolean   @default(false) @map("cb_reminder_sent")
+  lateNotified      Boolean   @default(false) @map("late_notified")
   createdAt         DateTime  @default(now()) @map("created_at")
   lastModified      DateTime  @updatedAt @map("last_modified")
 

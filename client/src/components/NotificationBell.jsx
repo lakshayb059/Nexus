@@ -60,9 +60,15 @@ const NotificationBell = () => {
     }
   }, [user?._id]);
 
+  const notifyBrowser = (title, message) => {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      new Notification(title, { body: message, silent: false, requireInteraction: true });
+    }
+  };
+
   const playSound = () => {
     try {
-      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3');
       audio.play().catch(e => console.log('Sound blocked by browser policy'));
     } catch (e) {
       console.error('Audio playback failed', e);
@@ -75,11 +81,14 @@ const NotificationBell = () => {
     socket.on('appointment_reminder', (data) => {
       if (data.agentId === user._id) {
         playSound();
+        const title = data.type === 'late' ? 'LATE APPOINTMENT' : 'Appointment Reminder';
+        const msg = `${data.contactName} - ${data.type === 'late' ? 'OVERDUE' : `in ${data.minutesUntil} min`}`;
+        notifyBrowser(title, msg);
         addNotification({
           id: `appt_${Date.now()}`,
           type: 'appointment',
-          title: data.type === 'late' ? 'LATE APPOINTMENT' : 'Appointment Reminder',
-          message: `${data.contactName} - ${data.type === 'late' ? 'OVERDUE' : `in ${data.minutesUntil} min`}`,
+          title,
+          message: msg,
           time: new Date(),
           path: '/appointments'
         });
@@ -103,11 +112,14 @@ const NotificationBell = () => {
     socket.on('callback_reminder', (data) => {
       if (data.agentId === user._id) {
         playSound();
+        const title = 'Callback in 2 min';
+        const msg = `${data.contactName} - Prepare for call`;
+        notifyBrowser(title, msg);
         addNotification({
           id: `cbr_${Date.now()}`,
           type: 'callback',
-          title: 'Callback in 2 min',
-          message: `${data.contactName} - Prepare for call`,
+          title,
+          message: msg,
           time: new Date(),
           path: '/callbacks'
         });

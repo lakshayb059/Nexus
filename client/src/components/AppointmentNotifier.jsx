@@ -7,12 +7,9 @@ const MAX_TOASTS = 5;
 
 // Sound URLs
 const SOUNDS = {
-  // A professional digital bell/ring
-  upcoming: 'https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3',
-  // A more urgent digital alert
-  late: 'https://assets.mixkit.co/active_storage/sfx/951/951-preview.mp3',
-  // A clean "ping" for immediate due
-  callback: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'
+  upcoming: 'https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3',
+  late: 'https://assets.mixkit.co/active_storage/sfx/1356/1356-preview.mp3',
+  callback: 'https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3'
 };
 
 const AppointmentNotifier = () => {
@@ -44,7 +41,7 @@ const AppointmentNotifier = () => {
 
   const notifyBrowser = (title, message) => {
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-      new Notification(title, { body: message });
+      new Notification(title, { body: message, silent: false, requireInteraction: true });
     }
   };
 
