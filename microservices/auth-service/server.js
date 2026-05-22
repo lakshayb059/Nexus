@@ -221,6 +221,21 @@ app.put('/users/:id', verify, authorize(['superadmin', 'admin']), async (req, re
   }
 });
 
+app.delete('/users/:id', verify, authorize(['superadmin']), async (req, res) => {
+  try {
+    const userId = req.params.id;
+    // We soft-delete the user so historical references don't break
+    await prisma.user.update({
+      where: { id: userId },
+      data: { isDeleted: true, active: false }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete user error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 async function start() {
   app.listen(PORT, () => {
     console.log(`🔐 Auth Service running on port: ${PORT}`);

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../utils/api';
 import { useSocket } from '../contexts/SocketContext';
-import { Users as UsersIcon, Plus, Edit2, Shield, UserCheck, Search, X } from 'lucide-react';
+import { Users as UsersIcon, Plus, Edit2, Shield, UserCheck, Search, X, Trash2 } from 'lucide-react';
 
 const Users = () => {
   const { user }   = useAuth();
@@ -55,7 +55,7 @@ const Users = () => {
   const agents  = users.filter(u => u.role === 'agent');
 
   const filtered = users
-    .filter(u => user?.role === 'superadmin' ? u.role === 'admin' : u.role !== 'admin')
+    .filter(u => user?.role === 'superadmin' ? true : u.role !== 'admin')
     .filter(u =>
       u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       u.username.toLowerCase().includes(searchTerm.toLowerCase())
@@ -129,6 +129,17 @@ const Users = () => {
       alert(err.response?.data?.error || 'Operation failed');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async (userId) => {
+    if (window.confirm("Are you sure you want to delete this user? This action cannot be undone.")) {
+      try {
+        await api.delete(`/users/${userId}`);
+        fetchUsers();
+      } catch (err) {
+        alert(err.response?.data?.error || 'Failed to delete user');
+      }
     }
   };
 
@@ -214,7 +225,14 @@ const Users = () => {
                 <tr><td colSpan="5" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>No users found</td></tr>
               ) : filtered.map(u => {
                 const tl = tls.find(t => t._id === u.tlId);
+                const admin = admins.find(a => a._id === u.adminId);
                 const rs = roleStyles[u.role] || roleStyles.agent;
+
+                let reportsTo = '—';
+                if (u.role === 'admin') reportsTo = 'SuperAdmin';
+                else if (u.role === 'tl') reportsTo = admin?.name || 'SuperAdmin';
+                else if (u.role === 'agent') reportsTo = tl?.name || 'Unassigned';
+
                 return (
                   <tr key={u._id}>
                     <td>
@@ -233,10 +251,15 @@ const Users = () => {
                     </td>
                     <td><span className={`badge ${rs.cls}`}>{rs.label}</span></td>
                     <td><span className={`badge ${u.active ? 'badge-success' : 'badge-danger'}`}>{u.active ? 'Active' : 'Inactive'}</span></td>
-                    <td style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{u.role === 'agent' ? (tl?.name || 'Unassigned') : '—'}</td>
+                    <td style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{reportsTo}</td>
                     <td style={{ textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                         <button className="btn btn-outline btn-icon" onClick={() => openModal(u)} title="Edit"><Edit2 size={15} /></button>
+                        {user?.role === 'superadmin' && (
+                          <button className="btn btn-outline btn-icon" style={{ color: 'var(--danger)', borderColor: 'var(--danger-light)' }} onClick={() => handleDelete(u._id)} title="Delete User">
+                            <Trash2 size={15} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
