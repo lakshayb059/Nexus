@@ -19,7 +19,17 @@ app.use('/contacts', require('./routes/contacts'));
 app.use('/leads', require('./routes/leads'));
 app.use('/leads-management', require('./routes/leads-management'));
 
+const { execSync } = require('child_process');
+
 async function start() {
+  try {
+    console.log('Synchronizing Prisma schema with database...');
+    execSync('npx prisma db push --schema=../prisma/schema.prisma', { stdio: 'inherit' });
+    console.log('Prisma schema synchronized successfully.');
+  } catch (err) {
+    console.error('Failed to synchronize Prisma schema:', err);
+  }
+
   app.listen(PORT, () => {
     console.log(`📋 Lead Service running on port: ${PORT}`);
   });
