@@ -67,6 +67,8 @@ router.post('/workflow/dispose', verify, authorize(['agent']), async (req, res) 
     } else if (disposition === 'Appointment') {
       update.appointmentDt = new Date(appointmentDt);
       update.appointmentStatus = 'scheduled';
+      update.reminderSent = false;
+      update.lateNotified = false;
       update.queueOrder = 999999;
       
       await prisma.appointment.create({
@@ -79,6 +81,8 @@ router.post('/workflow/dispose', verify, authorize(['agent']), async (req, res) 
       });
     } else if (disposition === 'CallBack') {
       update.callBackDt = new Date(callBackDt);
+      update.cbReminderSent = false;
+      update.lateNotified = false;
       update.queueOrder = 999999;
       
       await prisma.callback.create({

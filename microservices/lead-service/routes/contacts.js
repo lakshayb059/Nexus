@@ -158,13 +158,17 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
       update.conversionDate = new Date();
       update.queueOrder = 999999;
       if (status) update.status = status;
-      if (callBackDt) update.callBackDt = new Date(callBackDt);
-      if (appointmentDt) update.appointmentDt = new Date(appointmentDt);
+      if (callBackDt) { update.callBackDt = new Date(callBackDt); update.cbReminderSent = false; update.lateNotified = false; }
+      if (appointmentDt) { update.appointmentDt = new Date(appointmentDt); update.reminderSent = false; update.lateNotified = false; }
     } else if (disposition === 'Appointment') {
       update.appointmentDt = appointmentDt ? new Date(appointmentDt) : null;
+      update.reminderSent = false;
+      update.lateNotified = false;
       update.queueOrder = 999999;
     } else if (disposition === 'CallBack') {
       update.callBackDt = callBackDt ? new Date(callBackDt) : null;
+      update.cbReminderSent = false;
+      update.lateNotified = false;
       update.queueOrder = 999999; update.status = 'Call Back';
     } else if (disposition === 'CallNotAnswered' || disposition === 'HungUp') {
       update.rechurnCount = (contact.rechurnCount || 0) + 1;

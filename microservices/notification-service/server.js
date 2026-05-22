@@ -91,7 +91,7 @@ async function checkAppointments() {
     const upcoming = await prisma.contact.findMany({
       where: {
         disposition: 'Appointment',
-        appointmentDt: { gte: now, lte: new Date(now.getTime() + 2 * 60 * 1000) },
+        appointmentDt: { gte: now, lte: new Date(now.getTime() + 2.5 * 60 * 1000) },
         reminderSent: { not: true }
       }
     });
@@ -115,7 +115,7 @@ async function checkCallbacks() {
     const upcoming = await prisma.contact.findMany({
       where: {
         disposition: 'CallBack',
-        callBackDt: { gte: now, lte: new Date(now.getTime() + 2 * 60 * 1000) },
+        callBackDt: { gte: now, lte: new Date(now.getTime() + 2.5 * 60 * 1000) },
         cbReminderSent: { not: true }
       }
     });
@@ -138,8 +138,8 @@ async function start() {
     console.log(`🔔 Notification Service running on port: ${PORT}`);
 
     // Start background worker
-    setInterval(checkAppointments, 60000);
-    setInterval(checkCallbacks, 60000);
+    setInterval(checkAppointments, 10000);
+    setInterval(checkCallbacks, 10000);
   });
 }
 
