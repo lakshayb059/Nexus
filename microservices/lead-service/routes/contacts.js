@@ -181,7 +181,7 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
     if (disposition === 'Lead') {
       await prisma.lead.create({
         data: {
-          contactId: req.params.id, fields: contact.fields, batchId: contact.batchId,
+          contactId: req.params.id, fields: contact.fields || {}, batchId: contact.batchId,
           assignedTo: req.user._id || req.user.id, agentName: req.user.name,
           leadAmount: parseFloat(leadAmount) || 0, status: status || 'Pending',
           remarks: remarks || '',
@@ -191,7 +191,7 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
     } else if (disposition === 'Appointment') {
       await prisma.appointment.create({
         data: {
-          contactId: req.params.id, fields: contact.fields, batchId: contact.batchId,
+          contactId: req.params.id, fields: contact.fields || {}, batchId: contact.batchId,
           assignedTo: req.user._id || req.user.id, agentName: req.user.name,
           appointmentDt: appointmentDt ? new Date(appointmentDt) : new Date(),
           remarks: remarks || '', adminId: contact.adminId
@@ -200,7 +200,7 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
     } else if (disposition === 'CallBack') {
       await prisma.callback.create({
         data: {
-          contactId: req.params.id, fields: contact.fields, batchId: contact.batchId,
+          contactId: req.params.id, fields: contact.fields || {}, batchId: contact.batchId,
           assignedTo: req.user._id || req.user.id, agentName: req.user.name,
           callBackDt: callBackDt ? new Date(callBackDt) : new Date(),
           remarks: remarks || '', adminId: contact.adminId
