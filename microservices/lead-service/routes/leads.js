@@ -276,7 +276,6 @@ router.post('/callbacks/bulk-delete', verify, authorize(['superadmin', 'agent', 
 
 router.delete('/wipe', verify, authorize(['superadmin']), async (req, res) => {
   try {
-    await prisma.leadHistory.deleteMany({});
     await prisma.lead.deleteMany({});
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
