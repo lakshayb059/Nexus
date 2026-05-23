@@ -45,14 +45,62 @@ router.get('/', verify, authorize(['superadmin', 'admin', 'tl', 'agent']), async
     // JSON search might not be perfectly supported in Prisma without raw queries, doing our best here
     let whereQuery = await getAccessibleContactsQuery(req.user, filters);
 
-    // Basic support for JSON fields search - since we don't have raw query, this is an approximation
-    // Prisma doesn't natively support full-text search across arbitrary JSON keys easily
     if (search && search.trim()) {
-      whereQuery.OR = [
-        { remarks: { contains: search.trim(), mode: 'insensitive' } }
-      ];
-      // Note: We can't easily search inside JSON `fields` with Prisma filtering natively in a generic way without raw SQL
-      // For full support, a raw SQL query would be needed here. 
+      // If search is provided, we must fetch all matching base filters and filter in-memory
+      // since Prisma doesn't support full-text search across arbitrary JSON keys easily.
+      let contacts = await prisma.contact.findMany({
+        where: whereQuery,
+        orderBy: { createdAt: 'desc' }
+      });
+      
+      const q = search.trim().toLowerCase();
+      contacts = contacts.filter(c => {
+        return (
+          (c.remarks && c.remarks.toLowerCase().includes(q)) ||
+          Object.values(c.fields || {}).some(v => String(v).toLowerCase().includes(q)) ||
+          (c.agentName && c.agentName.toLowerCase().includes(q))
+        );
+      });
+
+      const userMap = {};
+      const allUsers = await prisma.user.findMany({ select: { id: true, name: true, tlId: true, adminId: true } });
+      allUsers.forEach(u => userMap[u.id] = u);
+
+      contacts = contacts.map(c => {
+        const agent = c.assignedTo ? userMap[c.assignedTo] : null;
+        const tl = agent?.tlId ? userMap[agent.tlId] : null;
+        const admin = agent?.adminId ? userMap[agent.adminId] : (c.adminId ? userMap[c.adminId] : null);
+        
+        return {
+          ...c, _id: c.id,
+          agentName: agent ? agent.name : 'Unassigned',
+          tlName: tl ? tl.name : 'N/A',
+          adminName: admin ? admin.name : 'N/A'
+        };
+      });
+
+      if (page) {
+        const pageNum = parseInt(page) || 1;
+        const limitNum = parseInt(limit) || 50;
+        const total = contacts.length;
+        const paginatedContacts = contacts.slice((pageNum - 1) * limitNum, pageNum * limitNum);
+        
+        let totalLeadValue = 0;
+        if (disposition === 'Lead') {
+          totalLeadValue = contacts.reduce((sum, c) => sum + (c.leadAmount || 0), 0);
+        }
+
+        return res.json({ 
+          contacts: paginatedContacts, 
+          total, 
+          page: pageNum, 
+          limit: limitNum, 
+          pages: Math.ceil(total / limitNum), 
+          totalLeadValue 
+        });
+      } else {
+        return res.json(contacts);
+      }
     }
 
     if (page) {
@@ -69,7 +117,6 @@ router.get('/', verify, authorize(['superadmin', 'admin', 'tl', 'agent']), async
       });
 
       const userMap = {};
-      // Fetch all users to map hierarchy since an agent might belong to a TL, who belongs to an Admin
       const allUsers = await prisma.user.findMany({ select: { id: true, name: true, tlId: true, adminId: true } });
       allUsers.forEach(u => userMap[u.id] = u);
 
