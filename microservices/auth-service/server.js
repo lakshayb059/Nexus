@@ -83,6 +83,8 @@ app.get('/users', verify, authorize(['superadmin', 'admin']), async (req, res) =
         adminId: true,
         active: true,
         isDeleted: true,
+        notificationEmail: true,
+        companyName: true,
         createdAt: true,
         updatedAt: true,
       }
@@ -112,6 +114,8 @@ app.get('/users/my-agents', verify, authorize('tl'), async (req, res) => {
         adminId: true,
         active: true,
         isDeleted: true,
+        notificationEmail: true,
+        companyName: true,
         createdAt: true,
         updatedAt: true,
       }
@@ -159,7 +163,7 @@ app.post('/users', verify, authorize(['superadmin', 'admin']), async (req, res) 
 
 app.put('/users/:id', verify, authorize(['superadmin', 'admin']), async (req, res) => {
   try {
-    const { name, password, active, tlId, agentAction, newTlId, reactivateAgents } = req.body;
+    const { name, password, active, tlId, agentAction, newTlId, reactivateAgents, notificationEmail, companyName } = req.body;
     const userId = req.params.id;
     
     const existingUser = await prisma.user.findUnique({ where: { id: userId } });
@@ -170,6 +174,8 @@ app.put('/users/:id', verify, authorize(['superadmin', 'admin']), async (req, re
     if (active !== undefined) updateData.active = !!active;
     if (tlId !== undefined) updateData.tlId = tlId ? tlId : null;
     if (password) updateData.password = await bcrypt.hash(password, 10);
+    if (notificationEmail !== undefined) updateData.notificationEmail = notificationEmail;
+    if (companyName !== undefined) updateData.companyName = companyName;
 
     if (existingUser.role === 'tl' && !!active === false && existingUser.active === true) {
       const agentsUnderTL = await prisma.user.findMany({ 

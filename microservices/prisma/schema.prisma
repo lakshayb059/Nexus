@@ -17,6 +17,8 @@ model User {
   adminId      String?   @map("admin_id")
   active       Boolean   @default(true)
   isDeleted    Boolean   @default(false)
+  notificationEmail String? @map("notification_email")
+  companyName       String? @map("company_name")
   createdAt    DateTime? @default(now()) @map("created_at")
   updatedAt    DateTime? @updatedAt @map("updated_at")
 

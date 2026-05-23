@@ -3,6 +3,7 @@ const { prisma } = require('../../shared/db');
 const { authorize, verify } = require('../../shared/authMiddleware');
 const { consolidateCallbacks, cleanupAllCallbacks, normalizePhone } = require('../../shared/callbackUtils');
 const { broadcast } = require('../../shared/notificationClient');
+const { triggerConversionEmail } = require('../../shared/triggerConversionEmail');
 
 async function getAccessibleContactsQuery(user, filters = {}, includeDeleted = false) {
   let where = { ...filters };
@@ -254,6 +255,9 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
           adminId: contact.adminId
         }
       });
+      if (status === 'Converted') {
+        triggerConversionEmail(req.params.id, req.body.receiptImage);
+      }
     } else if (disposition === 'Appointment') {
       await prisma.appointment.create({
         data: {
@@ -640,6 +644,9 @@ router.put('/:id/status', verify, authorize(['superadmin', 'agent', 'tl', 'admin
           leadAmount: update.leadAmount, status: 'Lead', adminId: contact.adminId
         }
       });
+      if (req.body.status === 'Converted') {
+        triggerConversionEmail(contact.id, req.body.receiptImage);
+      }
     }
 
     await prisma.contact.update({ where: { id: contact.id }, data: update });

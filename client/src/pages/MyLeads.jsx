@@ -140,7 +140,8 @@ const MyLeads = () => {
              const updatePayload = {
                status: 'Converted',
                transactionId: txId,
-               remarks: `[Auto-converted via receipt scan] Transaction ID: ${txId}`
+               remarks: `[Auto-converted via receipt scan] Transaction ID: ${txId}`,
+               receiptImage: imageBase64
              };
              
              if (amount && amount !== uploadTargetLead.leadAmount) {
@@ -151,7 +152,7 @@ const MyLeads = () => {
              await api.put(`/leads/${uploadTargetLead._id}`, updatePayload);
              
              if (uploadTargetLead.contactId) {
-               const contactUpdate = { status: 'Converted' };
+               const contactUpdate = { status: 'Converted', receiptImage: imageBase64 };
                if (amount && amount !== uploadTargetLead.leadAmount) {
                    contactUpdate.leadAmount = amount;
                }

@@ -3,6 +3,7 @@ const { prisma } = require('../../shared/db');
 const { authorize, verify } = require('../../shared/authMiddleware');
 const { consolidateCallbacks } = require('../../shared/callbackUtils');
 const { broadcast } = require('../../shared/notificationClient');
+const { triggerConversionEmail } = require('../../shared/triggerConversionEmail');
 const axios = require('axios');
 
 // GET /api/leads/my-leads
@@ -407,6 +408,7 @@ router.put('/:id', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), as
     if (req.body.assignedTo !== undefined) updateData.assignedTo = req.body.assignedTo;
     if (req.body.agentName !== undefined) updateData.agentName = req.body.agentName;
     if (req.body.fields !== undefined) updateData.fields = req.body.fields;
+    if (req.body.transactionId !== undefined) updateData.transactionId = req.body.transactionId;
     
     const lead = await prisma.lead.findUnique({ where: { id: leadId } });
     
@@ -461,6 +463,10 @@ router.put('/:id', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), as
         prisma.lead.update({ where: { id: leadId }, data: updateData }),
         prisma.contact.update({ where: { id: lead.contactId }, data: contactUpdate })
       ]);
+      
+      if (req.body.status === 'Converted' && lead.status !== 'Converted') {
+        triggerConversionEmail(lead.contactId, req.body.receiptImage);
+      }
     } else {
       const contact = await prisma.contact.findUnique({ where: { id: leadId } });
       if (contact && contact.status === 'Converted' && req.body.status && req.body.status !== 'Converted') {
@@ -476,6 +482,10 @@ router.put('/:id', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), as
 
       await prisma.contact.update({ where: { id: leadId }, data: contactUpdate });
       await prisma.lead.updateMany({ where: { contactId: leadId }, data: updateData });
+
+      if (req.body.status === 'Converted' && (!contact || contact.status !== 'Converted')) {
+        triggerConversionEmail(leadId, req.body.receiptImage);
+      }
     }
     
     res.json({ success: true });
