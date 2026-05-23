@@ -138,12 +138,6 @@ const CallActionModal = ({ lead, onClose, onSubmit }) => {
                       <input type="datetime-local" className="input-field" value={formData.callBackDt} min={new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)} onChange={e => setFormData(p => ({...p, callBackDt: e.target.value}))} required />
                     </div>
                   )}
-                  {formData.status === 'Others' && (
-                    <div className="input-group animate-slide-up">
-                      <label>Details *</label>
-                      <input type="text" className="input-field" value={formData.statusDetails} onChange={e => setFormData(p => ({...p, statusDetails: e.target.value}))} required />
-                    </div>
-                  )}
                 </>
               )}
 

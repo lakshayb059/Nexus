@@ -114,15 +114,15 @@ const LeadStatusModal = ({ lead, newStatus, onClose, onSave, submitting }) => {
 
           {newStatus === 'Others' && (
             <div className="input-group">
-              <label htmlFor="modalStatusDetails">Please specify details *</label>
+              <label htmlFor="modalRemarks">Remarks / Details *</label>
               <textarea 
-                id="modalStatusDetails"
+                id="modalRemarks"
                 className="input-field" 
                 rows="3"
-                value={formData.statusDetails} 
-                onChange={e => setFormData(p => ({ ...p, statusDetails: e.target.value }))}
+                value={formData.remarks} 
+                onChange={e => setFormData(p => ({ ...p, remarks: e.target.value }))}
                 required
-                placeholder="Enter additional information..."
+                placeholder="Enter details or remarks..."
                 autoFocus
               />
             </div>

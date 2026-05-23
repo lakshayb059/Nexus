@@ -529,12 +529,6 @@ const Workflow = () => {
                     <input id="leadCallBackDt" name="callBackDt" type="datetime-local" className="input-field" value={dispForm.callBackDt} min={new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)} onChange={e => setDispForm(p => ({ ...p, callBackDt: e.target.value }))} required />
                   </div>
                 )}
-                {dispForm.status === 'Others' && (
-                  <div className="input-group">
-                    <label htmlFor="statusDetails">Details</label>
-                    <input id="statusDetails" name="statusDetails" type="text" className="input-field" value={dispForm.statusDetails} onChange={e => setDispForm(p => ({ ...p, statusDetails: e.target.value }))} required />
-                  </div>
-                )}
               </div>
             )}
 
