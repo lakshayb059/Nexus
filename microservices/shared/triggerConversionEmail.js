@@ -9,8 +9,12 @@ async function triggerConversionEmail(contactId, receiptImageBase64 = null) {
     let adminId = contact.adminId;
     if (!adminId && contact.assignedTo) {
       const agent = await prisma.user.findUnique({ where: { id: contact.assignedTo } });
-      if (agent && agent.adminId) {
-        adminId = agent.adminId;
+      if (agent) {
+        if (agent.role === 'admin') {
+          adminId = agent.id;
+        } else if (agent.adminId) {
+          adminId = agent.adminId;
+        }
       }
     }
 
