@@ -7,6 +7,7 @@ const { broadcast } = require('../../shared/notificationClient');
 // GET /api/leads/my-leads
 router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
+    const { search, source, status, page, limit } = req.query;
     let whereQuery = {};
     if (req.user.role === 'agent') {
       whereQuery.assignedTo = req.user._id || req.user.id;
@@ -16,6 +17,11 @@ router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']
     } else if (req.user.role === 'admin') {
       whereQuery.adminId = req.user._id || req.user.id;
     }
+
+    if (source === 'created') whereQuery.batchId = null;
+    else if (source === 'uploaded') whereQuery.batchId = { not: null };
+
+    if (status && status !== 'all') whereQuery.status = status;
 
     const [leads, contactLeads, allUsers] = await Promise.all([
       prisma.lead.findMany({ where: whereQuery }),
@@ -89,9 +95,27 @@ router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']
       }
     });
 
-    const result = Array.from(groupedMap.values()).sort((a, b) => 
+    let result = Array.from(groupedMap.values()).sort((a, b) => 
       new Date(b.lastModified || b.createdAt) - new Date(a.lastModified || a.createdAt)
     );
+
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter(l => {
+        const match = Object.values(l.fields || {}).some(v => String(v).toLowerCase().includes(q)) ||
+          (l.agentName && l.agentName.toLowerCase().includes(q));
+        return match;
+      });
+    }
+
+    if (page) {
+      const pageNum = parseInt(page) || 1;
+      const limitNum = parseInt(limit) || 50;
+      const total = result.length;
+      const paginatedResult = result.slice((pageNum - 1) * limitNum, pageNum * limitNum);
+      return res.json({ leads: paginatedResult, total, page: pageNum, limit: limitNum, pages: Math.ceil(total / limitNum) });
+    }
+
     res.json(result);
   } catch (err) {
     console.error('Fetch leads failed:', err);
@@ -145,6 +169,7 @@ router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), 
 // GET /leads/appointments
 router.get('/appointments', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
+    const { search, page, limit } = req.query;
     let whereQuery = {};
     let contactsWhereQuery = { isDeleted: false };
     if (req.user.role === 'agent') {
@@ -183,7 +208,25 @@ router.get('/appointments', verify, authorize(['superadmin', 'agent', 'tl', 'adm
       }
     });
 
-    const result = Array.from(mergedMap.values()).sort((a, b) => new Date(a.appointmentDt) - new Date(b.appointmentDt));
+    let result = Array.from(mergedMap.values()).sort((a, b) => new Date(a.appointmentDt) - new Date(b.appointmentDt));
+
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter(a => {
+        const match = Object.values(a.fields || {}).some(v => String(v).toLowerCase().includes(q)) ||
+          (a.agentName && a.agentName.toLowerCase().includes(q));
+        return match;
+      });
+    }
+
+    if (page) {
+      const pageNum = parseInt(page) || 1;
+      const limitNum = parseInt(limit) || 50;
+      const total = result.length;
+      const paginatedResult = result.slice((pageNum - 1) * limitNum, pageNum * limitNum);
+      return res.json({ appointments: paginatedResult, total, page: pageNum, limit: limitNum, pages: Math.ceil(total / limitNum) });
+    }
+
     res.json(result);
   } catch (err) {
     console.error('Fetch appointments failed:', err);
@@ -194,6 +237,7 @@ router.get('/appointments', verify, authorize(['superadmin', 'agent', 'tl', 'adm
 // GET /leads/callbacks
 router.get('/callbacks', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
+    const { search, page, limit } = req.query;
     let whereQuery = {};
     let contactsWhereQuery = { isDeleted: false };
     if (req.user.role === 'agent') {
@@ -239,7 +283,25 @@ router.get('/callbacks', verify, authorize(['superadmin', 'agent', 'tl', 'admin'
       }
     });
 
-    const result = Array.from(mergedMap.values()).sort((a, b) => new Date(a.callBackDt) - new Date(b.callBackDt));
+    let result = Array.from(mergedMap.values()).sort((a, b) => new Date(a.callBackDt) - new Date(b.callBackDt));
+
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter(c => {
+        const match = Object.values(c.fields || {}).some(v => String(v).toLowerCase().includes(q)) ||
+          (c.agentName && c.agentName.toLowerCase().includes(q));
+        return match;
+      });
+    }
+
+    if (page) {
+      const pageNum = parseInt(page) || 1;
+      const limitNum = parseInt(limit) || 50;
+      const total = result.length;
+      const paginatedResult = result.slice((pageNum - 1) * limitNum, pageNum * limitNum);
+      return res.json({ callbacks: paginatedResult, total, page: pageNum, limit: limitNum, pages: Math.ceil(total / limitNum) });
+    }
+
     res.json(result);
   } catch (err) {
     console.error('Fetch callbacks failed:', err);

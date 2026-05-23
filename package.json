@@ -1,8 +1,8 @@
 {
-  "name": "spike-crm-microservices",
+  "name": "nexus-microservices",
   "private": true,
   "version": "2.0.0",
-  "description": "Spike CRM - Microservices Architecture",
+  "description": "Nexus - Microservices Architecture",
   "scripts": {
     "install:all": "npm install && cd client && npm install",
     "start": "node -e \"console.log('Root service idle')\"",

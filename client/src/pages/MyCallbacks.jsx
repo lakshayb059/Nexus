@@ -12,13 +12,25 @@ const MyCallbacks = () => {
   const [showModal, setShowModal] = useState(false);
   const [selectedCb, setSelectedCb] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
+  const [searchTerm,  setSearchTerm]  = useState('');
+  const [page,        setPage]        = useState(1);
+  const [limit]                       = useState(50);
+  const [totalPages,  setTotalPages]  = useState(1);
 
   const fetchCallbacks = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/leads/callbacks');
+      const params = new URLSearchParams();
+      if (searchTerm) params.append('search', searchTerm);
+      params.append('page', page);
+      params.append('limit', limit);
+
+      const res = await api.get(`/leads/callbacks?${params.toString()}`);
+      const data = res.data.callbacks || res.data;
+      if (res.data.pages) setTotalPages(res.data.pages);
+
       // Sort chronologically. Urgent/No-date callbacks go first.
-      const sorted = (res.data || []).sort((a, b) => {
+      const sorted = (data || []).sort((a, b) => {
         if (!a.callBackDt && !b.callBackDt) return 0;
         if (!a.callBackDt) return -1;
         if (!b.callBackDt) return 1;
@@ -32,7 +44,7 @@ const MyCallbacks = () => {
     }
   };
 
-  useEffect(() => { fetchCallbacks(); }, []);
+  useEffect(() => { fetchCallbacks(); }, [page, limit, searchTerm]);
 
   const handleContactNow = async (cb) => {
     const cbTime = new Date(cb.callBackDt).getTime();
@@ -274,6 +286,16 @@ const MyCallbacks = () => {
           <p className="page-subtitle">Your scheduled follow-up calls with potential leads</p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div className="search-box">
+            <input 
+              type="text" 
+              placeholder="Search callbacks..." 
+              value={searchTerm}
+              onChange={e => { setSearchTerm(e.target.value); setPage(1); }}
+              className="input-field"
+              style={{ marginBottom: 0, minWidth: 200 }}
+            />
+          </div>
           {user?.role === 'superadmin' && (
             <button className="btn btn-danger" onClick={handleWipeCallbacks} style={{ fontSize: '0.75rem', padding: '6px 12px' }}>
               <Trash2 size={14} /> Wipe All Callbacks
@@ -335,6 +357,26 @@ const MyCallbacks = () => {
           </h2>
           {renderList(callbacks, 'No scheduled follow-up callbacks.')}
         </>
+      )}
+
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, marginTop: 24, paddingBottom: 24 }}>
+          <button 
+            className="btn btn-outline" 
+            disabled={page === 1} 
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+          >
+            Previous
+          </button>
+          <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Page {page} of {totalPages}</span>
+          <button 
+            className="btn btn-outline" 
+            disabled={page === totalPages} 
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+          >
+            Next
+          </button>
+        </div>
       )}
 
       {/* Confirmation Modal */}

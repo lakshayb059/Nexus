@@ -1,5 +1,5 @@
-# Spike CRM Microservices Startup Script
-Write-Host "🚀 Starting Spike CRM Microservices locally..." -ForegroundColor Cyan
+# Nexus Microservices Startup Script
+Write-Host "🚀 Starting Nexus Microservices locally..." -ForegroundColor Cyan
 
 # 1. Cleanup
 Write-Host "🧹 Cleaning up old node processes..." -ForegroundColor Yellow

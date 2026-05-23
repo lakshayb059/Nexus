@@ -12,12 +12,22 @@ const MyAppointments = () => {
   const [showModal,    setShowModal]    = useState(false);
   const [selectedApp,  setSelectedApp]  = useState(null);
   const [selectedIds,  setSelectedIds]  = useState([]);
+  const [searchTerm,   setSearchTerm]   = useState('');
+  const [page,         setPage]         = useState(1);
+  const [limit]                         = useState(50);
+  const [totalPages,   setTotalPages]   = useState(1);
 
   const fetchAppointments = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/leads/appointments');
-      setAppointments(res.data);
+      const params = new URLSearchParams();
+      if (searchTerm) params.append('search', searchTerm);
+      params.append('page', page);
+      params.append('limit', limit);
+      
+      const res = await api.get(`/leads/appointments?${params.toString()}`);
+      setAppointments(res.data.appointments || res.data);
+      if (res.data.pages) setTotalPages(res.data.pages);
     } catch (err) {
       console.error('Fetch appointments failed', err);
     } finally {
@@ -25,7 +35,7 @@ const MyAppointments = () => {
     }
   };
 
-  useEffect(() => { fetchAppointments(); }, []);
+  useEffect(() => { fetchAppointments(); }, [page, limit, searchTerm]);
 
   const handleContactNow = async (app) => {
     const appTime = new Date(app.appointmentDt).getTime();
@@ -152,6 +162,16 @@ const MyAppointments = () => {
           <p className="page-subtitle">Your scheduled callbacks and meetings with potential leads</p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div className="search-box">
+            <input 
+              type="text" 
+              placeholder="Search appointments..." 
+              value={searchTerm}
+              onChange={e => { setSearchTerm(e.target.value); setPage(1); }}
+              className="input-field"
+              style={{ marginBottom: 0, minWidth: 200 }}
+            />
+          </div>
           {user?.role === 'superadmin' && (
             <button className="btn btn-danger" onClick={handleWipeAppointments} style={{ fontSize: '0.75rem', padding: '6px 12px' }}>
               <Trash2 size={14} /> Wipe All Appointments
@@ -294,6 +314,26 @@ const MyAppointments = () => {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, marginTop: 24, paddingBottom: 24 }}>
+          <button 
+            className="btn btn-outline" 
+            disabled={page === 1} 
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+          >
+            Previous
+          </button>
+          <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Page {page} of {totalPages}</span>
+          <button 
+            className="btn btn-outline" 
+            disabled={page === totalPages} 
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+          >
+            Next
+          </button>
         </div>
       )}
 

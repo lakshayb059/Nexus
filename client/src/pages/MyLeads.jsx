@@ -33,6 +33,11 @@ const MyLeads = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [stats, setStats] = useState({ totalLeads: 0, totalAmount: 0 });
   const [selectedIds, setSelectedIds] = useState([]);
+  
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [limit] = useState(50);
+  const [totalPages, setTotalPages] = useState(1);
 
   // Modal State
   const [modalLead, setModalLead] = useState(null);
@@ -50,11 +55,19 @@ const MyLeads = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
+      const params = new URLSearchParams();
+      if (searchTerm) params.append('search', searchTerm);
+      if (sourceFilter !== 'all') params.append('source', sourceFilter);
+      if (statusFilter !== 'all') params.append('status', statusFilter);
+      params.append('page', page);
+      params.append('limit', limit);
+
       const [leadsRes, statsRes] = await Promise.all([
-        api.get('/leads/my-leads'),
+        api.get(`/leads/my-leads?${params.toString()}`),
         api.get('/leads/stats'),
       ]);
-      setLeads(leadsRes.data);
+      setLeads(leadsRes.data.leads || leadsRes.data);
+      if (leadsRes.data.pages) setTotalPages(leadsRes.data.pages);
       setStats(statsRes.data);
     } catch (err) {
       console.error('Fetch leads failed', err);
@@ -87,7 +100,7 @@ const MyLeads = () => {
       socket.off('dashboard_update', fetchData);
       socket.off('contacts_updated', fetchData);
     };
-  }, [socket]);
+  }, [socket, page, limit, searchTerm, sourceFilter, statusFilter]);
 
   useEffect(() => {
     if (modalLead || callActionLead || historyContact) {
@@ -258,18 +271,7 @@ const MyLeads = () => {
     }
   };
 
-  const filtered = leads.filter(l => {
-    if (searchTerm) {
-      const q = searchTerm.toLowerCase();
-      const match = Object.values(l.fields || {}).some(v => String(v).toLowerCase().includes(q)) ||
-        (l.agentName && l.agentName.toLowerCase().includes(q));
-      if (!match) return false;
-    }
-    if (sourceFilter === 'created' && l.batchId) return false;
-    if (sourceFilter === 'uploaded' && !l.batchId) return false;
-    if (statusFilter !== 'all' && l.status !== statusFilter) return false;
-    return true;
-  });
+  const filtered = leads;
 
   return (
     <div className="animate-fade-in">
@@ -471,6 +473,26 @@ const MyLeads = () => {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, marginTop: 24, paddingBottom: 24 }}>
+          <button 
+            className="btn btn-outline" 
+            disabled={page === 1} 
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+          >
+            Previous
+          </button>
+          <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Page {page} of {totalPages}</span>
+          <button 
+            className="btn btn-outline" 
+            disabled={page === totalPages} 
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+          >
+            Next
+          </button>
         </div>
       )}
 

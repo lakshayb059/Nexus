@@ -27,7 +27,7 @@ const Layout = () => {
   const location = useLocation();
 
   const role = user?.role || 'agent';
-  const pageTitle = PAGE_TITLES[location.pathname] || 'Spike CRM';
+  const pageTitle = PAGE_TITLES[location.pathname] || 'Nexus';
 
   /* Mobile bottom-nav items per role */
   const mobileNav = role === 'agent'

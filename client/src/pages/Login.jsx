@@ -153,8 +153,8 @@ const Login = () => {
 
             {/* Center Brand Text Hub - aligned explicitly at 50%/50% */}
             <div className="orbit-center-hub">
-              <span className="hub-text-brand">Spike</span>
-              <span className="hub-text-sub">CRM</span>
+              <span className="hub-text-brand">Nexus</span>
+              <span className="hub-text-sub"></span>
               <div className="hub-ping-ring" />
             </div>
 
@@ -205,7 +205,7 @@ const Login = () => {
 
             {/* Header section matching ProLeads layout */}
             <h2 className="login-welcome-header">
-              Welcome To <span className="brand-highlight">Spike</span><span className="brand-accent">CRM</span>
+              Welcome To <span className="brand-highlight">Nexus</span><span className="brand-accent"></span>
             </h2>
             <p className="login-welcome-tagline">Sign in to sync your high-performance workflow</p>
 
@@ -291,7 +291,7 @@ const Login = () => {
 
       {/* Modern minimal clean footer */}
       <footer className="login-footer-bar">
-        <span>© Copyrights 2026, Spike CRM - Syntopia Private Limited. All rights reserved.</span>
+        <span>© Copyrights 2026, Nexus - Syntopia Private Limited. All rights reserved.</span>
       </footer>
 
       <style>{`
