@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import api from '../utils/api';
-import { Star, TrendingUp, Users, Calendar, Search, PhoneCall, Award, Target, Trash2, X, CheckSquare, Square, RotateCw } from 'lucide-react';
+import { Star, TrendingUp, Users, Calendar, Search, PhoneCall, Award, Target, Trash2, X, CheckSquare, Square, RotateCw, MessageCircle } from 'lucide-react';
 import LeadStatusModal from '../components/LeadStatusModal';
 import CallActionModal from '../components/CallActionModal';
 import './SuperAdminDashboard.css';
@@ -451,16 +451,29 @@ const MyLeads = () => {
 
                     <div style={{ display: 'flex', gap: 6 }}>
                       {user?.role !== 'admin' && phone !== 'N/A' && (
-                        <button 
-                          className="btn btn-primary btn-icon" 
-                          style={{ width: 36, height: 36, borderRadius: 10 }}
-                          onClick={() => {
-                            window.location.href = `tel:${phone}`;
-                            setCallActionLead(lead);
-                          }}
-                        >
-                          <PhoneCall size={16} fill="white" />
-                        </button>
+                        <>
+                          <a 
+                            href={`https://wa.me/${String(phone).replace(/\D/g, '')}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="btn btn-icon" 
+                            style={{ width: 36, height: 36, borderRadius: 10, background: '#25D366', color: '#fff' }}
+                            title="Message on WhatsApp"
+                          >
+                            <MessageCircle size={16} fill="currentColor" />
+                          </a>
+                          <button 
+                            className="btn btn-primary btn-icon" 
+                            style={{ width: 36, height: 36, borderRadius: 10 }}
+                            onClick={() => {
+                              window.location.href = `tel:${phone}`;
+                              setCallActionLead(lead);
+                            }}
+                            title="Call Lead"
+                          >
+                            <PhoneCall size={16} fill="white" />
+                          </button>
+                        </>
                       )}
                       {user?.role === 'admin' && (
                         <button className="btn btn-danger btn-icon" onClick={() => handleDelete(lead._id)} style={{ width: 36, height: 36, borderRadius: 10 }}>

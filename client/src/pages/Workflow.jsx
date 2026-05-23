@@ -6,7 +6,7 @@ import api from '../utils/api';
 import {
   PhoneCall, Check, Clock, Database, CheckCircle2,
   LayoutPanelLeft, RotateCw, X, Calendar, ArrowRight,
-  TrendingUp, RefreshCw, AlertCircle, Phone
+  TrendingUp, RefreshCw, AlertCircle, Phone, MessageCircle
 } from 'lucide-react';
 
 const DISPS = [
@@ -316,9 +316,14 @@ const Workflow = () => {
                       <span style={{ display: 'block', fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', wordBreak: 'break-all' }}>{String(v) || '—'}</span>
                     </div>
                     {isPhone && v && (
-                      <a href={`tel:${v}`} style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--success)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: 10, flexShrink: 0, boxShadow: 'var(--shadow-sm)' }}>
-                        <Phone size={16} fill="currentColor" />
-                      </a>
+                      <div style={{ display: 'flex', gap: 6, marginLeft: 10, flexShrink: 0 }}>
+                        <a href={`https://wa.me/${String(v).replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" style={{ width: 34, height: 34, borderRadius: 10, background: '#25D366', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }} title="Message on WhatsApp">
+                          <MessageCircle size={16} fill="currentColor" />
+                        </a>
+                        <a href={`tel:${v}`} style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }} title="Call Customer">
+                          <Phone size={16} fill="currentColor" />
+                        </a>
+                      </div>
                     )}
                   </div>
                 </div>
