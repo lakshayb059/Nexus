@@ -34,6 +34,24 @@ app.post('/auth/login', async (req, res) => {
         const valid = await bcrypt.compare(password, user.password);
         if (!valid) return res.json({ error: 'Invalid credentials' });
 
+        let adminEmail = user.notificationEmail;
+        let adminCompany = user.companyName;
+
+        if (user.role !== 'admin' && user.role !== 'superadmin') {
+            let actualAdminId = user.adminId;
+            if (!actualAdminId && user.tlId) {
+                const tl = await prisma.user.findUnique({ where: { id: user.tlId } });
+                if (tl && tl.adminId) actualAdminId = tl.adminId;
+            }
+            if (actualAdminId) {
+                const admin = await prisma.user.findUnique({ where: { id: actualAdminId } });
+                if (admin) {
+                    adminEmail = admin.notificationEmail;
+                    adminCompany = admin.companyName;
+                }
+            }
+        }
+
         const tokenPayload = {
           _id: user.id, // Auth middleware might expect _id
           id: user.id,
@@ -43,7 +61,9 @@ app.post('/auth/login', async (req, res) => {
           tlId: user.tlId,
           adminId: user.adminId,
           notificationEmail: user.notificationEmail,
-          companyName: user.companyName
+          companyName: user.companyName,
+          adminEmail,
+          adminCompany
         };
         const token = sign(tokenPayload);
 
@@ -56,7 +76,7 @@ app.post('/auth/login', async (req, res) => {
 
         res.json({
             token,
-            user: { _id: user.id, username: user.username, name: user.name, role: user.role, tlId: user.tlId, notificationEmail: user.notificationEmail, companyName: user.companyName }
+            user: { _id: user.id, username: user.username, name: user.name, role: user.role, tlId: user.tlId, adminId: user.adminId, notificationEmail: user.notificationEmail, companyName: user.companyName, adminEmail, adminCompany }
         });
     } catch (err) {
         console.error(`❌ [AUTH LOGIN FATAL ERROR]:`, err);

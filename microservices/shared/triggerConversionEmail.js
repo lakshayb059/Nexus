@@ -14,6 +14,11 @@ async function triggerConversionEmail(contactId, receiptImageBase64 = null) {
           adminId = agent.id;
         } else if (agent.adminId) {
           adminId = agent.adminId;
+        } else if (agent.tlId) {
+          const tl = await prisma.user.findUnique({ where: { id: agent.tlId } });
+          if (tl && tl.adminId) {
+            adminId = tl.adminId;
+          }
         }
       }
     }

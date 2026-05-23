@@ -195,9 +195,14 @@ const Dashboard = () => {
           <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0, fontWeight: 500 }}>
             Welcome, <strong style={{ color: 'var(--text-primary)', fontWeight: 800 }}>{user?.name}</strong>
           </p>
-          {user?.role === 'admin' && user?.notificationEmail && (
-            <p style={{ fontSize: '0.75rem', color: 'var(--primary)', margin: '4px 0 0 0', fontWeight: 600 }}>
-              📧 Notifications sent to: {user.notificationEmail}
+          {user.role === 'admin' && (
+            <p style={{ marginTop: '0.5rem', color: '#64748b' }}>
+              Notifications will be sent to: <strong>{user.notificationEmail || 'Not configured'}</strong>
+            </p>
+          )}
+          {user.role !== 'admin' && user.role !== 'superadmin' && (
+            <p style={{ marginTop: '0.5rem', color: '#64748b' }}>
+              All converted lead notifications will be sent to your Admin at: <strong>{user.adminEmail || 'Not configured'}</strong>
             </p>
           )}
         </div>
