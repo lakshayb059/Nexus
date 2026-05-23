@@ -246,6 +246,7 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
     const phoneNum = fields.Phone || fields.phone || fields.Mobile;
     if (disposition !== 'CallBack' && phoneNum) await cleanupAllCallbacks(phoneNum);
 
+    let emailResult = null;
     if (disposition === 'Lead') {
       await prisma.lead.create({
         data: {
@@ -258,7 +259,7 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
         }
       });
       if (status === 'Converted') {
-        triggerConversionEmail(req.params.id, req.body.receiptImage);
+        emailResult = await triggerConversionEmail(req.params.id, req.body.receiptImage);
       }
     } else if (disposition === 'Appointment') {
       await prisma.appointment.create({
@@ -282,7 +283,7 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
     }
 
     broadcast('contact_disposed', { contactId: req.params.id, disposition, agentName: req.user.name });
-    res.json({ success: true });
+    res.json({ success: true, emailResult });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
@@ -647,8 +648,9 @@ router.put('/:id/status', verify, authorize(['superadmin', 'agent', 'tl', 'admin
           transactionId: req.body.transactionId
         }
       });
+      let emailResult = null;
       if (req.body.status === 'Converted') {
-        triggerConversionEmail(contact.id, req.body.receiptImage);
+        emailResult = await triggerConversionEmail(contact.id, req.body.receiptImage);
       }
     }
 
@@ -656,7 +658,10 @@ router.put('/:id/status', verify, authorize(['superadmin', 'agent', 'tl', 'admin
     broadcast('dashboard_update');
     broadcast('contacts_updated');
 
-    res.json({ success: true, contact: { ...contact, ...update, _id: contact.id } });
+    // We can't access emailResult outside the block easily if we let scope end, so we will pass it manually from scope or we can just run the email sending outside.
+    // Wait, I will just let emailResult be accessible.
+
+    res.json({ success: true, contact: { ...contact, ...update, _id: contact.id }, emailResult });
   } catch (err) {
     console.error('Update contact status error:', err);
     res.status(500).json({ error: 'Server error' });

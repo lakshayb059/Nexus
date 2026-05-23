@@ -4,7 +4,7 @@ const { sendConversionEmail } = require('./emailService');
 async function triggerConversionEmail(contactId, receiptImageBase64 = null) {
   try {
     const contact = await prisma.contact.findUnique({ where: { id: contactId } });
-    if (!contact) return;
+    if (!contact) return { success: false, reason: 'Contact not found' };
 
     let adminId = contact.adminId;
     if (!adminId && contact.assignedTo) {
@@ -18,10 +18,10 @@ async function triggerConversionEmail(contactId, receiptImageBase64 = null) {
       }
     }
 
-    if (!adminId) return;
+    if (!adminId) return { success: false, reason: 'No admin configured for this agent' };
 
     const admin = await prisma.user.findUnique({ where: { id: adminId } });
-    if (!admin || !admin.notificationEmail) return; // No email configured
+    if (!admin || !admin.notificationEmail) return { success: false, reason: 'Admin has no notification email configured in Settings' };
 
     // Get TL and Agent names
     let agentName = contact.agentName || 'Unknown Agent';
@@ -59,15 +59,21 @@ async function triggerConversionEmail(contactId, receiptImageBase64 = null) {
       receiptImageBase64: receiptImageBase64
     };
 
-    await sendConversionEmail(
+    const success = await sendConversionEmail(
       admin.notificationEmail,
       admin.companyName || 'Our Company',
       emailDetails
     );
 
-    console.log(`Conversion email sent successfully to ${admin.notificationEmail} for lead ${name}`);
+    if (success) {
+      console.log(`Conversion email sent successfully to ${admin.notificationEmail}`);
+      return { success: true };
+    } else {
+      return { success: false, reason: 'SMTP transport failed. Check credentials.' };
+    }
   } catch (err) {
     console.error('Failed to trigger conversion email:', err);
+    return { success: false, reason: err.message };
   }
 }
 

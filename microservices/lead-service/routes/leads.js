@@ -464,9 +464,11 @@ router.put('/:id', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), as
         prisma.contact.update({ where: { id: lead.contactId }, data: contactUpdate })
       ]);
       
+      let emailResult = null;
       if (req.body.status === 'Converted' && lead.status !== 'Converted') {
-        triggerConversionEmail(lead.contactId, req.body.receiptImage);
+        emailResult = await triggerConversionEmail(lead.contactId, req.body.receiptImage);
       }
+      res.json({ success: true, emailResult });
     } else {
       const contact = await prisma.contact.findUnique({ where: { id: leadId } });
       if (contact && contact.status === 'Converted' && req.body.status && req.body.status !== 'Converted') {
@@ -483,12 +485,12 @@ router.put('/:id', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), as
       await prisma.contact.update({ where: { id: leadId }, data: contactUpdate });
       await prisma.lead.updateMany({ where: { contactId: leadId }, data: updateData });
 
+      let emailResult = null;
       if (req.body.status === 'Converted' && (!contact || contact.status !== 'Converted')) {
-        triggerConversionEmail(leadId, req.body.receiptImage);
+        emailResult = await triggerConversionEmail(leadId, req.body.receiptImage);
       }
+      res.json({ success: true, emailResult });
     }
-    
-    res.json({ success: true });
   } catch (err) {
     console.error('Update lead error:', err);
     res.status(500).json({ error: 'Server error' });

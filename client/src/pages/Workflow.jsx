@@ -130,7 +130,14 @@ const Workflow = () => {
         }
       }
 
-      await api.post(`/contacts/${data.contact._id}/dispose`, payload);
+      const disposeRes = await api.post(`/contacts/${data.contact._id}/dispose`, payload);
+      if (payload.status === 'Converted' && disposeRes.data.emailResult) {
+        if (disposeRes.data.emailResult.success) {
+          alert('Lead Converted! 📧 Receipt email sent successfully!');
+        } else {
+          alert(`Lead Converted! ⚠️ Email sending failed: ${disposeRes.data.emailResult.reason}`);
+        }
+      }
       setDispForm({ disposition: '', remarks: '', appointmentDt: '', leadAmount: '', callBackDt: '', status: '', statusDetails: '', transactionId: '' });
       fetchNext();
     } catch (err) {
@@ -155,7 +162,11 @@ const Workflow = () => {
           if (retryPayload.callBackDt) retryPayload.callBackDt = new Date(retryPayload.callBackDt).toISOString();
 
           try {
-            await api.post(`/contacts/${data.contact._id}/dispose`, retryPayload);
+            const retryRes = await api.post(`/contacts/${data.contact._id}/dispose`, retryPayload);
+            if (retryPayload.status === 'Converted' && retryRes.data.emailResult) {
+              if (retryRes.data.emailResult.success) alert('Lead Converted! 📧 Receipt email sent successfully!');
+              else alert(`Lead Converted! ⚠️ Email sending failed: ${retryRes.data.emailResult.reason}`);
+            }
             setDispForm({ disposition: '', remarks: '', appointmentDt: '', leadAmount: '', callBackDt: '', status: '', statusDetails: '', transactionId: '' });
             fetchNext();
             return;

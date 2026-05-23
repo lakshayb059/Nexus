@@ -81,7 +81,7 @@ const SectionLabel = ({ icon: Icon, label, accent = '#2563eb' }) => (
    MAIN DASHBOARD
 ───────────────────────────────────────── */
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const { socket } = useSocket();
   const [stats, setStats] = useState(null);
   const [queues, setQueues] = useState([]);
@@ -94,6 +94,7 @@ const Dashboard = () => {
   const saveSettings = async () => {
     try {
       await api.put(`/users/${user._id || user.id}`, { notificationEmail, companyName });
+      updateUser({ notificationEmail, companyName });
       alert('Settings saved successfully!');
       setShowSettings(false);
     } catch (error) {
@@ -194,6 +195,11 @@ const Dashboard = () => {
           <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0, fontWeight: 500 }}>
             Welcome, <strong style={{ color: 'var(--text-primary)', fontWeight: 800 }}>{user?.name}</strong>
           </p>
+          {user?.role === 'admin' && user?.notificationEmail && (
+            <p style={{ fontSize: '0.75rem', color: 'var(--primary)', margin: '4px 0 0 0', fontWeight: 600 }}>
+              📧 Notifications sent to: {user.notificationEmail}
+            </p>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           {user?.role === 'superadmin' && (

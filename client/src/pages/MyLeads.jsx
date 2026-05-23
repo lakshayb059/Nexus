@@ -156,7 +156,7 @@ const MyLeads = () => {
                if (amount && amount !== uploadTargetLead.leadAmount) {
                    contactUpdate.leadAmount = amount;
                }
-               await api.put(`/contacts/${uploadTargetLead.contactId}/status`, contactUpdate);
+               var contactRes = await api.put(`/contacts/${uploadTargetLead.contactId}/status`, contactUpdate);
              }
              
              fetchData();
@@ -164,7 +164,13 @@ const MyLeads = () => {
                fetchHistory(historyContact.phone, historyContact.name);
              }
              
-             alert(`Successfully extracted transaction ID: ${txId}${amount ? ` and amount: ₹${amount}` : ''}`);
+             let alertMsg = `Successfully extracted transaction ID: ${txId}${amount ? ` and amount: ₹${amount}` : ''}\nStatus updated to Converted.`;
+             const emailRes = res.data.emailResult || (contactRes && contactRes.data.emailResult);
+             if (emailRes) {
+               if (emailRes.success) alertMsg += '\n📧 Receipt email sent successfully!';
+               else alertMsg += `\n⚠️ Email sending failed: ${emailRes.reason}`;
+             }
+             alert(alertMsg);
           } else {
              alert(res.data.error || 'Failed to extract transaction ID');
           }
@@ -272,18 +278,28 @@ const MyLeads = () => {
         }
       }
 
+      let finalRes;
       if (modalLead.type === 'lead') {
-        await api.put(`/leads/${modalLead._id}`, {
+        finalRes = await api.put(`/leads/${modalLead._id}`, {
           status: modalStatus,
           ...formData
         });
         if (historyContact) fetchHistory(historyContact.phone, historyContact.name);
       } else {
-        await api.put(`/contacts/${cid}/status`, {
+        finalRes = await api.put(`/contacts/${cid}/status`, {
           status: modalStatus,
           ...formData
         });
       }
+      
+      if (modalStatus === 'Converted' && finalRes && finalRes.data.emailResult) {
+        if (finalRes.data.emailResult.success) {
+          alert('Lead Converted! 📧 Receipt email sent successfully!');
+        } else {
+          alert(`Lead Converted! ⚠️ Email sending failed: ${finalRes.data.emailResult.reason}`);
+        }
+      }
+      
       setModalLead(null);
       setModalStatus(null);
       fetchData();

@@ -25,7 +25,7 @@ app.post('/auth/login', async (req, res) => {
 
         const user = await prisma.user.findUnique({
             where: { username: username.trim().toLowerCase() },
-            select: { password: 1, active: 1, id: 1, username: 1, name: 1, role: 1, tlId: 1, adminId: 1 }
+            select: { password: 1, active: 1, id: 1, username: 1, name: 1, role: 1, tlId: 1, adminId: 1, notificationEmail: 1, companyName: 1 }
         });
 
         if (!user) return res.json({ error: 'Invalid credentials' });
@@ -41,7 +41,9 @@ app.post('/auth/login', async (req, res) => {
           name: user.name,
           role: user.role,
           tlId: user.tlId,
-          adminId: user.adminId
+          adminId: user.adminId,
+          notificationEmail: user.notificationEmail,
+          companyName: user.companyName
         };
         const token = sign(tokenPayload);
 
@@ -54,7 +56,7 @@ app.post('/auth/login', async (req, res) => {
 
         res.json({
             token,
-            user: { _id: user.id, username: user.username, name: user.name, role: user.role, tlId: user.tlId }
+            user: { _id: user.id, username: user.username, name: user.name, role: user.role, tlId: user.tlId, notificationEmail: user.notificationEmail, companyName: user.companyName }
         });
     } catch (err) {
         console.error(`❌ [AUTH LOGIN FATAL ERROR]:`, err);
