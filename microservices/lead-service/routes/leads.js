@@ -666,7 +666,7 @@ router.post('/extract-transaction', verify, authorize(['superadmin', 'admin', 't
             content: [
               {
                 type: 'text',
-                text: 'Extract the transaction ID (or UTR number) from this payment screenshot. Return ONLY the transaction ID string. If none is found or the image is illegible, return exactly "NOT_FOUND". Do not add any extra text or markdown.'
+                text: 'Extract the transaction ID (or UTR number) and the payment amount from this screenshot. Return a JSON object strictly in this format: {"transactionId": "<id>", "amount": <number>}. If no transaction ID is found, return {"transactionId": "NOT_FOUND", "amount": null}. Do not return anything except the raw JSON object without markdown formatting.'
               },
               {
                 type: 'image_url',
@@ -685,13 +685,19 @@ router.post('/extract-transaction', verify, authorize(['superadmin', 'admin', 't
       }
     );
 
-    const extractedText = response.data.choices[0]?.message?.content?.trim() || 'NOT_FOUND';
+    const extractedText = response.data.choices[0]?.message?.content?.trim() || '{}';
+    let parsedData = { transactionId: 'NOT_FOUND', amount: null };
+    try {
+      parsedData = JSON.parse(extractedText.replace(/```json/g, '').replace(/```/g, '').trim());
+    } catch (e) {
+      console.error('Failed to parse Groq response:', extractedText);
+    }
     
-    if (extractedText === 'NOT_FOUND' || extractedText.toLowerCase().includes('not found')) {
+    if (parsedData.transactionId === 'NOT_FOUND' || !parsedData.transactionId) {
       return res.json({ success: false, error: 'No transaction ID found in image' });
     }
 
-    res.json({ success: true, transactionId: extractedText });
+    res.json({ success: true, transactionId: parsedData.transactionId, amount: parsedData.amount });
   } catch (err) {
     console.error('Extract transaction failed:', err.response?.data || err.message);
     res.status(500).json({ error: 'Failed to extract transaction ID' });

@@ -135,19 +135,35 @@ const MyLeads = () => {
           
           if (res.data.success && res.data.transactionId) {
              const txId = res.data.transactionId;
-             await api.put(`/leads/${uploadTargetLead._id}`, {
+             const amount = res.data.amount;
+             
+             const updatePayload = {
                status: 'Converted',
                transactionId: txId,
                remarks: `[Auto-converted via receipt scan] Transaction ID: ${txId}`
-             });
+             };
+             
+             if (amount && amount !== uploadTargetLead.leadAmount) {
+                 updatePayload.leadAmount = amount;
+                 updatePayload.remarks += ` (Amount updated to ₹${amount})`;
+             }
+             
+             await api.put(`/leads/${uploadTargetLead._id}`, updatePayload);
              
              if (uploadTargetLead.contactId) {
-               await api.put(`/contacts/${uploadTargetLead.contactId}/status`, {
-                 status: 'Converted'
-               });
+               const contactUpdate = { status: 'Converted' };
+               if (amount && amount !== uploadTargetLead.leadAmount) {
+                   contactUpdate.leadAmount = amount;
+               }
+               await api.put(`/contacts/${uploadTargetLead.contactId}/status`, contactUpdate);
              }
+             
              fetchData();
-             alert('Successfully extracted transaction ID: ' + txId);
+             if (historyContact && historyData) {
+               fetchHistory(historyContact.phone, historyContact.name);
+             }
+             
+             alert(`Successfully extracted transaction ID: ${txId}${amount ? ` and amount: ₹${amount}` : ''}`);
           } else {
              alert(res.data.error || 'Failed to extract transaction ID');
           }
@@ -665,7 +681,23 @@ const MyLeads = () => {
                           <option value="Call Back">Call Back</option>
                           <option value="Others">Others</option>
                         </select>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{new Date(h.createdAt).toLocaleString()}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{new Date(h.createdAt).toLocaleString()}</span>
+                          {h.status !== 'Converted' && (
+                            <button
+                              className="btn btn-icon"
+                              style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--bg-surface-2)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                              title="Extract Transaction from Receipt"
+                              onClick={() => {
+                                setUploadTargetLead(h);
+                                fileInputRef.current?.click();
+                              }}
+                              disabled={extractingLeadId === h._id}
+                            >
+                              {extractingLeadId === h._id ? <Loader2 size={14} className="animate-spin" /> : <ImageIcon size={14} />}
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                         <div>
