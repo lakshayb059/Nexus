@@ -5,6 +5,7 @@ import api from '../utils/api';
 import { Star, TrendingUp, Users, Calendar, Search, PhoneCall, Award, Target, Trash2, X, CheckSquare, Square, RotateCw, MessageCircle } from 'lucide-react';
 import LeadStatusModal from '../components/LeadStatusModal';
 import CallActionModal from '../components/CallActionModal';
+import WhatsAppIcon from '../components/WhatsAppIcon';
 import './SuperAdminDashboard.css';
 
 const StatCard = ({ title, value, subtext, icon: Icon, accent, delay = 0, glow = false }) => (
@@ -460,7 +461,7 @@ const MyLeads = () => {
                             style={{ width: 36, height: 36, borderRadius: 10, background: '#25D366', color: '#fff' }}
                             title="Message on WhatsApp"
                           >
-                            <MessageCircle size={16} fill="currentColor" />
+                            <WhatsAppIcon size={16} fill="currentColor" />
                           </a>
                           <button 
                             className="btn btn-primary btn-icon" 

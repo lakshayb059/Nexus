@@ -8,6 +8,7 @@ import {
   LayoutPanelLeft, RotateCw, X, Calendar, ArrowRight,
   TrendingUp, RefreshCw, AlertCircle, Phone, MessageCircle
 } from 'lucide-react';
+import WhatsAppIcon from '../components/WhatsAppIcon';
 
 const DISPS = [
   { key: 'Lead', label: 'Lead', color: '#10b981', badgeClass: 'badge-success' },
@@ -318,7 +319,7 @@ const Workflow = () => {
                     {isPhone && v && (
                       <div style={{ display: 'flex', gap: 6, marginLeft: 10, flexShrink: 0 }}>
                         <a href={`https://wa.me/${String(v).replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" style={{ width: 34, height: 34, borderRadius: 10, background: '#25D366', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }} title="Message on WhatsApp">
-                          <MessageCircle size={16} fill="currentColor" />
+                          <WhatsAppIcon size={16} fill="currentColor" />
                         </a>
                         <a href={`tel:${v}`} style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }} title="Call Customer">
                           <Phone size={16} fill="currentColor" />
