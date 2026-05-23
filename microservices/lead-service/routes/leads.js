@@ -3,6 +3,7 @@ const { prisma } = require('../../shared/db');
 const { authorize, verify } = require('../../shared/authMiddleware');
 const { consolidateCallbacks } = require('../../shared/callbackUtils');
 const { broadcast } = require('../../shared/notificationClient');
+const axios = require('axios');
 
 // GET /api/leads/my-leads
 router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
@@ -644,6 +645,56 @@ router.post('/:id/clone-and-dispose', verify, authorize(['superadmin', 'agent', 
   } catch (err) {
     console.error('Clone and dispose failed:', err);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.post('/extract-transaction', verify, authorize(['superadmin', 'admin', 'tl', 'agent']), async (req, res) => {
+  try {
+    const { imageBase64 } = req.body;
+    if (!imageBase64) return res.status(400).json({ error: 'No image provided' });
+
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) return res.status(500).json({ error: 'Groq API key not configured' });
+
+    const response = await axios.post(
+      'https://api.groq.com/openai/v1/chat/completions',
+      {
+        model: 'llama-3.2-90b-vision-preview',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Extract the transaction ID (or UTR number) from this payment screenshot. Return ONLY the transaction ID string. If none is found or the image is illegible, return exactly "NOT_FOUND". Do not add any extra text or markdown.'
+              },
+              {
+                type: 'image_url',
+                image_url: { url: imageBase64 }
+              }
+            ]
+          }
+        ],
+        temperature: 0.1
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    const extractedText = response.data.choices[0]?.message?.content?.trim() || 'NOT_FOUND';
+    
+    if (extractedText === 'NOT_FOUND' || extractedText.toLowerCase().includes('not found')) {
+      return res.json({ success: false, error: 'No transaction ID found in image' });
+    }
+
+    res.json({ success: true, transactionId: extractedText });
+  } catch (err) {
+    console.error('Extract transaction failed:', err.response?.data || err.message);
+    res.status(500).json({ error: 'Failed to extract transaction ID' });
   }
 });
 

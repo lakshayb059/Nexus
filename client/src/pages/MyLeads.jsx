@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import api from '../utils/api';
-import { Star, TrendingUp, Users, Calendar, Search, PhoneCall, Award, Target, Trash2, X, CheckSquare, Square, RotateCw, MessageCircle } from 'lucide-react';
+import { Star, TrendingUp, Users, Calendar, Search, PhoneCall, Award, Target, Trash2, X, CheckSquare, Square, RotateCw, MessageCircle, Image as ImageIcon, Loader2 } from 'lucide-react';
 import LeadStatusModal from '../components/LeadStatusModal';
 import CallActionModal from '../components/CallActionModal';
 import WhatsAppIcon from '../components/WhatsAppIcon';
@@ -47,6 +47,11 @@ const MyLeads = () => {
   
   // Call Action Modal State
   const [callActionLead, setCallActionLead] = useState(null);
+
+  // Auto-extraction State
+  const [extractingLeadId, setExtractingLeadId] = useState(null);
+  const fileInputRef = React.useRef(null);
+  const [uploadTargetLead, setUploadTargetLead] = useState(null);
 
   // History Modal State
   const [historyContact, setHistoryContact] = useState(null);
@@ -113,6 +118,54 @@ const MyLeads = () => {
       document.body.style.overflow = '';
     };
   }, [modalLead, callActionLead, historyContact]);
+
+  const handleImageSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !uploadTargetLead) return;
+    
+    e.target.value = '';
+    setExtractingLeadId(uploadTargetLead._id);
+    
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        try {
+          const imageBase64 = reader.result;
+          const res = await api.post('/leads/extract-transaction', { imageBase64 });
+          
+          if (res.data.success && res.data.transactionId) {
+             const txId = res.data.transactionId;
+             await api.put(`/leads/${uploadTargetLead._id}`, {
+               status: 'Converted',
+               transactionId: txId,
+               remarks: `[Auto-converted via receipt scan] Transaction ID: ${txId}`
+             });
+             
+             if (uploadTargetLead.contactId) {
+               await api.put(`/contacts/${uploadTargetLead.contactId}/status`, {
+                 status: 'Converted'
+               });
+             }
+             fetchData();
+             alert('Successfully extracted transaction ID: ' + txId);
+          } else {
+             alert(res.data.error || 'Failed to extract transaction ID');
+          }
+        } catch (err) {
+          console.error(err);
+          alert('Error extracting transaction');
+        } finally {
+          setExtractingLeadId(null);
+          setUploadTargetLead(null);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error(err);
+      setExtractingLeadId(null);
+      setUploadTargetLead(null);
+    }
+  };
 
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this lead? This will remove all associated data.')) return;
@@ -275,8 +328,15 @@ const MyLeads = () => {
   const filtered = leads;
 
   return (
-    <div className="animate-fade-in">
-      <div className="page-header" style={{ marginBottom: 24 }}>
+    <div className="superadmin-dashboard">
+      <input 
+        type="file" 
+        accept="image/*" 
+        style={{ display: 'none' }} 
+        ref={fileInputRef} 
+        onChange={handleImageSelect} 
+      />
+      <div className="dashboard-header animate-slide-down" style={{ marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 'var(--h1)', fontWeight: 900, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
             <Award size={20} color="var(--success)" /> My Leads
@@ -453,6 +513,18 @@ const MyLeads = () => {
                     <div style={{ display: 'flex', gap: 6 }}>
                       {user?.role !== 'admin' && phone !== 'N/A' && (
                         <>
+                          <button
+                            className="btn btn-icon"
+                            style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--bg-surface-2)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                            title="Extract Transaction from Receipt"
+                            onClick={() => {
+                              setUploadTargetLead(lead);
+                              fileInputRef.current?.click();
+                            }}
+                            disabled={extractingLeadId === lead._id}
+                          >
+                            {extractingLeadId === lead._id ? <Loader2 size={16} className="animate-spin" /> : <ImageIcon size={16} />}
+                          </button>
                           <a 
                             href={`https://wa.me/${String(phone).replace(/\D/g, '')}`} 
                             target="_blank" 
