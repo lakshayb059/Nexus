@@ -380,7 +380,7 @@ const Workflow = () => {
             return (
               <div style={{ marginTop: 24, padding: '20px 24px 24px', background: 'var(--bg-surface-2)', borderRadius: 'var(--r-lg)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 900, letterSpacing: '0.08em', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <TrendingUp size={14} color="var(--primary)" /> Client 360
+                  <TrendingUp size={14} color="var(--primary)" /> Customer 360
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 0, position: 'relative', paddingLeft: 18, borderLeft: '2px solid var(--border)' }}>
                   {contact.remarks.split(' | ').reverse().map((remarkStr, idx, arr) => {

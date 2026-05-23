@@ -14,10 +14,19 @@ const DISP_LABELS = {
 
 router.get('/download', verify, authorize(['superadmin', 'admin', 'tl', 'agent']), async (req, res) => {
   try {
-    const { format = 'csv', agentId, disposition, batchId, reportType } = req.query;
+    const { format = 'csv', agentId, disposition, batchId, reportType, fromDate, toDate } = req.query;
     let where = { isDeleted: false };
     
     if (reportType === 'lead') where.disposition = 'Lead';
+    else if (reportType === 'converted') {
+      where.status = 'Converted';
+      if (fromDate && toDate) {
+        where.createdAt = {
+          gte: new Date(fromDate),
+          lte: new Date(new Date(toDate).setHours(23, 59, 59, 999))
+        };
+      }
+    }
     else {
       if (disposition === 'pending') where.disposition = null;
       else if (disposition) where.disposition = disposition;
@@ -51,7 +60,7 @@ router.get('/download', verify, authorize(['superadmin', 'admin', 'tl', 'agent']
 
     const fieldCols = [...new Set(contacts.flatMap(c => Object.keys(c.fields || {})))];
     const userCache = {};
-    const rows = await Promise.all(contacts.map(async c => {
+    const rows = await Promise.all(contacts.map(async (c, index) => {
       let agentName = 'Unknown';
       if (c.assignedTo) {
         if (!userCache[c.assignedTo]) {
@@ -59,6 +68,60 @@ router.get('/download', verify, authorize(['superadmin', 'admin', 'tl', 'agent']
         }
         agentName = userCache[c.assignedTo]?.name || 'Unknown';
       }
+
+      if (reportType === 'converted') {
+        const leadDate = c.createdAt ? new Date(c.createdAt) : new Date();
+        const yy = String(leadDate.getFullYear()).slice(-2);
+        const mm = String(leadDate.getMonth() + 1).padStart(2, '0');
+        const seq = String(index + 1).padStart(3, '0');
+        const slNo = `SS${yy}${mm}-${seq}`;
+        
+        const f = c.fields || {};
+        const name = f.Name || f.name || f['Full Name'] || '';
+        const phone = f.Phone || f.phone || f.Mobile || '';
+        const email = f.Email || f.email || '';
+        const address = f.Address || f.address || '';
+        const area = f.Area || f.area || '';
+        const pincode = f.Pincode || f.pincode || '';
+        
+        let txId = '';
+        if (c.remarks && c.remarks.includes('Transaction ID:')) {
+           const match = c.remarks.match(/Transaction ID:\s*([^\s)]+)/);
+           if (match) txId = match[1];
+        }
+        
+        const txDate = c.lastModified ? new Date(c.lastModified).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' }).replace(/ /g, '-') : '';
+
+        return {
+          'Sl No': slNo,
+          'Donor Title (Mr/Ms/Mrs/Firm)': 'Mr.',
+          'Full Name As per PAN Card(Mandatory)': name,
+          'Address (Mandatory)': address,
+          'Area': area,
+          'Pincode': pincode,
+          'Mobile No (Mandatory)': phone,
+          'Email ID ( Mandatory)': email,
+          'Amount': c.leadAmount || '',
+          'Transaction No / Cheque No': '',
+          'Updated Transaction No': txId,
+          'Transaction / Cheque Date': txDate,
+          'Bank Name': '',
+          'Mode Of Payment': 'Online',
+          'Deposit Date': '',
+          'BANK NAME': '',
+          'Remarks': c.remarks || '',
+          'BC': '',
+          'BC DATE': '',
+          'TALLY': 'Y',
+          'BANK': '',
+          'Acquisition': '',
+          'Retention': '',
+          '80G': '',
+          'Agent': agentName,
+          'Status': 'Confirmed'
+        };
+      }
+
       const row = { 'Agent': agentName };
       fieldCols.forEach(col => { row[col] = c.fields?.[col] || ''; });
       row['Disposition'] = c.disposition ? (DISP_LABELS[c.disposition] || c.disposition) : 'Pending';

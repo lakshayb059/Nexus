@@ -64,7 +64,7 @@ const Sidebar = ({ isOpen, onClose }) => {
             <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg, var(--primary), var(--violet))', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4 }}>
               <img src="/favicon.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             </div>
-            <h2 style={{ fontSize: '1.15rem', fontWeight: 900, color: '#111827', margin: 0, letterSpacing: '-0.02em' }}>SPIKE CRM</h2>
+            <h2 style={{ fontSize: '1.15rem', fontWeight: 900, color: '#111827', margin: 0, letterSpacing: '-0.02em' }}>NEXUS</h2>
           </div>
           <button className="mobile-close-btn" onClick={onClose} style={{ display: 'none', background: 'none', border: 'none', cursor: 'pointer' }}>
             <X size={20} />

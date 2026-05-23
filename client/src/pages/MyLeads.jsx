@@ -529,18 +529,20 @@ const MyLeads = () => {
                     <div style={{ display: 'flex', gap: 6 }}>
                       {user?.role !== 'admin' && phone !== 'N/A' && (
                         <>
-                          <button
-                            className="btn btn-icon"
-                            style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--bg-surface-2)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
-                            title="Extract Transaction from Receipt"
-                            onClick={() => {
-                              setUploadTargetLead(lead);
-                              fileInputRef.current?.click();
-                            }}
-                            disabled={extractingLeadId === lead._id}
-                          >
-                            {extractingLeadId === lead._id ? <Loader2 size={16} className="animate-spin" /> : <ImageIcon size={16} />}
-                          </button>
+                          {!isLocked && (
+                            <button
+                              className="btn btn-icon"
+                              style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--bg-surface-2)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                              title="Extract Transaction from Receipt"
+                              onClick={() => {
+                                setUploadTargetLead(lead);
+                                fileInputRef.current?.click();
+                              }}
+                              disabled={extractingLeadId === lead._id}
+                            >
+                              {extractingLeadId === lead._id ? <Loader2 size={16} className="animate-spin" /> : <ImageIcon size={16} />}
+                            </button>
+                          )}
                           <a 
                             href={`https://wa.me/${String(phone).replace(/\D/g, '')}`} 
                             target="_blank" 
