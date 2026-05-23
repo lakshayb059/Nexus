@@ -466,9 +466,22 @@ router.put('/:id', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), as
       
       let emailResult = null;
       if (req.body.status === 'Converted' && lead.status !== 'Converted') {
-        emailResult = await triggerConversionEmail(lead.contactId, req.body.receiptImage);
+        // Run asynchronously to not block the response
+        triggerConversionEmail(lead.contactId, req.body.receiptImage).then(emailResult => {
+            broadcast('email_status', {
+                agentId: req.user._id || req.user.id,
+                success: emailResult.success,
+                reason: emailResult.reason
+            });
+        }).catch(err => {
+            broadcast('email_status', {
+                agentId: req.user._id || req.user.id,
+                success: false,
+                reason: err.message
+            });
+        });
       }
-      res.json({ success: true, emailResult });
+      res.json({ success: true });
     } else {
       const contact = await prisma.contact.findUnique({ where: { id: leadId } });
       if (contact && contact.status === 'Converted' && req.body.status && req.body.status !== 'Converted') {
@@ -485,11 +498,23 @@ router.put('/:id', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), as
       await prisma.contact.update({ where: { id: leadId }, data: contactUpdate });
       await prisma.lead.updateMany({ where: { contactId: leadId }, data: updateData });
 
-      let emailResult = null;
       if (req.body.status === 'Converted' && (!contact || contact.status !== 'Converted')) {
-        emailResult = await triggerConversionEmail(leadId, req.body.receiptImage);
+        // Run asynchronously to not block the response
+        triggerConversionEmail(leadId, req.body.receiptImage).then(emailResult => {
+            broadcast('email_status', {
+                agentId: req.user._id || req.user.id,
+                success: emailResult.success,
+                reason: emailResult.reason
+            });
+        }).catch(err => {
+            broadcast('email_status', {
+                agentId: req.user._id || req.user.id,
+                success: false,
+                reason: err.message
+            });
+        });
       }
-      res.json({ success: true, emailResult });
+      res.json({ success: true });
     }
   } catch (err) {
     console.error('Update lead error:', err);

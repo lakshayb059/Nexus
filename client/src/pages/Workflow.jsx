@@ -32,6 +32,15 @@ const Workflow = () => {
   const [dispForm, setDispForm] = useState({ disposition: '', remarks: '', appointmentDt: '', leadAmount: '', callBackDt: '', status: '', statusDetails: '', transactionId: '' });
   const [emptyStateContacts, setEmptyStateContacts] = useState(null);
   const [requeuing, setRequeuing] = useState(null);
+  const [toasts, setToasts] = useState([]);
+
+  const addToast = (message, type = 'success') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 5000);
+  };
 
   const fetchNext = async (cid) => {
     try {
@@ -63,10 +72,23 @@ const Workflow = () => {
     socket.on('contacts_updated', refresh);
     socket.on('batch_uploaded', refresh);
     socket.on('contact_disposed', refresh);
+    
+    const emailStatusHandler = (data) => {
+      if (data.agentId === user._id || data.agentId === user.id) {
+        if (data.success) {
+          addToast('📧 Receipt email sent successfully!', 'success');
+        } else {
+          addToast(`⚠️ Email sending failed: ${data.reason}`, 'error');
+        }
+      }
+    };
+    socket.on('email_status', emailStatusHandler);
+
     return () => {
       socket.off('contacts_updated', refresh);
       socket.off('batch_uploaded', refresh);
       socket.off('contact_disposed', refresh);
+      socket.off('email_status', emailStatusHandler);
     };
   }, [socket]);
 
@@ -131,13 +153,8 @@ const Workflow = () => {
       }
 
       const disposeRes = await api.post(`/contacts/${data.contact._id}/dispose`, payload);
-      if (payload.status === 'Converted' && disposeRes.data.emailResult) {
-        if (disposeRes.data.emailResult.success) {
-          alert('Lead Converted! 📧 Receipt email sent successfully!');
-        } else {
-          alert(`Lead Converted! ⚠️ Email sending failed: ${disposeRes.data.emailResult.reason}`);
-        }
-      }
+      
+      // Removed blocking alert here; success will be shown via toast async
       setDispForm({ disposition: '', remarks: '', appointmentDt: '', leadAmount: '', callBackDt: '', status: '', statusDetails: '', transactionId: '' });
       fetchNext();
     } catch (err) {
@@ -162,11 +179,7 @@ const Workflow = () => {
           if (retryPayload.callBackDt) retryPayload.callBackDt = new Date(retryPayload.callBackDt).toISOString();
 
           try {
-            const retryRes = await api.post(`/contacts/${data.contact._id}/dispose`, retryPayload);
-            if (retryPayload.status === 'Converted' && retryRes.data.emailResult) {
-              if (retryRes.data.emailResult.success) alert('Lead Converted! 📧 Receipt email sent successfully!');
-              else alert(`Lead Converted! ⚠️ Email sending failed: ${retryRes.data.emailResult.reason}`);
-            }
+            await api.post(`/contacts/${data.contact._id}/dispose`, retryPayload);
             setDispForm({ disposition: '', remarks: '', appointmentDt: '', leadAmount: '', callBackDt: '', status: '', statusDetails: '', transactionId: '' });
             fetchNext();
             return;
@@ -573,6 +586,21 @@ const Workflow = () => {
             </button>
           </form>
         </div>
+      </div>
+
+      {/* Toasts */}
+      <div style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 9999, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {toasts.map(toast => (
+          <div key={toast.id} style={{ 
+            background: toast.type === 'error' ? '#ef4444' : '#10b981', 
+            color: '#fff', padding: '12px 20px', borderRadius: 8, 
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)', 
+            fontWeight: 700, fontSize: '0.9rem',
+            animation: 'revealUp 0.3s ease-out'
+          }}>
+            {toast.message}
+          </div>
+        ))}
       </div>
 
       <style>{`

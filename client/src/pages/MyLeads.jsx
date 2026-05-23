@@ -53,10 +53,19 @@ const MyLeads = () => {
   const fileInputRef = React.useRef(null);
   const [uploadTargetLead, setUploadTargetLead] = useState(null);
 
-  // History Modal State
   const [historyContact, setHistoryContact] = useState(null);
   const [historyData, setHistoryData] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  const [toasts, setToasts] = useState([]);
+
+  const addToast = (message, type = 'success') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 5000);
+  };
 
   const fetchData = async () => {
     try {
@@ -101,10 +110,23 @@ const MyLeads = () => {
     socket.on('contact_disposed', fetchData);
     socket.on('dashboard_update', fetchData);
     socket.on('contacts_updated', fetchData);
+
+    const emailStatusHandler = (data) => {
+      if (data.agentId === user._id || data.agentId === user.id) {
+        if (data.success) {
+          addToast('📧 Receipt email sent successfully!', 'success');
+        } else {
+          addToast(`⚠️ Email sending failed: ${data.reason}`, 'error');
+        }
+      }
+    };
+    socket.on('email_status', emailStatusHandler);
+
     return () => {
       socket.off('contact_disposed', fetchData);
       socket.off('dashboard_update', fetchData);
       socket.off('contacts_updated', fetchData);
+      socket.off('email_status', emailStatusHandler);
     };
   }, [socket, page, limit, searchTerm, sourceFilter, statusFilter]);
 
@@ -165,12 +187,7 @@ const MyLeads = () => {
              }
              
              let alertMsg = `Successfully extracted transaction ID: ${txId}${amount ? ` and amount: ₹${amount}` : ''}\nStatus updated to Converted.`;
-             const emailRes = res.data.emailResult || (contactRes && contactRes.data.emailResult);
-             if (emailRes) {
-               if (emailRes.success) alertMsg += '\n📧 Receipt email sent successfully!';
-               else alertMsg += `\n⚠️ Email sending failed: ${emailRes.reason}`;
-             }
-             alert(alertMsg);
+             addToast(alertMsg, 'success');
           } else {
              alert(res.data.error || 'Failed to extract transaction ID');
           }
@@ -292,12 +309,8 @@ const MyLeads = () => {
         });
       }
       
-      if (modalStatus === 'Converted' && finalRes && finalRes.data.emailResult) {
-        if (finalRes.data.emailResult.success) {
-          alert('Lead Converted! 📧 Receipt email sent successfully!');
-        } else {
-          alert(`Lead Converted! ⚠️ Email sending failed: ${finalRes.data.emailResult.reason}`);
-        }
+      if (modalStatus === 'Converted') {
+        addToast('Lead Converted! Email will be sent in background.', 'success');
       }
       
       setModalLead(null);
@@ -759,6 +772,21 @@ const MyLeads = () => {
           </div>
         </div>
       )}
+
+      {/* Toasts */}
+      <div style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 9999, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {toasts.map(toast => (
+          <div key={toast.id} style={{ 
+            background: toast.type === 'error' ? '#ef4444' : '#10b981', 
+            color: '#fff', padding: '12px 20px', borderRadius: 8, 
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)', 
+            fontWeight: 700, fontSize: '0.9rem',
+            animation: 'revealUp 0.3s ease-out'
+          }}>
+            {toast.message.split('\n').map((line, i) => <div key={i}>{line}</div>)}
+          </div>
+        ))}
+      </div>
     </div>
   );
 };

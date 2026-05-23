@@ -259,7 +259,20 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
         }
       });
       if (status === 'Converted') {
-        emailResult = await triggerConversionEmail(req.params.id, req.body.receiptImage);
+        // Run asynchronously to not block the response
+        triggerConversionEmail(req.params.id, req.body.receiptImage).then(emailResult => {
+            broadcast('email_status', {
+                agentId: req.user._id || req.user.id,
+                success: emailResult.success,
+                reason: emailResult.reason
+            });
+        }).catch(err => {
+            broadcast('email_status', {
+                agentId: req.user._id || req.user.id,
+                success: false,
+                reason: err.message
+            });
+        });
       }
     } else if (disposition === 'Appointment') {
       await prisma.appointment.create({
@@ -650,7 +663,20 @@ router.put('/:id/status', verify, authorize(['superadmin', 'agent', 'tl', 'admin
       });
       let emailResult = null;
       if (req.body.status === 'Converted') {
-        emailResult = await triggerConversionEmail(contact.id, req.body.receiptImage);
+        // Run asynchronously to not block the response
+        triggerConversionEmail(contact.id, req.body.receiptImage).then(emailResult => {
+            broadcast('email_status', {
+                agentId: req.user._id || req.user.id,
+                success: emailResult.success,
+                reason: emailResult.reason
+            });
+        }).catch(err => {
+            broadcast('email_status', {
+                agentId: req.user._id || req.user.id,
+                success: false,
+                reason: err.message
+            });
+        });
       }
     }
 
@@ -658,10 +684,7 @@ router.put('/:id/status', verify, authorize(['superadmin', 'agent', 'tl', 'admin
     broadcast('dashboard_update');
     broadcast('contacts_updated');
 
-    // We can't access emailResult outside the block easily if we let scope end, so we will pass it manually from scope or we can just run the email sending outside.
-    // Wait, I will just let emailResult be accessible.
-
-    res.json({ success: true, contact: { ...contact, ...update, _id: contact.id }, emailResult });
+    res.json({ success: true, contact: { ...contact, ...update, _id: contact.id } });
   } catch (err) {
     console.error('Update contact status error:', err);
     res.status(500).json({ error: 'Server error' });
