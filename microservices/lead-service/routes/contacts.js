@@ -206,6 +206,7 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
       update.conversionDate = new Date();
       update.queueOrder = 999999;
       if (status) update.status = status;
+      if (transactionId) update.transactionId = transactionId;
       if (callBackDt) { update.callBackDt = new Date(callBackDt); update.cbReminderSent = false; update.lateNotified = false; }
       if (appointmentDt) { update.appointmentDt = new Date(appointmentDt); update.reminderSent = false; update.lateNotified = false; }
     } else if (disposition === 'Appointment') {
@@ -252,7 +253,8 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
           assignedTo: req.user._id || req.user.id, agentName: req.user.name,
           leadAmount: parseFloat(leadAmount) || 0, status: status || 'Pending',
           remarks: remarks || '',
-          adminId: contact.adminId
+          adminId: contact.adminId,
+          transactionId: transactionId
         }
       });
       if (status === 'Converted') {
@@ -641,7 +643,8 @@ router.put('/:id/status', verify, authorize(['superadmin', 'agent', 'tl', 'admin
         data: {
           contactId: contact.id, fields: contact.fields || {}, batchId: contact.batchId,
           assignedTo: contact.assignedTo, agentName: contact.agentName || req.user.name,
-          leadAmount: update.leadAmount, status: 'Lead', adminId: contact.adminId
+          leadAmount: update.leadAmount, status: 'Lead', adminId: contact.adminId,
+          transactionId: req.body.transactionId
         }
       });
       if (req.body.status === 'Converted') {

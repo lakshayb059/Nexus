@@ -43,6 +43,7 @@ model Contact {
   disposedBy        String?   @map("disposed_by")
   disposedAt        DateTime? @map("disposed_at")
   leadAmount        Float?    @map("lead_amount")
+  transactionId     String?   @map("transaction_id")
   appointmentDt     DateTime? @map("appointment_dt")
   appointmentStatus String?   @map("appointment_status")
   callBackDt        DateTime? @map("call_back_dt")
@@ -70,6 +71,7 @@ model Lead {
   agentName    String?   @map("agent_name")
   adminId      String?   @map("admin_id")
   leadAmount   Float?    @map("lead_amount")
+  transactionId String?  @map("transaction_id")
   status       String?
   remarks      String?
   createdAt    DateTime? @default(now()) @map("created_at")
