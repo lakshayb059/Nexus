@@ -12,7 +12,7 @@ const Users = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen,  setIsModalOpen]  = useState(false);
   const [editingUser,  setEditingUser]  = useState(null);
-  const [formData,     setFormData]     = useState({ name: '', username: '', password: '', role: 'agent', active: true, tlId: '' });
+  const [formData,     setFormData]     = useState({ name: '', username: '', password: '', role: 'agent', active: true, tlId: '', senderEmail: '', appPassword: '' });
   const [isSaving,     setIsSaving]     = useState(false);
   
   // New state for TL disposition
@@ -65,10 +65,10 @@ const Users = () => {
   const openModal = (u = null) => {
     if (u) {
       setEditingUser(u);
-      setFormData({ name: u.name, username: u.username, password: '', role: u.role, active: u.active, tlId: u.tlId || '' });
+      setFormData({ name: u.name, username: u.username, password: '', role: u.role, active: u.active, tlId: u.tlId || '', senderEmail: u.senderEmail || '', appPassword: '' });
     } else {
       setEditingUser(null);
-      setFormData({ name: '', username: '', password: '', role: user?.role === 'superadmin' ? 'admin' : 'agent', active: true, tlId: '' });
+      setFormData({ name: '', username: '', password: '', role: user?.role === 'superadmin' ? 'admin' : 'agent', active: true, tlId: '', senderEmail: '', appPassword: '' });
     }
     setIsModalOpen(true);
   };
@@ -111,6 +111,11 @@ const Users = () => {
           if (dispositionData.action === 'reassign') {
             payload.newTlId = dispositionData.newTlId;
           }
+        }
+
+        if (formData.role === 'admin') {
+          if (formData.senderEmail) payload.senderEmail = formData.senderEmail;
+          if (formData.appPassword) payload.appPassword = formData.appPassword;
         }
 
         if (reactivateAction !== null) {
@@ -327,6 +332,18 @@ const Users = () => {
                       <option value="admin">Admin</option>
                     )}
                   </select>
+                </div>
+              )}
+              {formData.role === 'admin' && (
+                <div className="grid-2" style={{ gap: 12, marginTop: 12 }}>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label>Sender Email (for conversions)</label>
+                    <input type="email" className="input-field" value={formData.senderEmail} onChange={e => setFormData(p => ({ ...p, senderEmail: e.target.value }))} />
+                  </div>
+                  <div className="input-group" style={{ marginBottom: 0 }}>
+                    <label>App Password (Gmail)</label>
+                    <input type="text" className="input-field" value={formData.appPassword} onChange={e => setFormData(p => ({ ...p, appPassword: e.target.value }))} placeholder={editingUser ? "Leave blank to keep current" : ""} />
+                  </div>
                 </div>
               )}
               {editingUser && (

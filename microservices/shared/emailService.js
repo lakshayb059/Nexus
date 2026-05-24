@@ -1,16 +1,16 @@
 const nodemailer = require('nodemailer');
 
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
-  auth: {
-    user: 'Lakshayb057@gmail.com',
-    pass: 'ocht uiyj enjd ojbl'
-  }
-});
+const sendConversionEmail = async (senderEmail, appPassword, receiverEmail, companyName, emailDetails) => {
+  const transporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
+    auth: {
+      user: senderEmail,
+      pass: appPassword
+    }
+  });
 
-const sendConversionEmail = async (adminEmail, companyName, emailDetails) => {
   try {
     const { leadName, contact, agentName, tlName, adminName, amount, transactionId, receiptImageBase64 } = emailDetails;
     
@@ -35,8 +35,8 @@ const sendConversionEmail = async (adminEmail, companyName, emailDetails) => {
     `;
 
     const mailOptions = {
-      from: `"${companyName || 'CRM System'}" <Lakshayb057@gmail.com>`,
-      to: adminEmail,
+      from: `"${companyName || 'CRM System'}" <${senderEmail}>`,
+      to: receiverEmail,
       subject: `Lead Converted: ${leadName} (Amount: ₹${amount})`,
       html: htmlContent
     };

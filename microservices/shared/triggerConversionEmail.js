@@ -26,7 +26,14 @@ async function triggerConversionEmail(contactId, receiptImageBase64 = null) {
     if (!adminId) return { success: false, reason: 'No admin configured for this agent' };
 
     const admin = await prisma.user.findUnique({ where: { id: adminId } });
-    if (!admin || !admin.notificationEmail) return { success: false, reason: 'Admin has no notification email configured in Settings' };
+    if (!admin) return { success: false, reason: 'Admin not found' };
+
+    const senderEmail = admin.senderEmail;
+    const appPassword = admin.appPassword;
+    const receiverEmail = admin.companyReceiverEmail || admin.notificationEmail;
+
+    if (!senderEmail || !appPassword) return { success: false, reason: 'Admin has no sender email or app password configured' };
+    if (!receiverEmail) return { success: false, reason: 'Admin has no receiver email configured' };
 
     // Get TL and Agent names
     let agentName = contact.agentName || 'Unknown Agent';
@@ -65,7 +72,9 @@ async function triggerConversionEmail(contactId, receiptImageBase64 = null) {
     };
 
     const success = await sendConversionEmail(
-      admin.notificationEmail,
+      senderEmail,
+      appPassword,
+      receiverEmail,
       admin.companyName || 'Our Company',
       emailDetails
     );

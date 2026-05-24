@@ -89,12 +89,13 @@ const Dashboard = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [notificationEmail, setNotificationEmail] = useState(user?.notificationEmail || '');
+  const [companyReceiverEmail, setCompanyReceiverEmail] = useState(user?.companyReceiverEmail || '');
   const [companyName, setCompanyName] = useState(user?.companyName || '');
 
   const saveSettings = async () => {
     try {
-      await api.put(`/users/${user._id || user.id}`, { notificationEmail, companyName });
-      updateUser({ notificationEmail, companyName });
+      await api.put(`/users/${user._id || user.id}`, { notificationEmail, companyReceiverEmail, companyName });
+      updateUser({ notificationEmail, companyReceiverEmail, companyName });
       alert('Settings saved successfully!');
       setShowSettings(false);
     } catch (error) {
@@ -197,7 +198,8 @@ const Dashboard = () => {
           </p>
           {user.role === 'admin' && (
             <p style={{ marginTop: '0.5rem', color: '#64748b' }}>
-              Notifications will be sent to: <strong>{user.notificationEmail || 'Not configured'}</strong>
+              Notifications will be sent to: <strong>{user.notificationEmail || 'Not configured'}</strong><br />
+              Converted Leads will be sent to: <strong>{user.companyReceiverEmail || 'Not configured'}</strong>
             </p>
           )}
           {user.role !== 'admin' && user.role !== 'superadmin' && (
@@ -385,8 +387,12 @@ const Dashboard = () => {
               <X size={20} style={{ cursor: 'pointer' }} onClick={() => setShowSettings(false)} />
             </div>
             <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: 4 }}>Notification Email</label>
-              <input type="email" value={notificationEmail} onChange={e => setNotificationEmail(e.target.value)} placeholder="Email for lead alerts" className="form-input" style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: 6 }} />
+              <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: 4 }}>System Notification Email</label>
+              <input type="email" value={notificationEmail} onChange={e => setNotificationEmail(e.target.value)} placeholder="Email for general alerts" className="form-input" style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: 6 }} />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: 4 }}>Company Receiver Email (Converted Leads)</label>
+              <input type="email" value={companyReceiverEmail} onChange={e => setCompanyReceiverEmail(e.target.value)} placeholder="Email for converted leads" className="form-input" style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: 6 }} />
             </div>
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: 'block', fontSize: '0.8rem', marginBottom: 4 }}>Company Name</label>
