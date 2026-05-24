@@ -34,7 +34,7 @@ async function start() {
     
     const path = require('path');
     const microservicesPath = path.join(__dirname, '..');
-    execSync(`npx prisma db push`, { 
+    execSync(`npx prisma db push --accept-data-loss`, { 
       cwd: microservicesPath,
       stdio: 'inherit',
       env: { ...process.env, DATABASE_URL: dbUrl }
