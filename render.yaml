@@ -78,7 +78,9 @@ services:
     buildCommand: cd microservices/mail-service && npm install
     startCommand: cd microservices/mail-service && node server.js
     envVars:
-      - key: MAIL_USER
+      - key: BREVO_USER
         sync: false
-      - key: MAIL_PASS
+      - key: BREVO_PASS
+        sync: false
+      - key: BREVO_SENDER
         sync: false

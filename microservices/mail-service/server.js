@@ -10,37 +10,32 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
 // Default Mail Config
-const MAIL_USER = process.env.MAIL_USER;
-const MAIL_PASS = process.env.MAIL_PASS;
+const BREVO_USER = process.env.BREVO_USER;
+const BREVO_PASS = process.env.BREVO_PASS;
+const BREVO_SENDER = process.env.BREVO_SENDER;
 
 // Health Check Endpoints
 app.get('/health', (req, res) => res.json({ status: 'Mail service is up', timestamp: new Date() }));
 app.get('/', (req, res) => res.json({ status: 'Mail service is active', timestamp: new Date() }));
 
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
+  host: "smtp-relay.brevo.com",
+  port: 2525,
   secure: false,
-  requireTLS: true,
   auth: {
-    user: MAIL_USER,
-    pass: MAIL_PASS
+    user: BREVO_USER,
+    pass: BREVO_PASS
   },
   tls: {
     rejectUnauthorized: false
-  },
-  connectionTimeout: 60000,
-  greetingTimeout: 60000,
-  socketTimeout: 60000,
-  debug: true,
-  logger: true
+  }
 });
 
 transporter.verify((error, success) => {
   if (error) {
-    console.error('SMTP Error:', error);
+    console.error('SMTP Verify Error:', error);
   } else {
-    console.log('SMTP Server is ready');
+    console.log('✅ Brevo SMTP Connected');
   }
 });
 
@@ -54,7 +49,7 @@ app.post('/api/mail/send', async (req, res) => {
     }
 
     const mailOptions = {
-      from: `"Spike CRM" <${MAIL_USER}>`,
+      from: `"Spike CRM" <${BREVO_SENDER}>`,
       to,
       subject: subject || 'New Lead Converted',
       html: html || '<p>A new lead has been successfully converted.</p>'
