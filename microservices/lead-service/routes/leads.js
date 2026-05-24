@@ -695,36 +695,74 @@ router.post('/extract-transaction', verify, authorize(['superadmin', 'admin', 't
     if (!imageBase64) return res.status(400).json({ error: 'No image provided' });
 
     const apiKey = process.env.GROQ_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: 'Groq API key not configured' });
+    if (!apiKey) {
+      console.error('[Vision OCR] Extract transaction failed: GROQ_API_KEY is not configured.');
+      return res.status(400).json({ 
+        error: 'GROQ_API_KEY is not configured in your Render environment variables. Please add it to your spike-crm-lead service settings.' 
+      });
+    }
 
-    const response = await axios.post(
-      'https://api.groq.com/openai/v1/chat/completions',
-      {
-        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-        messages: [
+    const models = [
+      'meta-llama/llama-4-scout-17b-16e-instruct',
+      'llama-3.2-11b-vision-preview',
+      'llama-3.2-90b-vision-preview'
+    ];
+
+    let response = null;
+    let lastError = null;
+
+    for (const model of models) {
+      try {
+        console.log(`[Vision OCR] Attempting extraction with model: ${model}`);
+        response = await axios.post(
+          'https://api.groq.com/openai/v1/chat/completions',
           {
-            role: 'user',
-            content: [
+            model: model,
+            messages: [
               {
-                type: 'text',
-                text: 'Extract the transaction ID (or UTR number) and the payment amount from this screenshot. Return a JSON object strictly in this format: {"transactionId": "<id>", "amount": <number>}. If no transaction ID is found, return {"transactionId": "NOT_FOUND", "amount": null}. Do not return anything except the raw JSON object without markdown formatting.'
-              },
-              {
-                type: 'image_url',
-                image_url: { url: imageBase64 }
+                role: 'user',
+                content: [
+                  {
+                    type: 'text',
+                    text: 'Extract the transaction ID (or UTR number) and the payment amount from this screenshot. Return a JSON object strictly in this format: {"transactionId": "<id>", "amount": <number>}. If no transaction ID is found, return {"transactionId": "NOT_FOUND", "amount": null}. Do not return anything except the raw JSON object without markdown formatting.'
+                  },
+                  {
+                    type: 'image_url',
+                    image_url: { url: imageBase64 }
+                  }
+                ]
               }
-            ]
+            ],
+            temperature: 0.1
+          },
+          {
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json'
+            },
+            timeout: 15000 // 15 seconds timeout per model attempt
           }
-        ],
-        temperature: 0.1
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
+        );
+        console.log(`[Vision OCR] Success using model: ${model}`);
+        break; // Vision model completed successfully!
+      } catch (err) {
+        lastError = err;
+        const errDetails = err.response?.data?.error?.message || err.response?.data || err.message;
+        console.warn(`[Vision OCR] Model ${model} failed:`, errDetails);
+        
+        // If it's an authentication error (401), trying other models won't help, so break early
+        if (err.response?.status === 401) {
+          break;
         }
       }
-    );
+    }
+
+    if (!response) {
+      const details = lastError.response?.data?.error?.message || lastError.response?.data || lastError.message;
+      return res.status(500).json({ 
+        error: `Groq API call failed. Details: ${JSON.stringify(details)}`
+      });
+    }
 
     const extractedText = response.data.choices[0]?.message?.content?.trim() || '{}';
     let parsedData = { transactionId: 'NOT_FOUND', amount: null };
@@ -740,8 +778,9 @@ router.post('/extract-transaction', verify, authorize(['superadmin', 'admin', 't
 
     res.json({ success: true, transactionId: parsedData.transactionId, amount: parsedData.amount });
   } catch (err) {
-    console.error('Extract transaction failed:', err.response?.data || err.message);
-    res.status(500).json({ error: 'Failed to extract transaction ID' });
+    const errDetails = err.response?.data?.error?.message || err.response?.data || err.message;
+    console.error('Extract transaction failed:', errDetails);
+    res.status(500).json({ error: `Failed to extract transaction ID: ${errDetails}` });
   }
 });
 
