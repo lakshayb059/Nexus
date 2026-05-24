@@ -486,13 +486,14 @@ apiRouter.use('/upload', require('./routes/upload'));
 // Mount Mail Router
 apiRouter.use('/mail', mailRouter);
 
+// --- Health Check Endpoints ---
+app.get('/health', (req, res) => res.json({ status: 'Monolith is up', timestamp: new Date() }));
+app.get('/', (req, res) => res.json({ status: 'Monolith is active', timestamp: new Date() }));
+
 // API mapping
 app.use('/api', apiRouter);
 // Gateway fallback / non-API fallback mapping
 app.use('/', apiRouter);
-
-// --- Health Check Endpoints ---
-app.get('/health', (req, res) => res.json({ status: 'Monolith is up', timestamp: new Date() }));
 
 // --- Socket.io Handlers ---
 io.on('connection', (socket) => {
