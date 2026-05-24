@@ -139,10 +139,22 @@ router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), 
     }
 
     const [leads, contactLeads, allLeadsArr, allContactLeads] = await Promise.all([
-      prisma.lead.findMany({ where: { ...whereQuery, status: 'Converted' } }),
-      prisma.contact.findMany({ where: { ...whereQuery, disposition: 'Lead', status: 'Converted', isDeleted: false } }),
-      prisma.lead.findMany({ where: { ...whereQuery } }),
-      prisma.contact.findMany({ where: { ...whereQuery, disposition: 'Lead', isDeleted: false } })
+      prisma.lead.findMany({ 
+        where: { ...whereQuery, status: 'Converted' },
+        select: { id: true, contactId: true, leadAmount: true }
+      }),
+      prisma.contact.findMany({ 
+        where: { ...whereQuery, disposition: 'Lead', status: 'Converted', isDeleted: false },
+        select: { id: true, leadAmount: true }
+      }),
+      prisma.lead.findMany({ 
+        where: whereQuery,
+        select: { id: true, contactId: true, leadAmount: true }
+      }),
+      prisma.contact.findMany({ 
+        where: { ...whereQuery, disposition: 'Lead', isDeleted: false },
+        select: { id: true, leadAmount: true }
+      })
     ]);
     
     // Converted Leads

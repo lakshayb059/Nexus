@@ -109,16 +109,18 @@ router.get('/', verify, authorize(['superadmin', 'admin', 'tl', 'agent']), async
       const limitNum = parseInt(limit) || 50;
       const skipNum = (pageNum - 1) * limitNum;
 
-      const total = await prisma.contact.count({ where: whereQuery });
-      let contacts = await prisma.contact.findMany({
-        where: whereQuery,
-        orderBy: { createdAt: 'desc' },
-        skip: skipNum,
-        take: limitNum
-      });
-
+      const [total, contactsRaw, allUsers] = await Promise.all([
+        prisma.contact.count({ where: whereQuery }),
+        prisma.contact.findMany({
+          where: whereQuery,
+          orderBy: { createdAt: 'desc' },
+          skip: skipNum,
+          take: limitNum
+        }),
+        prisma.user.findMany({ select: { id: true, name: true, tlId: true, adminId: true } })
+      ]);
+      let contacts = contactsRaw;
       const userMap = {};
-      const allUsers = await prisma.user.findMany({ select: { id: true, name: true, tlId: true, adminId: true } });
       allUsers.forEach(u => userMap[u.id] = u);
 
       contacts = contacts.map(c => {
@@ -145,9 +147,12 @@ router.get('/', verify, authorize(['superadmin', 'admin', 'tl', 'agent']), async
 
       return res.json({ contacts, total, page: pageNum, limit: limitNum, pages: Math.ceil(total / limitNum), totalLeadValue });
     } else {
-      let contacts = await prisma.contact.findMany({ where: whereQuery, orderBy: { createdAt: 'desc' } });
+      const [contactsRaw, allUsers] = await Promise.all([
+        prisma.contact.findMany({ where: whereQuery, orderBy: { createdAt: 'desc' } }),
+        prisma.user.findMany({ select: { id: true, name: true, tlId: true, adminId: true } })
+      ]);
+      let contacts = contactsRaw;
       const userMap = {};
-      const allUsers = await prisma.user.findMany({ select: { id: true, name: true, tlId: true, adminId: true } });
       allUsers.forEach(u => userMap[u.id] = u);
 
       contacts = contacts.map(c => {

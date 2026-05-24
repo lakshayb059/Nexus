@@ -58,6 +58,9 @@ model Contact {
   @@index([createdAt])
   @@index([batchId])
   @@index([isDeleted])
+  @@index([disposition])
+  @@index([appointmentDt])
+  @@index([callBackDt])
   @@map("contacts")
 }
 
