@@ -49,27 +49,29 @@ transporter.verify((error, success) => {
 // API Route to send mail
 app.post('/api/mail/send', async (req, res) => {
   try {
-    const { to, subject, html } = req.body;
+    const { to, subject, html, companyName, attachments } = req.body;
 
     if (!to) {
       return res.status(400).json({ error: 'Receiver email is required.' });
     }
 
     const mailOptions = {
-      from: `"NEXUS" <${BREVO_SENDER || 'noreply@nexus.crm'}>`,
+      from: `"${companyName || 'NEXUS'}" <${BREVO_SENDER || 'noreply@nexus.crm'}>`,
       to,
       subject: subject || 'New Lead Converted',
-      html: html || '<p>A new lead has been successfully converted.</p>'
+      html: html || '<p>A new lead has been successfully converted.</p>',
+      attachments: attachments || []
     };
 
     // If verification failed on startup or credentials are not configured, use fallback console logging
     if (useFallback || !BREVO_USER || !BREVO_PASS) {
       console.log('\n============================================================');
       console.log(`📧 [MOCK EMAIL LOG - SMTP FALLBACK ENABLED]`);
-      console.log(`From:    "NEXUS" <${BREVO_SENDER || 'noreply@nexus.crm'}>`);
+      console.log(`From:    "${companyName || 'NEXUS'}" <${BREVO_SENDER || 'noreply@nexus.crm'}>`);
       console.log(`To:      ${to}`);
       console.log(`Subject: ${subject}`);
       console.log(`Time:    ${new Date().toISOString()}`);
+      console.log(`Attachments Count: ${attachments ? attachments.length : 0}`);
       console.log('------------------------------------------------------------');
       console.log('HTML Body Preview (First 500 chars):');
       console.log(html ? html.substring(0, 500) + '...' : 'None');
@@ -92,10 +94,11 @@ app.post('/api/mail/send', async (req, res) => {
     // As a second line of defense, log the email if transporter fails at runtime
     console.log('\n============================================================');
     console.log(`📧 [MOCK EMAIL LOG - SMTP RUNTIME ERROR FALLBACK]`);
-    console.log(`From:    "NEXUS" <${BREVO_SENDER || 'noreply@nexus.crm'}>`);
+    console.log(`From:    "${companyName || 'NEXUS'}" <${BREVO_SENDER || 'noreply@nexus.crm'}>`);
     console.log(`To:      ${req.body.to}`);
     console.log(`Subject: ${req.body.subject}`);
     console.log(`Error:   ${error.message}`);
+    console.log(`Attachments Count: ${req.body.attachments ? req.body.attachments.length : 0}`);
     console.log('------------------------------------------------------------');
     console.log('HTML Body Preview (First 500 chars):');
     console.log(req.body.html ? req.body.html.substring(0, 500) + '...' : 'None');

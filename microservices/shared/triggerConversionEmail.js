@@ -32,91 +32,86 @@ async function triggerConversionEmail(contactId, receiptImageBase64 = null) {
 
     const amount        = contact.leadAmount || 0;
     const transactionId = contact.transactionId || 'N/A';
-    const clientPhone   = contact.fields?.Phone || contact.fields?.phone || contact.fields?.Mobile || 'Unknown';
     const clientName    = contact.fields?.Name  || contact.fields?.name  || 'Client';
     const agentName     = agentUser?.name || contact.agentName || 'Unknown Agent';
-    const remarks       = contact.remarks || 'N/A';
-    const conversionDate = contact.conversionDate
-      ? new Date(contact.conversionDate).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
-      : new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
 
-    // Build extra fields from contact.fields (all custom CRM columns)
-    const skipKeys = new Set(['Name', 'name', 'Phone', 'phone', 'Mobile', 'mobile', 'Email', 'email']);
-    const extraFieldsHtml = Object.entries(contact.fields || {})
-      .filter(([k]) => !skipKeys.has(k))
-      .map(([k, v]) => `<tr><td style="padding:6px 12px;font-weight:600;color:#555;white-space:nowrap;">${k}</td><td style="padding:6px 12px;color:#222;">${v}</td></tr>`)
-      .join('');
+    // Format date strictly as DD-MM-YYYY
+    const dateObj = contact.conversionDate ? new Date(contact.conversionDate) : new Date();
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const year = dateObj.getFullYear();
+    const conversionDateFormatted = `${day}-${month}-${year}`;
+
+    // Handle attachments
+    let attachments = [];
+    const hasScreenshot = !!receiptImageBase64;
+    
+    if (hasScreenshot && typeof receiptImageBase64 === 'string') {
+      const matches = receiptImageBase64.match(/^data:(.+);base64,(.+)$/);
+      if (matches) {
+        const contentType = matches[1];
+        const base64Data = matches[2];
+        const extension = contentType.split('/')[1] || 'png';
+        
+        attachments.push({
+          filename: `transaction_screenshot.${extension}`,
+          content: base64Data,
+          encoding: 'base64'
+        });
+      } else {
+        attachments.push({
+          filename: 'transaction_screenshot.png',
+          content: receiptImageBase64,
+          encoding: 'base64'
+        });
+      }
+    }
 
     const html = `
-      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;">
-        <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);padding:24px 32px;">
-          <h1 style="color:#fff;margin:0;font-size:22px;letter-spacing:1px;">NEXUS CRM</h1>
-          <p style="color:#a0aec0;margin:4px 0 0;font-size:13px;">Lead Conversion Notification</p>
-        </div>
-
-        <div style="padding:24px 32px;">
-          <div style="background:#f0fff4;border-left:4px solid #38a169;padding:12px 16px;border-radius:4px;margin-bottom:20px;">
-            <p style="margin:0;color:#276749;font-weight:700;font-size:15px;">✅ Lead Successfully Converted</p>
-          </div>
-
-          <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
-            <tr style="background:#f7fafc;">
-              <td style="padding:10px 12px;font-weight:700;color:#333;font-size:15px;" colspan="2">Client Details</td>
+      <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px;">
+        <p>Dear Team,</p>
+        <p>Please share your confirmation on the below mentioned transaction record:</p>
+        
+        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; border: 1px solid #ccc; width: 100%; font-size: 14px; margin-top: 15px; margin-bottom: 15px;">
+          <thead>
+            <tr style="background-color: #f2f2f2; text-align: left;">
+              <th style="padding: 10px; border: 1px solid #ccc;">Donor Name</th>
+              <th style="padding: 10px; border: 1px solid #ccc;">Amount</th>
+              <th style="padding: 10px; border: 1px solid #ccc;">Transaction ID</th>
+              <th style="padding: 10px; border: 1px solid #ccc;">Transaction Date</th>
+              <th style="padding: 10px; border: 1px solid #ccc;">Agent Name</th>
             </tr>
+          </thead>
+          <tbody>
             <tr>
-              <td style="padding:6px 12px;font-weight:600;color:#555;white-space:nowrap;">Client Name</td>
-              <td style="padding:6px 12px;color:#222;">${clientName}</td>
+              <td style="padding: 10px; border: 1px solid #ccc;">${clientName}</td>
+              <td style="padding: 10px; border: 1px solid #ccc;">${amount}</td>
+              <td style="padding: 10px; border: 1px solid #ccc; font-family: monospace;">${transactionId}</td>
+              <td style="padding: 10px; border: 1px solid #ccc;">${conversionDateFormatted}</td>
+              <td style="padding: 10px; border: 1px solid #ccc;">${agentName}</td>
             </tr>
-            <tr style="background:#f7fafc;">
-              <td style="padding:6px 12px;font-weight:600;color:#555;white-space:nowrap;">Phone</td>
-              <td style="padding:6px 12px;color:#222;">${clientPhone}</td>
-            </tr>
-            ${extraFieldsHtml}
-          </table>
-
-          <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
-            <tr style="background:#f7fafc;">
-              <td style="padding:10px 12px;font-weight:700;color:#333;font-size:15px;" colspan="2">Transaction Details</td>
-            </tr>
-            <tr>
-              <td style="padding:6px 12px;font-weight:600;color:#555;white-space:nowrap;">Amount</td>
-              <td style="padding:6px 12px;color:#38a169;font-weight:700;font-size:16px;">₹${amount.toLocaleString('en-IN')}</td>
-            </tr>
-            <tr style="background:#f7fafc;">
-              <td style="padding:6px 12px;font-weight:600;color:#555;white-space:nowrap;">Transaction ID</td>
-              <td style="padding:6px 12px;color:#222;font-family:monospace;">${transactionId}</td>
-            </tr>
-            <tr>
-              <td style="padding:6px 12px;font-weight:600;color:#555;white-space:nowrap;">Converted On</td>
-              <td style="padding:6px 12px;color:#222;">${conversionDate}</td>
-            </tr>
-          </table>
-
-          <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
-            <tr style="background:#f7fafc;">
-              <td style="padding:10px 12px;font-weight:700;color:#333;font-size:15px;" colspan="2">Agent Details</td>
-            </tr>
-            <tr>
-              <td style="padding:6px 12px;font-weight:600;color:#555;white-space:nowrap;">Agent Name</td>
-              <td style="padding:6px 12px;color:#222;">${agentName}</td>
-            </tr>
-            <tr style="background:#f7fafc;">
-              <td style="padding:6px 12px;font-weight:600;color:#555;white-space:nowrap;">Remarks</td>
-              <td style="padding:6px 12px;color:#222;">${remarks}</td>
-            </tr>
-          </table>
-        </div>
-
-        <div style="background:#f7fafc;padding:14px 32px;text-align:center;border-top:1px solid #e0e0e0;">
-          <p style="margin:0;color:#a0aec0;font-size:12px;">This is an automated notification from NEXUS CRM. Do not reply to this email.</p>
-        </div>
+          </tbody>
+        </table>
+        
+        <p style="margin-top: 25px; margin-bottom: 25px;">
+          ${hasScreenshot 
+            ? 'Transaction screenshot attached.' 
+            : 'Donor is not comfortable in sharing the screenshot however he confirmed that his above mentioned donation has been completed, Kindly check.'}
+        </p>
+        
+        <p style="margin-top: 25px;">
+          Thanks<br>
+          <strong>${admin.name || 'SS Enterprises'}</strong>
+        </p>
       </div>
     `;
 
     const response = await axios.post(mailServiceUrl, {
       to: admin.receiverMail,
       subject: `✅ New Conversion: ₹${amount.toLocaleString('en-IN')} — ${clientName}`,
-      html
+      html,
+      companyName: admin.name || 'SS Enterprises',
+      attachments
     });
 
     console.log(`[Email Trigger] Mail sent successfully to ${admin.receiverMail} for contact ${contactId}`);
