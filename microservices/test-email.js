@@ -1,34 +1,23 @@
-const { prisma, connect } = require('./shared/db');
-const { triggerConversionEmail } = require('./shared/triggerConversionEmail');
+require('dotenv').config();
+const { sendConversionEmail } = require('./shared/emailService');
 
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
-  auth: {
-    user: 'Lakshayb057@gmail.com',
-    pass: 'ocht uiyj enjd ojbl'
-  }
-});
-
-async function run() {
-  try {
-    await connect();
-    const contact = await prisma.contact.findFirst({
-      where: { status: 'Converted' },
-      orderBy: { createdAt: 'desc' }
-    });
-    if (contact) {
-      console.log('Testing trigger with contact:', contact.id);
-      await triggerConversionEmail(contact.id, null);
-    } else {
-      console.log('No converted contact found');
+async function test() {
+  console.log('Sending test email...');
+  const result = await sendConversionEmail(
+    'garg.abhi999@gmail.com',
+    'wfwoqaqetzjgrcej',
+    'garg.abhi999@gmail.com',
+    'CRM Test',
+    {
+      leadName: 'Test Lead',
+      contact: '1234567890',
+      agentName: 'Test Agent',
+      tlName: 'Test TL',
+      adminName: 'Test Admin',
+      amount: '5000',
+      transactionId: 'TXN123'
     }
-  } catch (err) {
-    console.error('Error:', err);
-  } finally {
-    await prisma.$disconnect();
-  }
+  );
+  console.log('Result:', result);
 }
-
-run();
+test();

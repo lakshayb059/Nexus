@@ -29,7 +29,7 @@ async function triggerConversionEmail(contactId, receiptImageBase64 = null) {
     if (!admin) return { success: false, reason: 'Admin not found' };
 
     const senderEmail = admin.senderEmail;
-    const appPassword = admin.appPassword;
+    const appPassword = admin.appPassword ? admin.appPassword.replace(/\s+/g, '') : null;
     const receiverEmail = admin.companyReceiverEmail || admin.notificationEmail;
 
     if (!senderEmail || !appPassword) return { success: false, reason: 'Admin has no sender email or app password configured' };
