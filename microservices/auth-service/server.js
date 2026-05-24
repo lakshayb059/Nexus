@@ -25,7 +25,7 @@ app.post('/auth/login', async (req, res) => {
 
         const user = await prisma.user.findUnique({
             where: { username: username.trim().toLowerCase() },
-            select: { password: 1, active: 1, id: 1, username: 1, name: 1, role: 1, tlId: 1, adminId: 1 }
+            select: { password: 1, active: 1, id: 1, username: 1, name: 1, role: 1, tlId: 1, adminId: 1, receiverMail: 1 }
         });
 
         if (!user) return res.json({ error: 'Invalid credentials' });
@@ -43,7 +43,8 @@ app.post('/auth/login', async (req, res) => {
           name: user.name,
           role: user.role,
           tlId: user.tlId,
-          adminId: user.adminId
+          adminId: user.adminId,
+          receiverMail: user.receiverMail
         };
         const token = sign(tokenPayload);
 
@@ -56,7 +57,7 @@ app.post('/auth/login', async (req, res) => {
 
         res.json({
             token,
-            user: { _id: user.id, username: user.username, name: user.name, role: user.role, tlId: user.tlId, adminId: user.adminId }
+            user: { _id: user.id, username: user.username, name: user.name, role: user.role, tlId: user.tlId, adminId: user.adminId, receiverMail: user.receiverMail }
         });
     } catch (err) {
         console.error(`❌ [AUTH LOGIN FATAL ERROR]:`, err);
@@ -83,6 +84,7 @@ app.get('/users', verify, authorize(['superadmin', 'admin']), async (req, res) =
         role: true,
         tlId: true,
         adminId: true,
+        receiverMail: true,
         active: true,
         isDeleted: true,
 
@@ -175,6 +177,7 @@ app.put('/users/:id', verify, authorize(['superadmin', 'admin']), async (req, re
     if (active !== undefined) updateData.active = !!active;
     if (tlId !== undefined) updateData.tlId = tlId ? tlId : null;
     if (password) updateData.password = await bcrypt.hash(password, 10);
+    if (req.body.receiverMail !== undefined) updateData.receiverMail = req.body.receiverMail.trim() || null;
 
     if (existingUser.role === 'tl' && !!active === false && existingUser.active === true) {
       const agentsUnderTL = await prisma.user.findMany({ 

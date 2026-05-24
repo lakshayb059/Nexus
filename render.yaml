@@ -43,6 +43,8 @@ services:
         sync: false
       - key: NOTIFICATION_SERVICE_URL
         value: https://spike-crm-notification.onrender.com
+      - key: MAIL_SERVICE_URL
+        value: https://spike-crm-mail.onrender.com
 
   # 4. Notification Service
   - type: web
@@ -66,4 +68,17 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET
+        sync: false
+
+  # 6. Mail Service
+  - type: web
+    name: spike-crm-mail
+    env: node
+    plan: free
+    buildCommand: cd microservices/mail-service && npm install
+    startCommand: cd microservices/mail-service && node server.js
+    envVars:
+      - key: MAIL_USER
+        sync: false
+      - key: MAIL_PASS
         sync: false

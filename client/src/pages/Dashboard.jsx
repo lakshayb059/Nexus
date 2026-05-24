@@ -88,7 +88,10 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-
+  // Admin Settings State
+  const [showAdminSettings, setShowAdminSettings] = useState(false);
+  const [receiverMail, setReceiverMail] = useState(user?.receiverMail || '');
+  const [savingSettings, setSavingSettings] = useState(false);
   if (user?.role === 'superadmin') {
     return <SuperAdminDashboard />;
   }
@@ -136,6 +139,22 @@ const Dashboard = () => {
         alert('Failed during global wipe. Check console for details.');
         console.error(err);
       }
+    }
+  };
+
+  const saveAdminSettings = async () => {
+    if (!receiverMail) return alert('Please enter an email address');
+    try {
+      setSavingSettings(true);
+      await api.put(`/users/${user._id || user.id}`, { receiverMail });
+      updateUser({ ...user, receiverMail });
+      setShowAdminSettings(false);
+      alert('Settings saved successfully');
+    } catch (err) {
+      console.error('Failed to save settings:', err);
+      alert('Failed to save settings');
+    } finally {
+      setSavingSettings(false);
     }
   };
 
@@ -211,6 +230,22 @@ const Dashboard = () => {
             <RefreshCw size={14} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
             Refresh
           </button>
+
+          {user?.role === 'admin' && (
+            <button
+              onClick={() => {
+                setReceiverMail(user?.receiverMail || '');
+                setShowAdminSettings(true);
+              }}
+              className="btn btn-primary"
+              style={{
+                fontSize: '0.8rem',
+                padding: '8px 14px',
+              }}
+            >
+              <Settings size={14} /> Settings
+            </button>
+          )}
         </div>
       </div>
 
@@ -342,6 +377,38 @@ const Dashboard = () => {
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {showAdminSettings && (
+        <div className="modal-overlay">
+          <div className="modal-box animate-fade-in" style={{ maxWidth: 400 }}>
+            <div className="modal-header">
+              <h2>Admin Settings</h2>
+              <button className="btn btn-ghost btn-icon" onClick={() => setShowAdminSettings(false)}><X size={18} /></button>
+            </div>
+            <div style={{ padding: '20px 0 0' }}>
+              <div className="input-group">
+                <label>Receiver Email for Converted Leads *</label>
+                <input
+                  type="email"
+                  className="input-field"
+                  value={receiverMail}
+                  onChange={e => setReceiverMail(e.target.value)}
+                  placeholder="admin@example.com"
+                />
+                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                  Whenever a lead is successfully converted by an agent under you, an email with the transaction details will be sent to this address.
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
+                <button className="btn btn-outline" onClick={() => setShowAdminSettings(false)} disabled={savingSettings}>Cancel</button>
+                <button className="btn btn-primary" onClick={saveAdminSettings} disabled={savingSettings}>
+                  {savingSettings ? 'Saving...' : 'Save Settings'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
