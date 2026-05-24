@@ -1,30 +1,37 @@
 const nodemailer = require('nodemailer');
 const dns = require('dns');
 
-// Force IPv4 for DNS resolution to prevent ENETUNREACH on Render's IPv6-less network
-if (dns.setDefaultResultOrder) {
-  dns.setDefaultResultOrder('ipv4first');
-}
+// Globally override dns.lookup to absolutely force IPv4 on Render
+const originalLookup = dns.lookup;
+dns.lookup = function(hostname, options, callback) {
+  if (typeof options === 'function') {
+    callback = options;
+    options = { family: 4 };
+  } else if (typeof options === 'object') {
+    options.family = 4;
+  } else {
+    options = { family: 4 };
+  }
+  return originalLookup(hostname, options, callback);
+};
 
 const sendConversionEmail = async (senderEmail, appPassword, receiverEmail, companyName, emailDetails) => {
-  // Create transporter with better configuration for Render environment
+  // Create transporter with port 587 (officially open on Render)
   const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 465,
-    secure: true, // use SSL
-    family: 4, // Force IPv4 to avoid IPv6 issues on Render
+    port: 587,
+    secure: false, // use STARTTLS
     auth: {
       user: senderEmail,
       pass: appPassword
     },
     tls: {
-      rejectUnauthorized: false,
-      ciphers: 'SSLv3'
+      rejectUnauthorized: false
     },
-    socketTimeout: 30000, // 30 seconds socket timeout
-    connectionTimeout: 30000, // 30 seconds connection timeout
-    debug: false, // Set to true for debugging
-    pool: false // Disable connection pooling to avoid hanging connections
+    socketTimeout: 30000, 
+    connectionTimeout: 30000,
+    debug: false,
+    pool: false 
   });
 
   try {
