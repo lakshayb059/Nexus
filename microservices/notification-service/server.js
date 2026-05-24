@@ -1,3 +1,6 @@
+// Force IPv4 at the process level
+process.env.NODE_OPTIONS = '--dns-result-order=ipv4first';
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');

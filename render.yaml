@@ -8,13 +8,13 @@ services:
     startCommand: node microservices/gateway/server.js
     envVars:
       - key: AUTH_SERVICE_URL
-        value: https://spike-crm-auth.onrender.com
+        sync: false
       - key: LEAD_SERVICE_URL
-        value: https://spike-crm-lead.onrender.com
+        sync: false
       - key: NOTIFICATION_SERVICE_URL
-        value: https://spike-crm-notification.onrender.com
+        sync: false
       - key: REPORT_SERVICE_URL
-        value: https://spike-crm-reporting.onrender.com
+        sync: false
 
   # 2. Auth Service
   - type: web
@@ -42,9 +42,11 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: NOTIFICATION_SERVICE_URL
-        value: https://spike-crm-notification.onrender.com
+        sync: false
       - key: MAIL_SERVICE_URL
-        value: https://spike-crm-mail.onrender.com
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
 
   # 4. Notification Service
   - type: web
