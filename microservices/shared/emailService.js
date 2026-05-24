@@ -9,10 +9,7 @@ if (dns.setDefaultResultOrder) {
 const sendConversionEmail = async (senderEmail, appPassword, receiverEmail, companyName, emailDetails) => {
   const transporter = nodemailer.createTransport({
     pool: true,
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false, // use TLS
-    requireTLS: true,
+    service: 'gmail',
     auth: {
       user: senderEmail,
       pass: appPassword
