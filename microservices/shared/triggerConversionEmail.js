@@ -21,7 +21,10 @@ async function triggerConversionEmail(contactId, receiptImageBase64 = null) {
       return { success: false, reason: 'Admin has no receiver email configured' };
     }
 
-    const mailServiceUrl = process.env.MAIL_SERVICE_URL || 'http://localhost:5006/api/mail/send';
+    let mailServiceUrl = process.env.MAIL_SERVICE_URL || 'http://localhost:5006';
+    if (!mailServiceUrl.endsWith('/api/mail/send')) {
+      mailServiceUrl = `${mailServiceUrl.replace(/\/$/, '')}/api/mail/send`;
+    }
     const amount = contact.leadAmount || 0;
     const transactionId = contact.transactionId || 'N/A';
     const clientPhone = contact.fields?.Phone || contact.fields?.phone || contact.fields?.Mobile || 'Unknown';
