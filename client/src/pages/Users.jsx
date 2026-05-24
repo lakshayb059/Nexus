@@ -65,7 +65,7 @@ const Users = () => {
   const openModal = (u = null) => {
     if (u) {
       setEditingUser(u);
-      setFormData({ name: u.name, username: u.username, password: '', role: u.role, active: u.active, tlId: u.tlId || '', senderEmail: u.senderEmail || '', appPassword: '' });
+      setFormData({ name: u.name, username: u.username, password: '', role: u.role, active: u.active, tlId: u.tlId || '', senderEmail: u.senderEmail || '', appPassword: u.appPassword || '' });
     } else {
       setEditingUser(null);
       setFormData({ name: '', username: '', password: '', role: user?.role === 'superadmin' ? 'admin' : 'agent', active: true, tlId: '', senderEmail: '', appPassword: '' });
@@ -342,7 +342,7 @@ const Users = () => {
                   </div>
                   <div className="input-group" style={{ marginBottom: 0 }}>
                     <label>App Password (Gmail)</label>
-                    <input type="text" className="input-field" value={formData.appPassword} onChange={e => setFormData(p => ({ ...p, appPassword: e.target.value }))} placeholder={editingUser ? "Leave blank to keep current" : ""} />
+                    <input type="text" className="input-field" value={formData.appPassword} onChange={e => setFormData(p => ({ ...p, appPassword: e.target.value }))} placeholder="16-character app password" />
                   </div>
                 </div>
               )}
