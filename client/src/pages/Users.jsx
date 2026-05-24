@@ -114,8 +114,6 @@ const Users = () => {
         }
 
         if (formData.role === 'admin') {
-          if (formData.senderEmail) payload.senderEmail = formData.senderEmail;
-          if (formData.appPassword) payload.appPassword = formData.appPassword;
           if (formData.sendGridApiKey) payload.sendGridApiKey = formData.sendGridApiKey;
         }
 
@@ -337,15 +335,7 @@ const Users = () => {
               )}
               {formData.role === 'admin' && (
                 <div className="grid-2" style={{ gap: 12, marginTop: 12 }}>
-                  <div className="input-group" style={{ marginBottom: 0 }}>
-                    <label>Sender Email (for conversions)</label>
-                    <input type="email" className="input-field" value={formData.senderEmail} onChange={e => setFormData(p => ({ ...p, senderEmail: e.target.value }))} />
-                  </div>
-                  <div className="input-group" style={{ marginBottom: 0 }}>
-                    <label>App Password (Gmail)</label>
-                    <input type="text" className="input-field" value={formData.appPassword} onChange={e => setFormData(p => ({ ...p, appPassword: e.target.value }))} placeholder="16-character app password" />
-                  </div>
-                  <div className="input-group" style={{ marginBottom: 0, gridColumn: '1 / -1', marginTop: 12 }}>
+                  <div className="input-group" style={{ marginBottom: 0, gridColumn: '1 / -1' }}>
                     <label>SendGrid API Key</label>
                     <input type="text" className="input-field" value={formData.sendGridApiKey} onChange={e => setFormData(p => ({ ...p, sendGridApiKey: e.target.value }))} placeholder="SG.xxxxxxxxxxxxxx" />
                   </div>
