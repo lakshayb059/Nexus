@@ -2,7 +2,7 @@ const { prisma } = require('./db');
 const { sendConversionEmail } = require('./emailService');
 
 async function triggerConversionEmail(contactId, receiptImageBase64 = null) {
-  // Add retry logic for better reliability
+  // Add retry logic with better backoff
   const maxRetries = 3;
   let lastError = null;
   
@@ -10,9 +10,11 @@ async function triggerConversionEmail(contactId, receiptImageBase64 = null) {
     try {
       console.log(`Attempt ${attempt} to send conversion email for contact ${contactId}`);
       
-      // Add a small delay before retrying (exponential backoff)
+      // Exponential backoff with jitter
       if (attempt > 1) {
-        const delay = Math.pow(2, attempt - 1) * 1000;
+        const baseDelay = Math.pow(2, attempt - 1) * 1000;
+        const jitter = Math.random() * 1000;
+        const delay = baseDelay + jitter;
         console.log(`Waiting ${delay}ms before retry...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
@@ -112,7 +114,7 @@ async function triggerConversionEmail(contactId, receiptImageBase64 = null) {
         receiptImageBase64: receiptImageBase64
       };
 
-      // Send email with timeout wrapper
+      // Send email with Promise.race for timeout
       const emailPromise = sendConversionEmail(
         senderEmail,
         appPassword,
@@ -121,27 +123,29 @@ async function triggerConversionEmail(contactId, receiptImageBase64 = null) {
         emailDetails
       );
       
-      // Add a global timeout for the email operation
+      // Longer timeout for email operation
       const timeoutPromise = new Promise((resolve) => {
-        setTimeout(() => resolve({ success: false, reason: 'Email timeout after 45 seconds' }), 45000);
+        setTimeout(() => resolve({ success: false, reason: 'Email timeout after 90 seconds' }), 90000);
       });
       
       const result = await Promise.race([emailPromise, timeoutPromise]);
       
-      if (result === true || result.success === true) {
+      if (result === true || (result && result.success === true)) {
         console.log(`Conversion email sent successfully for contact ${contactId} on attempt ${attempt}`);
         return { success: true };
       } else if (result === false) {
         lastError = 'Email sending failed';
         console.log(`Email sending failed on attempt ${attempt}`);
         if (attempt === maxRetries) {
-          return { success: false, reason: 'Email sending failed after retries' };
+          // Don't fail the entire operation - log but return success for lead conversion
+          console.error(`Failed to send email after ${maxRetries} attempts, but lead conversion is successful`);
+          return { success: true, warning: 'Lead converted but email notification failed' };
         }
-      } else if (result.reason) {
+      } else if (result && result.reason) {
         lastError = result.reason;
         console.log(`Email error on attempt ${attempt}: ${result.reason}`);
         if (attempt === maxRetries) {
-          return result;
+          return { success: true, warning: `Lead converted but email failed: ${result.reason}` };
         }
       }
       
@@ -149,12 +153,13 @@ async function triggerConversionEmail(contactId, receiptImageBase64 = null) {
       lastError = err.message;
       console.error(`Failed to trigger conversion email (attempt ${attempt}):`, err);
       if (attempt === maxRetries) {
-        return { success: false, reason: err.message };
+        // Don't fail lead conversion because email failed
+        return { success: true, warning: `Lead converted but email notification failed: ${err.message}` };
       }
     }
   }
   
-  return { success: false, reason: lastError || 'Unknown error after retries' };
+  return { success: true, warning: `Lead converted but email notification had issues: ${lastError || 'Unknown error'}` };
 }
 
 module.exports = { triggerConversionEmail };
