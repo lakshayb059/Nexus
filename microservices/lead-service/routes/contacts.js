@@ -651,17 +651,18 @@ router.put('/:id/status', verify, authorize(['superadmin', 'agent', 'tl', 'admin
       update.disposition = 'Lead';
       update.leadAmount = parseFloat(leadAmount) || contact.leadAmount || 0;
       update.conversionDate = new Date();
+      if (req.body.transactionId !== undefined) update.transactionId = req.body.transactionId;
+      if (req.body.status === 'Converted') update.status = 'Converted';
 
       await prisma.lead.deleteMany({ where: { contactId: contact.id } });
       await prisma.lead.create({
         data: {
           contactId: contact.id, fields: contact.fields || {}, batchId: contact.batchId,
           assignedTo: contact.assignedTo, agentName: contact.agentName || req.user.name,
-          leadAmount: update.leadAmount, status: 'Lead', adminId: contact.adminId,
+          leadAmount: update.leadAmount, status: update.status || 'Lead', adminId: contact.adminId,
           transactionId: req.body.transactionId
         }
       });
-      let emailResult = null;
       if (req.body.status === 'Converted') {
         // Run asynchronously to not block the response
         triggerConversionEmail(contact.id, req.body.receiptImage).then(emailResult => {

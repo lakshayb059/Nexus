@@ -458,6 +458,8 @@ router.put('/:id', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), as
       if (req.body.remarks !== undefined) contactUpdate.remarks = req.body.remarks;
       if (req.body.callBackDt) contactUpdate.callBackDt = new Date(req.body.callBackDt);
       if (req.body.appointmentDt) contactUpdate.appointmentDt = new Date(req.body.appointmentDt);
+      if (req.body.transactionId !== undefined) contactUpdate.transactionId = req.body.transactionId;
+      if (req.body.status === 'Converted') contactUpdate.conversionDate = new Date();
 
       await Promise.all([
         prisma.lead.update({ where: { id: leadId }, data: updateData }),
@@ -494,6 +496,8 @@ router.put('/:id', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), as
       if (req.body.remarks !== undefined) contactUpdate.remarks = req.body.remarks;
       if (req.body.callBackDt) contactUpdate.callBackDt = new Date(req.body.callBackDt);
       if (req.body.appointmentDt) contactUpdate.appointmentDt = new Date(req.body.appointmentDt);
+      if (req.body.transactionId !== undefined) contactUpdate.transactionId = req.body.transactionId;
+      if (req.body.status === 'Converted') contactUpdate.conversionDate = new Date();
 
       await prisma.contact.update({ where: { id: leadId }, data: contactUpdate });
       await prisma.lead.updateMany({ where: { contactId: leadId }, data: updateData });
