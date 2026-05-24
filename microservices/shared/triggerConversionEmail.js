@@ -2,19 +2,15 @@ const { prisma } = require('./db');
 const { sendConversionEmail } = require('./emailService');
 
 async function triggerConversionEmail(contactId, receiptImageBase64 = null) {
-  // Add retry logic with better backoff
-  const maxRetries = 3;
+  const maxRetries = 2;
   let lastError = null;
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`Attempt ${attempt} to send conversion email for contact ${contactId}`);
       
-      // Exponential backoff with jitter
       if (attempt > 1) {
-        const baseDelay = Math.pow(2, attempt - 1) * 1000;
-        const jitter = Math.random() * 1000;
-        const delay = baseDelay + jitter;
+        const delay = 2000;
         console.log(`Waiting ${delay}ms before retry...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
@@ -57,14 +53,21 @@ async function triggerConversionEmail(contactId, receiptImageBase64 = null) {
       
       console.log(`Admin found successfully (ID: ${admin.id}, Username: ${admin.username || 'N/A'})`);
 
+      // For SendGrid, we need API key instead of app password
       const senderEmail = admin.senderEmail;
-      const appPassword = admin.appPassword ? admin.appPassword.replace(/\s+/g, '') : null;
+      const sendGridApiKey = admin.sendGridApiKey || process.env.SENDGRID_API_KEY; // Add this field to your User model
       const receiverEmail = admin.companyReceiverEmail || admin.notificationEmail;
 
-      if (!senderEmail || !appPassword) {
-        console.log(`Missing email credentials for admin ${adminId}`);
-        return { success: false, reason: 'Admin has no sender email or app password configured' };
+      if (!senderEmail) {
+        console.log(`Missing sender email for admin ${adminId}`);
+        return { success: false, reason: 'Admin has no sender email configured' };
       }
+      
+      if (!sendGridApiKey) {
+        console.log(`Missing SendGrid API key for admin ${adminId}`);
+        return { success: false, reason: 'SendGrid API key not configured. Please add sendGridApiKey to admin profile.' };
+      }
+      
       if (!receiverEmail) {
         console.log(`No receiver email for admin ${adminId}`);
         return { success: false, reason: 'Admin has no receiver email configured' };
@@ -92,7 +95,6 @@ async function triggerConversionEmail(contactId, receiptImageBase64 = null) {
       const name = fields.Name || fields.name || fields.fullName || 'Unknown Lead';
       const phone = fields.Phone || fields.phone || fields.Mobile || fields.mobile || 'N/A';
       
-      // Find lead to get transaction details
       const lead = await prisma.lead.findFirst({ 
         where: { contactId }, 
         orderBy: { createdAt: 'desc' } 
@@ -114,52 +116,30 @@ async function triggerConversionEmail(contactId, receiptImageBase64 = null) {
         receiptImageBase64: receiptImageBase64
       };
 
-      // Send email with Promise.race for timeout
-      const emailPromise = sendConversionEmail(
+      const result = await sendConversionEmail(
         senderEmail,
-        appPassword,
+        sendGridApiKey,
         receiverEmail,
         admin.companyName || 'Our Company',
         emailDetails
       );
       
-      // Longer timeout for email operation
-      const timeoutPromise = new Promise((resolve) => {
-        setTimeout(() => resolve({ success: false, reason: 'Email timeout after 90 seconds' }), 90000);
-      });
-      
-      const result = await Promise.race([emailPromise, timeoutPromise]);
-      
-      if (result === true || (result && result.success === true)) {
+      if (result === true) {
         console.log(`Conversion email sent successfully for contact ${contactId} on attempt ${attempt}`);
         return { success: true };
-      } else if (result === false) {
+      } else {
         lastError = 'Email sending failed';
         console.log(`Email sending failed on attempt ${attempt}`);
-        if (attempt === maxRetries) {
-          // Don't fail the entire operation - log but return success for lead conversion
-          console.error(`Failed to send email after ${maxRetries} attempts, but lead conversion is successful`);
-          return { success: true, warning: 'Lead converted but email notification failed' };
-        }
-      } else if (result && result.reason) {
-        lastError = result.reason;
-        console.log(`Email error on attempt ${attempt}: ${result.reason}`);
-        if (attempt === maxRetries) {
-          return { success: true, warning: `Lead converted but email failed: ${result.reason}` };
-        }
       }
       
     } catch (err) {
       lastError = err.message;
       console.error(`Failed to trigger conversion email (attempt ${attempt}):`, err);
-      if (attempt === maxRetries) {
-        // Don't fail lead conversion because email failed
-        return { success: true, warning: `Lead converted but email notification failed: ${err.message}` };
-      }
     }
   }
   
-  return { success: true, warning: `Lead converted but email notification had issues: ${lastError || 'Unknown error'}` };
+  // Don't fail lead conversion if email fails
+  return { success: true, warning: `Lead converted but email notification failed: ${lastError || 'Unknown error'}` };
 }
 
 module.exports = { triggerConversionEmail };
