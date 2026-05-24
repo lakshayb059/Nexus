@@ -12,7 +12,7 @@ const Users = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen,  setIsModalOpen]  = useState(false);
   const [editingUser,  setEditingUser]  = useState(null);
-  const [formData,     setFormData]     = useState({ name: '', username: '', password: '', role: 'agent', active: true, tlId: '', senderEmail: '', appPassword: '' });
+  const [formData,     setFormData]     = useState({ name: '', username: '', password: '', role: 'agent', active: true, tlId: '', senderEmail: '', appPassword: '', sendGridApiKey: '' });
   const [isSaving,     setIsSaving]     = useState(false);
   
   // New state for TL disposition
@@ -65,10 +65,10 @@ const Users = () => {
   const openModal = (u = null) => {
     if (u) {
       setEditingUser(u);
-      setFormData({ name: u.name, username: u.username, password: '', role: u.role, active: u.active, tlId: u.tlId || '', senderEmail: u.senderEmail || '', appPassword: u.appPassword || '' });
+      setFormData({ name: u.name, username: u.username, password: '', role: u.role, active: u.active, tlId: u.tlId || '', senderEmail: u.senderEmail || '', appPassword: u.appPassword || '', sendGridApiKey: u.sendGridApiKey || '' });
     } else {
       setEditingUser(null);
-      setFormData({ name: '', username: '', password: '', role: user?.role === 'superadmin' ? 'admin' : 'agent', active: true, tlId: '', senderEmail: '', appPassword: '' });
+      setFormData({ name: '', username: '', password: '', role: user?.role === 'superadmin' ? 'admin' : 'agent', active: true, tlId: '', senderEmail: '', appPassword: '', sendGridApiKey: '' });
     }
     setIsModalOpen(true);
   };
@@ -116,6 +116,7 @@ const Users = () => {
         if (formData.role === 'admin') {
           if (formData.senderEmail) payload.senderEmail = formData.senderEmail;
           if (formData.appPassword) payload.appPassword = formData.appPassword;
+          if (formData.sendGridApiKey) payload.sendGridApiKey = formData.sendGridApiKey;
         }
 
         if (reactivateAction !== null) {
@@ -343,6 +344,10 @@ const Users = () => {
                   <div className="input-group" style={{ marginBottom: 0 }}>
                     <label>App Password (Gmail)</label>
                     <input type="text" className="input-field" value={formData.appPassword} onChange={e => setFormData(p => ({ ...p, appPassword: e.target.value }))} placeholder="16-character app password" />
+                  </div>
+                  <div className="input-group" style={{ marginBottom: 0, gridColumn: '1 / -1', marginTop: 12 }}>
+                    <label>SendGrid API Key</label>
+                    <input type="text" className="input-field" value={formData.sendGridApiKey} onChange={e => setFormData(p => ({ ...p, sendGridApiKey: e.target.value }))} placeholder="SG.xxxxxxxxxxxxxx" />
                   </div>
                 </div>
               )}

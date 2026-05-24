@@ -25,7 +25,7 @@ app.post('/auth/login', async (req, res) => {
 
         const user = await prisma.user.findUnique({
             where: { username: username.trim().toLowerCase() },
-            select: { password: 1, active: 1, id: 1, username: 1, name: 1, role: 1, tlId: 1, adminId: 1, notificationEmail: 1, senderEmail: 1, appPassword: 1, companyReceiverEmail: 1, companyName: 1 }
+            select: { password: 1, active: 1, id: 1, username: 1, name: 1, role: 1, tlId: 1, adminId: 1, notificationEmail: 1, senderEmail: 1, appPassword: 1, sendGridApiKey: 1, companyReceiverEmail: 1, companyName: 1 }
         });
 
         if (!user) return res.json({ error: 'Invalid credentials' });
@@ -110,6 +110,7 @@ app.get('/users', verify, authorize(['superadmin', 'admin']), async (req, res) =
         notificationEmail: true,
         senderEmail: true,
         appPassword: true,
+        sendGridApiKey: true,
         companyReceiverEmail: true,
         companyName: true,
         createdAt: true,
@@ -144,6 +145,7 @@ app.get('/users/my-agents', verify, authorize('tl'), async (req, res) => {
         notificationEmail: true,
         senderEmail: true,
         appPassword: true,
+        sendGridApiKey: true,
         companyReceiverEmail: true,
         companyName: true,
         createdAt: true,
@@ -158,7 +160,7 @@ app.get('/users/my-agents', verify, authorize('tl'), async (req, res) => {
 
 app.post('/users', verify, authorize(['superadmin', 'admin']), async (req, res) => {
   try {
-    const { username, password, name, role, tlId, senderEmail, appPassword } = req.body;
+    const { username, password, name, role, tlId, senderEmail, appPassword, sendGridApiKey } = req.body;
     
     if (role === 'admin' && req.user.role !== 'superadmin') {
       return res.status(403).json({ error: 'Only Super Admin can create Admin users' });
@@ -180,6 +182,7 @@ app.post('/users', verify, authorize(['superadmin', 'admin']), async (req, res) 
       adminId: req.user.role === 'admin' ? (req.user._id || req.user.id) : null,
       senderEmail: role === 'admin' ? senderEmail : null,
       appPassword: role === 'admin' ? appPassword : null,
+      sendGridApiKey: role === 'admin' ? sendGridApiKey : null,
       active: true,
       isDeleted: false,
     };
@@ -195,7 +198,7 @@ app.post('/users', verify, authorize(['superadmin', 'admin']), async (req, res) 
 
 app.put('/users/:id', verify, authorize(['superadmin', 'admin']), async (req, res) => {
   try {
-    const { name, password, active, tlId, agentAction, newTlId, reactivateAgents, notificationEmail, companyReceiverEmail, companyName, senderEmail, appPassword } = req.body;
+    const { name, password, active, tlId, agentAction, newTlId, reactivateAgents, notificationEmail, companyReceiverEmail, companyName, senderEmail, appPassword, sendGridApiKey } = req.body;
     const userId = req.params.id;
     
     const existingUser = await prisma.user.findUnique({ where: { id: userId } });
@@ -211,6 +214,7 @@ app.put('/users/:id', verify, authorize(['superadmin', 'admin']), async (req, re
     if (companyName !== undefined) updateData.companyName = companyName;
     if (senderEmail !== undefined) updateData.senderEmail = senderEmail;
     if (appPassword !== undefined) updateData.appPassword = appPassword;
+    if (sendGridApiKey !== undefined) updateData.sendGridApiKey = sendGridApiKey;
 
     if (existingUser.role === 'tl' && !!active === false && existingUser.active === true) {
       const agentsUnderTL = await prisma.user.findMany({ 
