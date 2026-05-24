@@ -12,13 +12,6 @@ async function consolidateCallbacks(phoneNum) {
   if (!normalized) return;
 
   try {
-    // In Prisma, searching JSON fields with Regex is not natively supported without raw queries.
-    // For this migration, we will fetch callbacks that have fields and filter in memory, 
-    // or we'd ideally use a raw query. Since we want a robust Prisma way, we'll fetch recently created callbacks.
-    // To avoid fetching all, we might fetch callbacks from the last few days, but to be safe we fetch all 
-    // (which might be inefficient, so let's try a raw query or just fetch those where contactId is known).
-    // Actually, Prisma postgres raw query for JSON:
-    
     const allCallbacks = await prisma.callback.findMany({
       orderBy: { createdAt: 'desc' }
     });

@@ -1,6 +1,6 @@
 const router = require('express').Router();
-const { prisma } = require('../../shared/db');
-const { verify, authorize } = require('../../shared/authMiddleware');
+const { prisma } = require('../shared/db');
+const { verify, authorize } = require('../shared/authMiddleware');
 const XLSX = require('xlsx');
 
 const DISP_LABELS = {
@@ -127,7 +127,7 @@ router.get('/download', verify, authorize(['superadmin', 'admin', 'tl', 'agent']
       row['Disposition'] = c.disposition ? (DISP_LABELS[c.disposition] || c.disposition) : 'Pending';
       row['Lead Amount'] = c.leadAmount || '';
       row['Lead Status'] = c.status || '';
-      row['Other Remarks'] = c.remarks || ''; // Map statusDetails/remarks appropriately
+      row['Other Remarks'] = c.remarks || '';
       row['Agent Remarks'] = c.remarks || '';
       row['Appointment Date & Time'] = c.appointmentDt ? new Date(c.appointmentDt).toLocaleString('en-IN') : '';
       row['Last Modified'] = c.lastModified ? new Date(c.lastModified).toLocaleString('en-IN') : '';
@@ -138,10 +138,10 @@ router.get('/download', verify, authorize(['superadmin', 'admin', 'tl', 'agent']
       const ws = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'CRM Report');
-      const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename="crm_report_${Date.now()}.xlsx"`);
-      return res.send(buf);
+      return res.send(buffer);
     }
 
     const headers = rows.length ? Object.keys(rows[0]) : [];

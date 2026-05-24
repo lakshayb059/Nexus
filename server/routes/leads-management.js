@@ -1,8 +1,8 @@
 const router = require('express').Router();
-const { prisma } = require('../../shared/db');
-const { authorize, verify } = require('../../shared/authMiddleware');
-const { consolidateCallbacks, cleanupAllCallbacks } = require('../../shared/callbackUtils');
-const { broadcast } = require('../../shared/notificationClient');
+const { prisma } = require('../shared/db');
+const { authorize, verify } = require('../shared/authMiddleware');
+const { consolidateCallbacks, cleanupAllCallbacks } = require('../shared/callbackUtils');
+const { broadcast } = require('../shared/notificationClient');
 
 async function getQueueStats(agentId) {
   const pending = await prisma.contact.count({

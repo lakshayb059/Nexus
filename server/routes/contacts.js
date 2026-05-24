@@ -1,9 +1,9 @@
 const router = require('express').Router();
-const { prisma } = require('../../shared/db');
-const { authorize, verify } = require('../../shared/authMiddleware');
-const { consolidateCallbacks, cleanupAllCallbacks, normalizePhone } = require('../../shared/callbackUtils');
-const { broadcast } = require('../../shared/notificationClient');
-const { triggerConversionEmail } = require('../../shared/triggerConversionEmail');
+const { prisma } = require('../shared/db');
+const { authorize, verify } = require('../shared/authMiddleware');
+const { consolidateCallbacks, cleanupAllCallbacks, normalizePhone } = require('../shared/callbackUtils');
+const { broadcast } = require('../shared/notificationClient');
+const { triggerConversionEmail } = require('../shared/triggerConversionEmail');
 
 async function getAccessibleContactsQuery(user, filters = {}, includeDeleted = false) {
   let where = { ...filters };
@@ -43,12 +43,9 @@ router.get('/', verify, authorize(['superadmin', 'admin', 'tl', 'agent']), async
     }
     if (req.user.role === 'admin' && tlId) filters.tlId = tlId;
     
-    // JSON search might not be perfectly supported in Prisma without raw queries, doing our best here
     let whereQuery = await getAccessibleContactsQuery(req.user, filters);
 
     if (search && search.trim()) {
-      // If search is provided, we must fetch all matching base filters and filter in-memory
-      // since Prisma doesn't support full-text search across arbitrary JSON keys easily.
       let contacts = await prisma.contact.findMany({
         where: whereQuery,
         orderBy: { createdAt: 'desc' }
@@ -264,7 +261,6 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
         }
       });
       if (status === 'Converted') {
-        // Run asynchronously to not block the response
         triggerConversionEmail(req.params.id, req.body.receiptImage).then(emailResult => {
             broadcast('email_status', {
                 agentId: req.user._id || req.user.id,
@@ -382,8 +378,6 @@ router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), 
       query.adminId = req.user._id || req.user.id;
     }
 
-    // Prisma doesn't do conditional aggregation well without raw SQL
-    // Doing multi-count fallback
     const [total, pending, lead, appointment, callBack, invalid, hungUp, doNotCall, leadAgg, totalAdmins, allLead, allLeadAgg] = await Promise.all([
       prisma.contact.count({ where: query }),
       prisma.contact.count({ where: { ...query, OR: [{ disposition: null }, { disposition: '' }] } }),
@@ -418,7 +412,6 @@ router.get('/agent-queues', verify, authorize(['superadmin', 'admin', 'tl']), as
     if (req.user.role === 'admin') userQuery.adminId = req.user._id || req.user.id;
     const agents = await prisma.user.findMany({ where: userQuery });
     
-    // Simplistic queue fetching since we don't have raw aggregate easily typed
     const result = await Promise.all(agents.map(async (a) => {
       const q = { assignedTo: a.id, isDeleted: false };
       const [total, pending, lead, appointment, agg] = await Promise.all([
@@ -669,7 +662,6 @@ router.put('/:id/status', verify, authorize(['superadmin', 'agent', 'tl', 'admin
         }
       });
       if (req.body.status === 'Converted') {
-        // Run asynchronously to not block the response
         triggerConversionEmail(contact.id, req.body.receiptImage).then(emailResult => {
             broadcast('email_status', {
                 agentId: req.user._id || req.user.id,
@@ -724,7 +716,5 @@ router.post('/:id/requeue', verify, authorize(['superadmin', 'agent', 'tl', 'adm
     res.status(500).json({ error: 'Server error' });
   }
 });
-
-
 
 module.exports = router;

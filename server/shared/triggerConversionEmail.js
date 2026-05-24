@@ -25,7 +25,7 @@ async function triggerConversionEmail(contactId, receiptImageBase64 = null) {
       return { success: false, reason: 'Admin has no receiver email configured' };
     }
 
-    let mailServiceUrl = process.env.MAIL_SERVICE_URL || 'http://localhost:5006';
+    let mailServiceUrl = process.env.MAIL_SERVICE_URL || 'http://localhost:3000/api/mail/send';
     if (!mailServiceUrl.endsWith('/api/mail/send')) {
       mailServiceUrl = `${mailServiceUrl.replace(/\/$/, '')}/api/mail/send`;
     }

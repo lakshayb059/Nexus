@@ -1,9 +1,8 @@
 const axios = require('axios');
-const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3003';
+const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3000/api';
 
 async function broadcast(event, data) {
   try {
-    // Only attempt broadcast if notification service URL is provided
     if (NOTIFICATION_SERVICE_URL) {
       await axios.post(`${NOTIFICATION_SERVICE_URL}/notifications/broadcast`, { event, data });
     }

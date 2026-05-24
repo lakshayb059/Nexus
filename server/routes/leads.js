@@ -1,12 +1,11 @@
 const router = require('express').Router();
-const { prisma } = require('../../shared/db');
-const { authorize, verify } = require('../../shared/authMiddleware');
-const { consolidateCallbacks } = require('../../shared/callbackUtils');
-const { broadcast } = require('../../shared/notificationClient');
-const { triggerConversionEmail } = require('../../shared/triggerConversionEmail');
+const { prisma } = require('../shared/db');
+const { authorize, verify } = require('../shared/authMiddleware');
+const { consolidateCallbacks } = require('../shared/callbackUtils');
+const { broadcast } = require('../shared/notificationClient');
+const { triggerConversionEmail } = require('../shared/triggerConversionEmail');
 const axios = require('axios');
 
-// GET /api/leads/my-leads
 router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
     const { search, source, status, page, limit } = req.query;
@@ -125,7 +124,6 @@ router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']
   }
 });
 
-// GET /api/leads/stats
 router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
     let whereQuery = {};
@@ -157,7 +155,6 @@ router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), 
       })
     ]);
     
-    // Converted Leads
     const leadContactIds = new Set(leads.map(l => l.contactId));
     const uniqueContactLeads = contactLeads.filter(c => !leadContactIds.has(c.id));
     
@@ -165,7 +162,6 @@ router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), 
     const totalAmount = leads.reduce((sum, l) => sum + (parseFloat(l.leadAmount) || 0), 0) +
                         uniqueContactLeads.reduce((sum, c) => sum + (parseFloat(c.leadAmount) || 0), 0);
                         
-    // All Leads
     const allLeadContactIds = new Set(allLeadsArr.map(l => l.contactId));
     const uniqueAllContactLeads = allContactLeads.filter(c => !allLeadContactIds.has(c.id));
     
@@ -180,7 +176,6 @@ router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), 
   }
 });
 
-// GET /leads/appointments
 router.get('/appointments', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
     const { search, page, limit } = req.query;
@@ -248,7 +243,6 @@ router.get('/appointments', verify, authorize(['superadmin', 'agent', 'tl', 'adm
   }
 });
 
-// GET /leads/callbacks
 router.get('/callbacks', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
     const { search, page, limit } = req.query;
@@ -478,9 +472,7 @@ router.put('/:id', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), as
         prisma.contact.update({ where: { id: lead.contactId }, data: contactUpdate })
       ]);
       
-      let emailResult = null;
       if (req.body.status === 'Converted' && lead.status !== 'Converted') {
-        // Run asynchronously to not block the response
         triggerConversionEmail(lead.contactId, req.body.receiptImage).then(emailResult => {
             broadcast('email_status', {
                 agentId: req.user._id || req.user.id,
@@ -515,7 +507,6 @@ router.put('/:id', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), as
       await prisma.lead.updateMany({ where: { contactId: leadId }, data: updateData });
 
       if (req.body.status === 'Converted' && (!contact || contact.status !== 'Converted')) {
-        // Run asynchronously to not block the response
         triggerConversionEmail(leadId, req.body.receiptImage).then(emailResult => {
             broadcast('email_status', {
                 agentId: req.user._id || req.user.id,
@@ -578,7 +569,7 @@ router.get('/history/:phone', verify, authorize(['superadmin', 'agent', 'tl', 'a
     }
 
     const [leads, contactLeads, allUsers] = await Promise.all([
-      prisma.lead.findMany({ where: { ...whereQuery, isDeleted: undefined } }), // isDeleted is on Contact, not Lead model
+      prisma.lead.findMany({ where: { ...whereQuery, isDeleted: undefined } }),
       prisma.contact.findMany({ where: { ...whereQuery, disposition: 'Lead' } }),
       prisma.user.findMany({ where: { role: { in: ['agent', 'tl'] } } })
     ]);
@@ -679,7 +670,6 @@ router.post('/:id/clone-and-dispose', verify, authorize(['superadmin', 'agent', 
         }
       });
       if (finalStatus === 'Converted') {
-        // Run asynchronously to not block the response
         triggerConversionEmail(newContactId, req.body.receiptImage).then(emailResult => {
             broadcast('email_status', {
                 agentId: req.user._id || req.user.id,
@@ -728,7 +718,7 @@ router.post('/extract-transaction', verify, authorize(['superadmin', 'admin', 't
     if (!apiKey) {
       console.error('[Vision OCR] Extract transaction failed: GROQ_API_KEY is not configured.');
       return res.status(400).json({ 
-        error: 'GROQ_API_KEY is not configured in your Render environment variables. Please add it to your spike-crm-lead service settings.' 
+        error: 'GROQ_API_KEY is not configured in your monolithic server settings.' 
       });
     }
 
@@ -770,17 +760,15 @@ router.post('/extract-transaction', verify, authorize(['superadmin', 'admin', 't
               'Authorization': `Bearer ${apiKey}`,
               'Content-Type': 'application/json'
             },
-            timeout: 15000 // 15 seconds timeout per model attempt
+            timeout: 15000
           }
         );
         console.log(`[Vision OCR] Success using model: ${model}`);
-        break; // Vision model completed successfully!
+        break;
       } catch (err) {
         lastError = err;
         const errDetails = err.response?.data?.error?.message || err.response?.data || err.message;
         console.warn(`[Vision OCR] Model ${model} failed:`, errDetails);
-        
-        // If it's an authentication error (401), trying other models won't help, so break early
         if (err.response?.status === 401) {
           break;
         }

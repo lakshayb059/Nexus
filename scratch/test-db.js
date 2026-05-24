@@ -1,24 +1,36 @@
-const { MongoClient } = require('mongodb');
+require('dotenv').config();
+const { Client } = require('pg');
 
-const uri = "mongodb+srv://gargabhi999:gargabhi999@crm.8eds5va.mongodb.net/?appName=CRM";
-const client = new MongoClient(uri);
+async function testConnection(url, name) {
+  console.log(`🔌 Testing connection to ${name}...`);
+  const client = new Client({
+    connectionString: url,
+    ssl: { rejectUnauthorized: false }
+  });
+
+  try {
+    await client.connect();
+    console.log(`✅ SUCCESS: Connected to ${name}!`);
+    const res = await client.query('SELECT NOW()');
+    console.log(`⏰ Time on database: ${res.rows[0].now}`);
+  } catch (err) {
+    console.error(`❌ FAILED ${name}: `, err.message);
+  } finally {
+    await client.end();
+  }
+}
 
 async function run() {
-  try {
-    console.log("📡 Attempting to connect to MongoDB Atlas...");
-    await client.connect();
-    console.log("✅ Successfully connected to Atlas!");
-    
-    const db = client.db();
-    const collections = await db.listCollections().toArray();
-    console.log("📦 Found collections:", collections.map(c => c.name));
-    
-  } catch (err) {
-    console.error("❌ Connection failed!");
-    console.error(err.message);
-  } finally {
-    await client.close();
-  }
+  const internalUrl = process.env.DATABASE_URL;
+  // External url is the same, but replaces "-a.oregon-postgres" with ".oregon-postgres"
+  const externalUrl = internalUrl.replace('-a.oregon-postgres', '.oregon-postgres');
+  
+  console.log(`Internal URL: ${internalUrl}`);
+  console.log(`External URL: ${externalUrl}`);
+  
+  await testConnection(internalUrl, "INTERNAL URL");
+  console.log("-----------------------------------------");
+  await testConnection(externalUrl, "EXTERNAL URL");
 }
 
 run();

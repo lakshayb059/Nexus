@@ -107,7 +107,7 @@ model Callback {
   agentName    String?   @map("agent_name")
   adminId      String?   @map("admin_id")
   callBackDt   DateTime? @map("call_back_dt")
-  remarks      String?
+  remarks       String?
   status       String?
   source       String?
   createdAt    DateTime? @default(now()) @map("created_at")

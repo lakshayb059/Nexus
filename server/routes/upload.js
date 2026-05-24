@@ -2,10 +2,10 @@ const router = require('express').Router();
 const multer = require('multer');
 const csvSync = require('csv-parse/sync');
 const XLSX = require('xlsx');
-const { prisma } = require('../../shared/db');
-const { authorize, verify } = require('../../shared/authMiddleware');
-const { normalizePhone } = require('../../shared/callbackUtils');
-const { broadcast } = require('../../shared/notificationClient');
+const { prisma } = require('../shared/db');
+const { authorize, verify } = require('../shared/authMiddleware');
+const { normalizePhone } = require('../shared/callbackUtils');
+const { broadcast } = require('../shared/notificationClient');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -107,7 +107,6 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
       if (isLead) {
         contactDoc.status = row.Status || row.status || 'Converted';
         contactDoc.leadAmount = Number(row.LeadAmount || row.leadAmount || row.Amount || 0);
-        // Note: transactionId doesn't exist in Prisma Schema for Contact, we can put it in remarks or fields
         const transactionId = row.TransactionId || row.transactionId || '';
         contactDoc.remarks = (row.Remarks || row.remarks || 'Uploaded via Lead Template') + (transactionId ? ` (TXN: ${transactionId})` : '');
       }
@@ -144,7 +143,6 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
   }
 });
 
-// GET /upload/batches - Fetch historical data uploads
 router.get('/batches', verify, authorize(['superadmin', 'admin', 'tl']), async (req, res) => {
   try {
     let where = {};
@@ -157,14 +155,12 @@ router.get('/batches', verify, authorize(['superadmin', 'admin', 'tl']), async (
       where, 
       orderBy: { createdAt: 'desc' } 
     });
-    // Map id to _id and createdAt to uploadedAt for UI compatibility
     res.json(batches.map(b => ({ ...b, _id: b.id, uploadedAt: b.createdAt })));
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch batches' });
   }
 });
 
-// GET /upload/template - Download upload templates
 router.get('/template', verify, authorize(['admin', 'tl', 'agent']), async (req, res) => {
   const format = req.query.format || 'csv';
   const type = req.query.type || 'contacts';

@@ -5,28 +5,15 @@ Write-Host "🚀 Starting Nexus Microservices locally..." -ForegroundColor Cyan
 Write-Host "🧹 Cleaning up old node processes..." -ForegroundColor Yellow
 Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force
 
-# 2. Launch Backend Services
-Write-Host "📦 Launching Auth Service (3001)..."
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "node microservices/auth-service/server.js" -WindowStyle Normal
-
-Write-Host "📦 Launching Lead Service (3002)..."
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "node microservices/lead-service/server.js" -WindowStyle Normal
-
-Write-Host "📦 Launching Notification Service (3003)..."
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "node microservices/notification-service/server.js" -WindowStyle Normal
-
-Write-Host "📦 Launching Reporting Service (3004)..."
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "node microservices/reporting-service/server.js" -WindowStyle Normal
+# 2. Launch Monolithic Backend Server
+Write-Host "📦 Launching Unified Monolithic CRM Server (3000)..."
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "node server/server.js" -WindowStyle Normal
 
 # 3. Wait for services to initialize
-Write-Host "⏳ Waiting for microservices to initialize..." -ForegroundColor Gray
+Write-Host "⏳ Waiting for backend to initialize and sync schema..." -ForegroundColor Gray
 Start-Sleep -Seconds 5
 
-# 4. Launch API Gateway
-Write-Host "📦 Launching API Gateway (3000)..."
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "node microservices/gateway/server.js" -WindowStyle Normal
-
-# 5. Launch Vite Client
+# 4. Launch Vite Client
 Write-Host "📦 Launching Vite Client (5173)..."
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd client; npm run dev" -WindowStyle Normal
 
