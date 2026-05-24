@@ -7,19 +7,30 @@ if (dns.setDefaultResultOrder) {
 }
 
 const sendConversionEmail = async (senderEmail, appPassword, receiverEmail, companyName, emailDetails) => {
+  // Create transporter with better configuration for Render environment
   const transporter = nodemailer.createTransport({
-    pool: true,
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true, // use SSL
     auth: {
       user: senderEmail,
       pass: appPassword
     },
     tls: {
-      rejectUnauthorized: false
-    }
+      rejectUnauthorized: false,
+      ciphers: 'SSLv3'
+    },
+    socketTimeout: 30000, // 30 seconds socket timeout
+    connectionTimeout: 30000, // 30 seconds connection timeout
+    debug: false, // Set to true for debugging
+    pool: false // Disable connection pooling to avoid hanging connections
   });
 
   try {
+    // Verify connection configuration before sending
+    await transporter.verify();
+    console.log('SMTP connection verified successfully');
+    
     const { leadName, contact, agentName, tlName, adminName, amount, transactionId, receiptImageBase64 } = emailDetails;
     
     let htmlContent = `
@@ -61,10 +72,21 @@ const sendConversionEmail = async (senderEmail, appPassword, receiverEmail, comp
     }
 
     const info = await transporter.sendMail(mailOptions);
-    console.log('Conversion email sent: ' + info.messageId);
+    console.log('Conversion email sent successfully: ' + info.messageId);
+    
+    // Close the transporter connection
+    transporter.close();
     return true;
   } catch (error) {
     console.error('Error sending conversion email:', error);
+    // Log more details about the error
+    if (error.code === 'ETIMEDOUT') {
+      console.error('Connection timeout - Check if Gmail SMTP is accessible from this network');
+    } else if (error.code === 'EAUTH') {
+      console.error('Authentication failed - Check email and app password');
+    } else if (error.code === 'ESOCKET') {
+      console.error('Socket error - Network connectivity issue');
+    }
     return false;
   }
 };
