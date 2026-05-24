@@ -17,12 +17,6 @@ model User {
   adminId      String?   @map("admin_id")
   active       Boolean   @default(true)
   isDeleted    Boolean   @default(false)
-  notificationEmail String? @map("notification_email")
-  senderEmail       String? @map("sender_email")
-  appPassword       String? @map("app_password")
-  companyReceiverEmail String? @map("company_receiver_email")
-  companyName       String? @map("company_name")
-  sendGridApiKey    String? @map("send_grid_api_key")
   createdAt    DateTime? @default(now()) @map("created_at")
   updatedAt    DateTime? @updatedAt @map("updated_at")
 

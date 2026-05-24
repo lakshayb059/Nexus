@@ -25,7 +25,7 @@ app.post('/auth/login', async (req, res) => {
 
         const user = await prisma.user.findUnique({
             where: { username: username.trim().toLowerCase() },
-            select: { password: 1, active: 1, id: 1, username: 1, name: 1, role: 1, tlId: 1, adminId: 1, notificationEmail: 1, senderEmail: 1, appPassword: 1, sendGridApiKey: 1, companyReceiverEmail: 1, companyName: 1 }
+            select: { password: 1, active: 1, id: 1, username: 1, name: 1, role: 1, tlId: 1, adminId: 1 }
         });
 
         if (!user) return res.json({ error: 'Invalid credentials' });
@@ -34,23 +34,7 @@ app.post('/auth/login', async (req, res) => {
         const valid = await bcrypt.compare(password, user.password);
         if (!valid) return res.json({ error: 'Invalid credentials' });
 
-        let adminEmail = user.notificationEmail;
-        let adminCompany = user.companyName;
 
-        if (user.role !== 'admin' && user.role !== 'superadmin') {
-            let actualAdminId = user.adminId;
-            if (!actualAdminId && user.tlId) {
-                const tl = await prisma.user.findUnique({ where: { id: user.tlId } });
-                if (tl && tl.adminId) actualAdminId = tl.adminId;
-            }
-            if (actualAdminId) {
-                const admin = await prisma.user.findUnique({ where: { id: actualAdminId } });
-                if (admin) {
-                    adminEmail = admin.notificationEmail;
-                    adminCompany = admin.companyName;
-                }
-            }
-        }
 
         const tokenPayload = {
           _id: user.id, // Auth middleware might expect _id
@@ -59,13 +43,7 @@ app.post('/auth/login', async (req, res) => {
           name: user.name,
           role: user.role,
           tlId: user.tlId,
-          adminId: user.adminId,
-          notificationEmail: user.notificationEmail,
-          senderEmail: user.senderEmail,
-          companyReceiverEmail: user.companyReceiverEmail,
-          companyName: user.companyName,
-          adminEmail,
-          adminCompany
+          adminId: user.adminId
         };
         const token = sign(tokenPayload);
 
@@ -78,7 +56,7 @@ app.post('/auth/login', async (req, res) => {
 
         res.json({
             token,
-            user: { _id: user.id, username: user.username, name: user.name, role: user.role, tlId: user.tlId, adminId: user.adminId, notificationEmail: user.notificationEmail, senderEmail: user.senderEmail, companyReceiverEmail: user.companyReceiverEmail, companyName: user.companyName, adminEmail, adminCompany }
+            user: { _id: user.id, username: user.username, name: user.name, role: user.role, tlId: user.tlId, adminId: user.adminId }
         });
     } catch (err) {
         console.error(`❌ [AUTH LOGIN FATAL ERROR]:`, err);
@@ -107,12 +85,7 @@ app.get('/users', verify, authorize(['superadmin', 'admin']), async (req, res) =
         adminId: true,
         active: true,
         isDeleted: true,
-        notificationEmail: true,
-        senderEmail: true,
-        appPassword: true,
-        sendGridApiKey: true,
-        companyReceiverEmail: true,
-        companyName: true,
+
         createdAt: true,
         updatedAt: true,
       }
@@ -142,12 +115,7 @@ app.get('/users/my-agents', verify, authorize('tl'), async (req, res) => {
         adminId: true,
         active: true,
         isDeleted: true,
-        notificationEmail: true,
-        senderEmail: true,
-        appPassword: true,
-        sendGridApiKey: true,
-        companyReceiverEmail: true,
-        companyName: true,
+
         createdAt: true,
         updatedAt: true,
       }
@@ -160,7 +128,7 @@ app.get('/users/my-agents', verify, authorize('tl'), async (req, res) => {
 
 app.post('/users', verify, authorize(['superadmin', 'admin']), async (req, res) => {
   try {
-    const { username, password, name, role, tlId, senderEmail, appPassword, sendGridApiKey } = req.body;
+    const { username, password, name, role, tlId } = req.body;
     
     if (role === 'admin' && req.user.role !== 'superadmin') {
       return res.status(403).json({ error: 'Only Super Admin can create Admin users' });
@@ -180,9 +148,7 @@ app.post('/users', verify, authorize(['superadmin', 'admin']), async (req, res) 
       role,
       tlId: role === 'agent' ? (tlId ? tlId : null) : null,
       adminId: req.user.role === 'admin' ? (req.user._id || req.user.id) : null,
-      senderEmail: role === 'admin' ? senderEmail : null,
-      appPassword: role === 'admin' ? appPassword : null,
-      sendGridApiKey: role === 'admin' ? sendGridApiKey : null,
+
       active: true,
       isDeleted: false,
     };
@@ -198,7 +164,7 @@ app.post('/users', verify, authorize(['superadmin', 'admin']), async (req, res) 
 
 app.put('/users/:id', verify, authorize(['superadmin', 'admin']), async (req, res) => {
   try {
-    const { name, password, active, tlId, agentAction, newTlId, reactivateAgents, notificationEmail, companyReceiverEmail, companyName, senderEmail, appPassword, sendGridApiKey } = req.body;
+    const { name, password, active, tlId, agentAction, newTlId, reactivateAgents } = req.body;
     const userId = req.params.id;
     
     const existingUser = await prisma.user.findUnique({ where: { id: userId } });
@@ -209,12 +175,6 @@ app.put('/users/:id', verify, authorize(['superadmin', 'admin']), async (req, re
     if (active !== undefined) updateData.active = !!active;
     if (tlId !== undefined) updateData.tlId = tlId ? tlId : null;
     if (password) updateData.password = await bcrypt.hash(password, 10);
-    if (notificationEmail !== undefined) updateData.notificationEmail = notificationEmail;
-    if (companyReceiverEmail !== undefined) updateData.companyReceiverEmail = companyReceiverEmail;
-    if (companyName !== undefined) updateData.companyName = companyName;
-    if (senderEmail !== undefined) updateData.senderEmail = senderEmail;
-    if (appPassword !== undefined) updateData.appPassword = appPassword;
-    if (sendGridApiKey !== undefined) updateData.sendGridApiKey = sendGridApiKey;
 
     if (existingUser.role === 'tl' && !!active === false && existingUser.active === true) {
       const agentsUnderTL = await prisma.user.findMany({ 

@@ -12,7 +12,7 @@ const Users = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen,  setIsModalOpen]  = useState(false);
   const [editingUser,  setEditingUser]  = useState(null);
-  const [formData,     setFormData]     = useState({ name: '', username: '', password: '', role: 'agent', active: true, tlId: '', senderEmail: '', appPassword: '', sendGridApiKey: '' });
+  const [formData,     setFormData]     = useState({ name: '', username: '', password: '', role: 'agent', active: true, tlId: '' });
   const [isSaving,     setIsSaving]     = useState(false);
   
   // New state for TL disposition
@@ -65,10 +65,10 @@ const Users = () => {
   const openModal = (u = null) => {
     if (u) {
       setEditingUser(u);
-      setFormData({ name: u.name, username: u.username, password: '', role: u.role, active: u.active, tlId: u.tlId || '', senderEmail: u.senderEmail || '', appPassword: u.appPassword || '', sendGridApiKey: u.sendGridApiKey || '' });
+      setFormData({ name: u.name, username: u.username, password: '', role: u.role, active: u.active, tlId: u.tlId || '' });
     } else {
       setEditingUser(null);
-      setFormData({ name: '', username: '', password: '', role: user?.role === 'superadmin' ? 'admin' : 'agent', active: true, tlId: '', senderEmail: '', appPassword: '', sendGridApiKey: '' });
+      setFormData({ name: '', username: '', password: '', role: user?.role === 'superadmin' ? 'admin' : 'agent', active: true, tlId: '' });
     }
     setIsModalOpen(true);
   };
@@ -111,10 +111,6 @@ const Users = () => {
           if (dispositionData.action === 'reassign') {
             payload.newTlId = dispositionData.newTlId;
           }
-        }
-
-        if (formData.role === 'admin') {
-          if (formData.sendGridApiKey) payload.sendGridApiKey = formData.sendGridApiKey;
         }
 
         if (reactivateAction !== null) {
@@ -331,14 +327,6 @@ const Users = () => {
                       <option value="admin">Admin</option>
                     )}
                   </select>
-                </div>
-              )}
-              {formData.role === 'admin' && (
-                <div className="grid-2" style={{ gap: 12, marginTop: 12 }}>
-                  <div className="input-group" style={{ marginBottom: 0, gridColumn: '1 / -1' }}>
-                    <label>SendGrid API Key</label>
-                    <input type="text" className="input-field" value={formData.sendGridApiKey} onChange={e => setFormData(p => ({ ...p, sendGridApiKey: e.target.value }))} placeholder="SG.xxxxxxxxxxxxxx" />
-                  </div>
                 </div>
               )}
               {editingUser && (
