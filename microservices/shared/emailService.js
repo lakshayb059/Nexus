@@ -1,4 +1,10 @@
 const nodemailer = require('nodemailer');
+const dns = require('dns');
+
+// Force IPv4 for DNS resolution to prevent ENETUNREACH on Render's IPv6-less network
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
 
 const sendConversionEmail = async (senderEmail, appPassword, receiverEmail, companyName, emailDetails) => {
   const transporter = nodemailer.createTransport({
