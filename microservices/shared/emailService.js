@@ -12,6 +12,7 @@ const sendConversionEmail = async (senderEmail, appPassword, receiverEmail, comp
     host: 'smtp.gmail.com',
     port: 465,
     secure: true, // use SSL
+    family: 4, // Force IPv4 to avoid IPv6 issues on Render
     auth: {
       user: senderEmail,
       pass: appPassword
