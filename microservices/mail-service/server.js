@@ -10,8 +10,8 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
 // Default Mail Config
-const MAIL_USER = process.env.MAIL_USER || 'garg.abhi999@gmail.com';
-const MAIL_PASS = process.env.MAIL_PASS || 'wfwo qaqe tzjg rcej';
+const MAIL_USER = process.env.MAIL_USER;
+const MAIL_PASS = process.env.MAIL_PASS;
 
 // Health Check Endpoints
 app.get('/health', (req, res) => res.json({ status: 'Mail service is up', timestamp: new Date() }));
@@ -19,10 +19,28 @@ app.get('/', (req, res) => res.json({ status: 'Mail service is active', timestam
 
 // Nodemailer Transporter
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
   auth: {
     user: MAIL_USER,
     pass: MAIL_PASS
+  },
+  tls: {
+    rejectUnauthorized: false
+  },
+  connectionTimeout: 30000,
+  greetingTimeout: 30000,
+  socketTimeout: 30000,
+  debug: true,
+  logger: true
+});
+
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('SMTP Error:', error);
+  } else {
+    console.log('SMTP Server is ready');
   }
 });
 
