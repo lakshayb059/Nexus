@@ -53,7 +53,7 @@ async function triggerConversionEmail(contactId, receiptImageBase64 = null) {
         return { success: false, reason: 'Admin not found' };
       }
       
-      console.log(`Admin found: ${admin.email}`);
+      console.log(`Admin found successfully (ID: ${admin.id}, Username: ${admin.username || 'N/A'})`);
 
       const senderEmail = admin.senderEmail;
       const appPassword = admin.appPassword ? admin.appPassword.replace(/\s+/g, '') : null;

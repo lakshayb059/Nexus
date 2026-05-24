@@ -21,6 +21,7 @@ const sendConversionEmail = async (senderEmail, appPassword, receiverEmail, comp
     host: 'smtp.gmail.com',
     port: 587,
     secure: false, // use STARTTLS
+    family: 4, // Force IPv4 to prevent ENETUNREACH
     auth: {
       user: senderEmail,
       pass: appPassword
