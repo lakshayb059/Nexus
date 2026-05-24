@@ -17,11 +17,11 @@ const MAIL_PASS = process.env.MAIL_PASS;
 app.get('/health', (req, res) => res.json({ status: 'Mail service is up', timestamp: new Date() }));
 app.get('/', (req, res) => res.json({ status: 'Mail service is active', timestamp: new Date() }));
 
-// Nodemailer Transporter
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false,
+  requireTLS: true,
   auth: {
     user: MAIL_USER,
     pass: MAIL_PASS
@@ -29,9 +29,9 @@ const transporter = nodemailer.createTransport({
   tls: {
     rejectUnauthorized: false
   },
-  connectionTimeout: 30000,
-  greetingTimeout: 30000,
-  socketTimeout: 30000,
+  connectionTimeout: 60000,
+  greetingTimeout: 60000,
+  socketTimeout: 60000,
   debug: true,
   logger: true
 });
