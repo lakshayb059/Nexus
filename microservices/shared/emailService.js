@@ -1,25 +1,7 @@
-const sgMail = require('@sendgrid/mail');
+const nodemailer = require('nodemailer');
 const dns = require('dns');
 
-// Force IPv4 for any DNS lookups
-const originalLookup = dns.lookup;
-dns.lookup = function(hostname, options, callback) {
-  if (typeof options === 'function') {
-    callback = options;
-    options = { family: 4, hints: dns.ADDRCONFIG };
-  } else if (typeof options === 'object') {
-    options.family = 4;
-    options.hints = dns.ADDRCONFIG;
-  } else {
-    options = { family: 4, hints: dns.ADDRCONFIG };
-  }
-  return originalLookup(hostname, options, callback);
-};
-
-const sendConversionEmail = async (senderEmail, apiKey, receiverEmail, companyName, emailDetails) => {
-  // Initialize SendGrid with API key
-  sgMail.setApiKey(apiKey);
-  
+const sendConversionEmail = async (senderEmail, appPassword, receiverEmail, companyName, emailDetails) => {
   const { leadName, contact, agentName, tlName, adminName, amount, transactionId, receiptImageBase64 } = emailDetails;
   
   let htmlContent = `
@@ -42,34 +24,76 @@ const sendConversionEmail = async (senderEmail, apiKey, receiverEmail, companyNa
     </div>
   `;
 
-  const msg = {
+  // 1) Force resolve IPv4 address for Gmail SMTP to completely bypass Render's IPv6 ENETUNREACH issues
+  let ipv4Host = 'smtp.gmail.com';
+  try {
+    const addresses = await new Promise((resolve, reject) => {
+      dns.resolve4('smtp.gmail.com', (err, addresses) => {
+        if (err) reject(err);
+        else resolve(addresses);
+      });
+    });
+    if (addresses && addresses.length > 0) {
+      ipv4Host = addresses[0];
+      console.log(`Resolved smtp.gmail.com to IPv4: ${ipv4Host}`);
+    }
+  } catch (err) {
+    console.log('DNS Resolution failed, falling back to hostname:', err.message);
+  }
+
+  // 2) Use Port 465 (SMTPS) which is fully encrypted from start to finish
+  const transporter = nodemailer.createTransport({
+    host: ipv4Host,
+    port: 465,
+    secure: true,
+    family: 4, // Explicitly enforce IPv4
+    auth: {
+      user: senderEmail,
+      pass: appPassword
+    },
+    tls: {
+      // Must provide servername so the SSL certificate matches 'smtp.gmail.com' rather than the raw IP
+      servername: 'smtp.gmail.com',
+      rejectUnauthorized: false
+    },
+    socketTimeout: 45000,
+    connectionTimeout: 45000,
+    logger: true,
+    debug: true
+  });
+
+  const mailOptions = {
+    from: `"${companyName || 'CRM System'}" <${senderEmail}>`,
     to: receiverEmail,
-    from: senderEmail, // Must be a verified sender in SendGrid
     subject: `Lead Converted: ${leadName} (Amount: ₹${amount})`,
-    html: htmlContent,
+    html: htmlContent
   };
 
   if (receiptImageBase64) {
     const base64Data = receiptImageBase64.replace(/^data:image\/\w+;base64,/, "");
-    msg.attachments = [
+    mailOptions.attachments = [
       {
-        content: base64Data,
         filename: 'receipt.png',
-        type: 'image/png',
-        disposition: 'attachment'
+        content: base64Data,
+        encoding: 'base64'
       }
     ];
   }
 
   try {
-    const response = await sgMail.send(msg);
-    console.log('Conversion email sent successfully via SendGrid');
+    console.log(`Attempting to send email via SMTP (${ipv4Host}:465) for ${leadName}`);
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Conversion email sent successfully: ' + info.messageId);
+    transporter.close();
     return true;
   } catch (error) {
-    console.error('Error sending conversion email via SendGrid:', error);
-    if (error.response) {
-      console.error('SendGrid error details:', error.response.body);
+    console.error('Error sending conversion email:', error);
+    if (error.code === 'ETIMEDOUT') {
+      console.error('Connection timeout - Network may be blocking outbound SMTP');
+    } else if (error.code === 'EAUTH') {
+      console.error('Authentication failed - Check email and app password');
     }
+    transporter.close();
     return false;
   }
 };
