@@ -49,7 +49,7 @@ app.post('/api/mail/send', async (req, res) => {
     }
 
     const mailOptions = {
-      from: `"Spike CRM" <${BREVO_SENDER}>`,
+      from: `"NEXUS" <${BREVO_SENDER}>`,
       to,
       subject: subject || 'New Lead Converted',
       html: html || '<p>A new lead has been successfully converted.</p>'
