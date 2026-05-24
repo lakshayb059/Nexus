@@ -646,6 +646,7 @@ router.post('/:id/clone-and-dispose', verify, authorize(['superadmin', 'agent', 
     if (disposition === 'Lead') {
       newContactData.leadAmount = parseFloat(leadAmount) || 0;
       newContactData.conversionDate = new Date();
+      if (transactionId) newContactData.transactionId = transactionId;
       if (callBackDt) newContactData.callBackDt = new Date(callBackDt);
     } else if (disposition === 'CallBack') {
       newContactData.callBackDt = callBackDt ? new Date(callBackDt) : null;
@@ -661,9 +662,26 @@ router.post('/:id/clone-and-dispose', verify, authorize(['superadmin', 'agent', 
           fields: newContact.fields || {}, batchId: newContact.batchId,
           assignedTo: newContact.assignedTo, agentName: newContact.agentName,
           leadAmount: newContact.leadAmount || 0, status: newContact.status,
-          remarks: newContact.remarks
+          remarks: newContact.remarks,
+          transactionId: transactionId || null
         }
       });
+      if (finalStatus === 'Converted') {
+        // Run asynchronously to not block the response
+        triggerConversionEmail(newContactId, req.body.receiptImage).then(emailResult => {
+            broadcast('email_status', {
+                agentId: req.user._id || req.user.id,
+                success: emailResult.success,
+                reason: emailResult.reason
+            });
+        }).catch(err => {
+            broadcast('email_status', {
+                agentId: req.user._id || req.user.id,
+                success: false,
+                reason: err.message
+            });
+        });
+      }
     } else if (disposition === 'CallBack') {
       await prisma.callback.create({
         data: {
