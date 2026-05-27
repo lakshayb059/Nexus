@@ -45,8 +45,22 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
       } 
     });
     
+    // Safely map users by name, username, and ID.
+    // In case of duplicate names (e.g. TL named 'Rahul' and Agent named 'Rahul'),
+    // we prefer the Agent since contacts can only be assigned to agents.
     const userMap = allUsers.reduce((acc, u) => { 
-      acc[u.name.toLowerCase()] = u; 
+      if (u.name) {
+        const nameKey = u.name.toLowerCase().trim();
+        if (!acc[nameKey] || u.role === 'agent') {
+          acc[nameKey] = u;
+        }
+      }
+      if (u.username) {
+        const usernameKey = u.username.toLowerCase().trim();
+        if (!acc[usernameKey] || u.role === 'agent') {
+          acc[usernameKey] = u;
+        }
+      }
       acc[u.id.toString()] = u; 
       return acc; 
     }, {});
@@ -56,10 +70,13 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
     const contacts = [];
     const uploadErrors = [];
 
+    // Pre-detect agent column once to optimize loop performance
+    const agentCol = records.length > 0 
+      ? Object.keys(records[0]).find(k => k.toLowerCase().includes('agent'))
+      : null;
+
     records.forEach((row, index) => {
       let assignedId = selectedAgent?.id;
-      const agentCol = Object.keys(row).find(k => k.toLowerCase().includes('agent'));
-      
       let errorReason = null;
 
       if (agentId === 'multi') {
@@ -121,7 +138,12 @@ router.post('/', verify, authorize(['admin', 'tl', 'agent']), upload.single('fil
       return res.status(400).json({ error: 'No valid assignments could be created from the uploaded file.' });
     }
 
-    await prisma.contact.createMany({ data: contacts });
+    // Chunk contact insertions in groups of 1000 to prevent exceeding Postgres parameters limit and connection timeouts
+    const CHUNK_SIZE = 1000;
+    for (let i = 0; i < contacts.length; i += CHUNK_SIZE) {
+      const chunk = contacts.slice(i, i + CHUNK_SIZE);
+      await prisma.contact.createMany({ data: chunk });
+    }
     
     await prisma.batch.create({
       data: {
