@@ -231,8 +231,21 @@ usersRouter.post('/', verify, authorize(['superadmin', 'admin']), async (req, re
       return res.status(403).json({ error: 'Super Admin can only create Admin users from the dashboard' });
     }
 
-    const existing = await prisma.user.findUnique({ where: { username: username.trim().toLowerCase() } });
-    if (existing) return res.status(409).json({ error: 'Username already exists' });
+    const existingUsername = await prisma.user.findUnique({ where: { username: username.trim().toLowerCase() } });
+    if (existingUsername) return res.status(409).json({ error: 'Username already exists. Please use a unique username.' });
+
+    const existingName = await prisma.user.findFirst({
+      where: {
+        name: {
+          equals: name.trim(),
+          mode: 'insensitive'
+        },
+        isDeleted: false
+      }
+    });
+    if (existingName) {
+      return res.status(409).json({ error: 'Name already exists. Please use a unique name.' });
+    }
 
     const hashed = await bcrypt.hash(password, 10);
     const userData = {
@@ -264,7 +277,22 @@ usersRouter.put('/:id', verify, authorize(['superadmin', 'admin']), async (req, 
     if (!existingUser) return res.status(404).json({ error: 'User not found' });
 
     const updateData = {};
-    if (name) updateData.name = name.trim();
+    if (name) {
+      const existingName = await prisma.user.findFirst({
+        where: {
+          name: {
+            equals: name.trim(),
+            mode: 'insensitive'
+          },
+          isDeleted: false,
+          id: { not: userId }
+        }
+      });
+      if (existingName) {
+        return res.status(409).json({ error: 'Name already exists. Please use a unique name.' });
+      }
+      updateData.name = name.trim();
+    }
     if (active !== undefined) updateData.active = !!active;
     if (tlId !== undefined) updateData.tlId = tlId ? tlId : null;
     if (password) updateData.password = await bcrypt.hash(password, 10);
