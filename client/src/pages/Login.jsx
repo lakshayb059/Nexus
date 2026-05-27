@@ -151,12 +151,10 @@ const Login = () => {
             {/* Glowing Orbit Dot using CSS keyframes along SVG track */}
             <div className="orbit-traveler-glow" />
 
-            {/* Center Brand Graphic Hub - aligned explicitly at 50%/50% */}
-            <div className="orbit-center-hub" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <div className="hub-logo-container" style={{ width: 64, height: 64, borderRadius: 16, background: 'rgba(255, 255, 255, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8, border: '1px solid rgba(255, 255, 255, 0.1)', boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)', marginBottom: 8 }}>
-                <img src="/favicon.png" alt="NEXUS Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-              </div>
-              <span className="hub-text-brand" style={{ fontSize: '1.5rem', fontWeight: 950, letterSpacing: '0.05em', color: '#ffffff' }}>NEXUS</span>
+            {/* Center Brand Text Hub - aligned explicitly at 50%/50% */}
+            <div className="orbit-center-hub">
+              <span className="hub-text-brand">Nexus</span>
+              <span className="hub-text-sub"></span>
               <div className="hub-ping-ring" />
             </div>
 
@@ -205,13 +203,6 @@ const Login = () => {
         <div className="login-form-panel">
           <div className="login-form-wrapper">
 
-            {/* Logo Icon Above Header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255, 255, 255, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 5, border: '1px solid rgba(255, 255, 255, 0.15)' }}>
-                <img src="/favicon.png" alt="NEXUS Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-              </div>
-              <span style={{ fontSize: '1.25rem', fontWeight: 950, color: '#ffffff', letterSpacing: '0.05em' }}>NEXUS</span>
-            </div>
 
             {/* Header section matching ProLeads layout */}
             <h2 className="login-welcome-header">
