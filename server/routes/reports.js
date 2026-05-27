@@ -17,15 +17,16 @@ router.get('/download', verify, authorize(['superadmin', 'admin', 'tl', 'agent']
     const { format = 'csv', agentId, disposition, batchId, reportType, fromDate, toDate } = req.query;
     let where = { isDeleted: false };
     
+    if (fromDate && toDate) {
+      where.createdAt = {
+        gte: new Date(fromDate),
+        lte: new Date(new Date(toDate).setHours(23, 59, 59, 999))
+      };
+    }
+
     if (reportType === 'lead') where.disposition = 'Lead';
     else if (reportType === 'converted') {
       where.status = 'Converted';
-      if (fromDate && toDate) {
-        where.createdAt = {
-          gte: new Date(fromDate),
-          lte: new Date(new Date(toDate).setHours(23, 59, 59, 999))
-        };
-      }
     }
     else {
       if (disposition === 'pending') where.disposition = null;

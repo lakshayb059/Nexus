@@ -69,18 +69,16 @@ const Reports = () => {
   }, [selectedAgent, socket]);
 
   const handleExport = async (format) => {
-    if (reportType === 'converted' && (!fromDate || !toDate)) {
-      alert('Please select both From Date and To Date for Converted Leads report.');
+    if (!fromDate || !toDate) {
+      alert('Please select both From Date and To Date.');
       return;
     }
     setIsExporting(true);
     try {
       const queryParams = new URLSearchParams({ format, reportType });
       if (selectedAgent) queryParams.append('agentId', selectedAgent);
-      if (reportType === 'converted') {
-        queryParams.append('fromDate', fromDate);
-        queryParams.append('toDate', toDate);
-      }
+      queryParams.append('fromDate', fromDate);
+      queryParams.append('toDate', toDate);
       
       const res = await api.get(`/reports/download?${queryParams.toString()}`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([res.data]));
@@ -178,13 +176,11 @@ const Reports = () => {
             <option value="lead">Lead Report</option>
             <option value="converted">Converted Leads</option>
           </select>
-          {reportType === 'converted' && (
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <input type="date" className="input-field" style={{ marginBottom: 0, height: 36, fontSize: '0.8rem' }} value={fromDate} onChange={e => setFromDate(e.target.value)} />
-              <span style={{ color: 'var(--text-muted)' }}>to</span>
-              <input type="date" className="input-field" style={{ marginBottom: 0, height: 36, fontSize: '0.8rem' }} value={toDate} onChange={e => setToDate(e.target.value)} />
-            </div>
-          )}
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <input type="date" className="input-field" style={{ marginBottom: 0, height: 36, fontSize: '0.8rem' }} value={fromDate} onChange={e => setFromDate(e.target.value)} />
+            <span style={{ color: 'var(--text-muted)' }}>to</span>
+            <input type="date" className="input-field" style={{ marginBottom: 0, height: 36, fontSize: '0.8rem' }} value={toDate} onChange={e => setToDate(e.target.value)} />
+          </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <button className="btn btn-outline" onClick={() => handleExport('csv')} disabled={isExporting} style={{ height: 36, padding: '0 12px' }}>
               <Download size={14} /> <span className="hide-mobile">CSV</span>
