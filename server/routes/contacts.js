@@ -341,24 +341,35 @@ router.get('/notifications', verify, authorize(['superadmin', 'agent', 'tl', 'ad
 router.get('/admin-stats', verify, authorize(['superadmin']), async (req, res) => {
   try {
     const admins = await prisma.user.findMany({ where: { role: 'admin', isDeleted: false } });
-    const stats = await Promise.all(admins.map(async (a) => {
-      const q = { adminId: a.id, isDeleted: false };
-      const [leads, appointments, callbacks, leadAgg] = await Promise.all([
-        prisma.contact.count({ where: { ...q, disposition: 'Lead', status: 'Converted' } }),
-        prisma.contact.count({ where: { ...q, disposition: 'Appointment' } }),
-        prisma.contact.count({ where: { ...q, disposition: 'CallBack' } }),
-        prisma.contact.aggregate({ where: { ...q, disposition: 'Lead', status: 'Converted' }, _sum: { leadAmount: true } })
-      ]);
+    const rawStats = await prisma.$queryRaw`
+      SELECT 
+        admin_id as "adminId",
+        COUNT(CASE WHEN disposition = 'Lead' AND status = 'Converted' THEN 1 END)::int as leads,
+        COUNT(CASE WHEN disposition = 'Appointment' THEN 1 END)::int as appointments,
+        COUNT(CASE WHEN disposition = 'CallBack' THEN 1 END)::int as callbacks,
+        COALESCE(SUM(CASE WHEN disposition = 'Lead' AND status = 'Converted' THEN lead_amount END), 0)::float as "totalLeadAmount"
+      FROM contacts
+      WHERE is_deleted = false AND admin_id IS NOT NULL
+      GROUP BY admin_id
+    `;
+
+    const statsMap = {};
+    rawStats.forEach(s => {
+      statsMap[s.adminId] = s;
+    });
+
+    const stats = admins.map(a => {
+      const s = statsMap[a.id] || { leads: 0, appointments: 0, callbacks: 0, totalLeadAmount: 0 };
       return {
         adminId: a.id,
         name: a.name,
         username: a.username,
-        leads,
-        appointments,
-        callbacks,
-        totalLeadAmount: leadAgg._sum.leadAmount || 0
+        leads: s.leads,
+        appointments: s.appointments,
+        callbacks: s.callbacks,
+        totalLeadAmount: s.totalLeadAmount
       };
-    }));
+    });
     res.json(stats);
   } catch (err) {
     console.error('Admin stats error:', err);
@@ -368,37 +379,105 @@ router.get('/admin-stats', verify, authorize(['superadmin']), async (req, res) =
 
 router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
-    const query = { isDeleted: false };
+    const userId = req.user._id || req.user.id;
+    let statsArray = [];
+
     if (req.user.role === 'agent') {
-      query.assignedTo = req.user._id || req.user.id;
+      statsArray = await prisma.$queryRaw`
+        SELECT 
+          COUNT(*)::int as total,
+          COUNT(CASE WHEN disposition IS NULL OR disposition = '' THEN 1 END)::int as pending,
+          COUNT(CASE WHEN disposition = 'Lead' AND status = 'Converted' THEN 1 END)::int as lead,
+          COUNT(CASE WHEN disposition = 'Appointment' THEN 1 END)::int as appointment,
+          COUNT(CASE WHEN disposition = 'CallBack' THEN 1 END)::int as callback,
+          COUNT(CASE WHEN disposition = 'Invalid' THEN 1 END)::int as invalid,
+          COUNT(CASE WHEN disposition IN ('HungUp', 'CallNotAnswered') AND rechurn_count >= 3 THEN 1 END)::int as hungup,
+          COUNT(CASE WHEN disposition = 'DoNotCall' THEN 1 END)::int as donotcall,
+          COALESCE(SUM(CASE WHEN disposition = 'Lead' AND status = 'Converted' THEN lead_amount END), 0)::float as totalleadamount,
+          COUNT(CASE WHEN disposition = 'Lead' THEN 1 END)::int as alllead,
+          COALESCE(SUM(CASE WHEN disposition = 'Lead' THEN lead_amount END), 0)::float as allleadamount
+        FROM contacts
+        WHERE is_deleted = false AND assigned_to = ${userId}
+      `;
     } else if (req.user.role === 'tl') {
-      const agents = await prisma.user.findMany({ where: { tlId: req.user._id || req.user.id } });
-      query.assignedTo = { in: agents.map(a => a.id) };
+      const agents = await prisma.user.findMany({ where: { tlId: userId } });
+      const agentIds = agents.map(a => a.id);
+      if (agentIds.length === 0) {
+        const totalAdmins = await prisma.user.count({ where: { role: 'admin', isDeleted: false } });
+        return res.json({
+          total: 0, pending: 0, lead: 0, appointment: 0, callBack: 0, invalid: 0, hungUp: 0, doNotCall: 0,
+          totalLeadAmount: 0, totalAdmins, allLead: 0, allLeadAmount: 0
+        });
+      }
+      statsArray = await prisma.$queryRawUnsafe(`
+        SELECT 
+          COUNT(*)::int as total,
+          COUNT(CASE WHEN disposition IS NULL OR disposition = '' THEN 1 END)::int as pending,
+          COUNT(CASE WHEN disposition = 'Lead' AND status = 'Converted' THEN 1 END)::int as lead,
+          COUNT(CASE WHEN disposition = 'Appointment' THEN 1 END)::int as appointment,
+          COUNT(CASE WHEN disposition = 'CallBack' THEN 1 END)::int as callback,
+          COUNT(CASE WHEN disposition = 'Invalid' THEN 1 END)::int as invalid,
+          COUNT(CASE WHEN disposition IN ('HungUp', 'CallNotAnswered') AND rechurn_count >= 3 THEN 1 END)::int as hungup,
+          COUNT(CASE WHEN disposition = 'DoNotCall' THEN 1 END)::int as donotcall,
+          COALESCE(SUM(CASE WHEN disposition = 'Lead' AND status = 'Converted' THEN lead_amount END), 0)::float as totalleadamount,
+          COUNT(CASE WHEN disposition = 'Lead' THEN 1 END)::int as alllead,
+          COALESCE(SUM(CASE WHEN disposition = 'Lead' THEN lead_amount END), 0)::float as allleadamount
+        FROM contacts
+        WHERE is_deleted = false AND assigned_to IN (${agentIds.map(id => `'${id}'`).join(',')})
+      `);
     } else if (req.user.role === 'admin') {
-      query.adminId = req.user._id || req.user.id;
+      statsArray = await prisma.$queryRaw`
+        SELECT 
+          COUNT(*)::int as total,
+          COUNT(CASE WHEN disposition IS NULL OR disposition = '' THEN 1 END)::int as pending,
+          COUNT(CASE WHEN disposition = 'Lead' AND status = 'Converted' THEN 1 END)::int as lead,
+          COUNT(CASE WHEN disposition = 'Appointment' THEN 1 END)::int as appointment,
+          COUNT(CASE WHEN disposition = 'CallBack' THEN 1 END)::int as callback,
+          COUNT(CASE WHEN disposition = 'Invalid' THEN 1 END)::int as invalid,
+          COUNT(CASE WHEN disposition IN ('HungUp', 'CallNotAnswered') AND rechurn_count >= 3 THEN 1 END)::int as hungup,
+          COUNT(CASE WHEN disposition = 'DoNotCall' THEN 1 END)::int as donotcall,
+          COALESCE(SUM(CASE WHEN disposition = 'Lead' AND status = 'Converted' THEN lead_amount END), 0)::float as totalleadamount,
+          COUNT(CASE WHEN disposition = 'Lead' THEN 1 END)::int as alllead,
+          COALESCE(SUM(CASE WHEN disposition = 'Lead' THEN lead_amount END), 0)::float as allleadamount
+        FROM contacts
+        WHERE is_deleted = false AND admin_id = ${userId}
+      `;
+    } else { // superadmin
+      statsArray = await prisma.$queryRaw`
+        SELECT 
+          COUNT(*)::int as total,
+          COUNT(CASE WHEN disposition IS NULL OR disposition = '' THEN 1 END)::int as pending,
+          COUNT(CASE WHEN disposition = 'Lead' AND status = 'Converted' THEN 1 END)::int as lead,
+          COUNT(CASE WHEN disposition = 'Appointment' THEN 1 END)::int as appointment,
+          COUNT(CASE WHEN disposition = 'CallBack' THEN 1 END)::int as callback,
+          COUNT(CASE WHEN disposition = 'Invalid' THEN 1 END)::int as invalid,
+          COUNT(CASE WHEN disposition IN ('HungUp', 'CallNotAnswered') AND rechurn_count >= 3 THEN 1 END)::int as hungup,
+          COUNT(CASE WHEN disposition = 'DoNotCall' THEN 1 END)::int as donotcall,
+          COALESCE(SUM(CASE WHEN disposition = 'Lead' AND status = 'Converted' THEN lead_amount END), 0)::float as totalleadamount,
+          COUNT(CASE WHEN disposition = 'Lead' THEN 1 END)::int as alllead,
+          COALESCE(SUM(CASE WHEN disposition = 'Lead' THEN lead_amount END), 0)::float as allleadamount
+        FROM contacts
+        WHERE is_deleted = false
+      `;
     }
 
-    const [total, pending, lead, appointment, callBack, invalid, hungUp, doNotCall, leadAgg, totalAdmins, allLead, allLeadAgg] = await Promise.all([
-      prisma.contact.count({ where: query }),
-      prisma.contact.count({ where: { ...query, OR: [{ disposition: null }, { disposition: '' }] } }),
-      prisma.contact.count({ where: { ...query, disposition: 'Lead', status: 'Converted' } }),
-      prisma.contact.count({ where: { ...query, disposition: 'Appointment' } }),
-      prisma.contact.count({ where: { ...query, disposition: 'CallBack' } }),
-      prisma.contact.count({ where: { ...query, disposition: 'Invalid' } }),
-      prisma.contact.count({ where: { ...query, disposition: { in: ['HungUp', 'CallNotAnswered'] }, rechurnCount: { gte: 3 } } }),
-      prisma.contact.count({ where: { ...query, disposition: 'DoNotCall' } }),
-      prisma.contact.aggregate({ where: { ...query, disposition: 'Lead', status: 'Converted' }, _sum: { leadAmount: true } }),
-      prisma.user.count({ where: { role: 'admin', isDeleted: false } }),
-      prisma.contact.count({ where: { ...query, disposition: 'Lead' } }),
-      prisma.contact.aggregate({ where: { ...query, disposition: 'Lead' }, _sum: { leadAmount: true } })
-    ]);
+    const s = statsArray[0] || {};
+    const totalAdmins = await prisma.user.count({ where: { role: 'admin', isDeleted: false } });
 
-    const result = {
-      total, pending, lead, appointment, callBack, invalid, hungUp, doNotCall,
-      totalLeadAmount: leadAgg._sum.leadAmount || 0, totalAdmins,
-      allLead, allLeadAmount: allLeadAgg._sum.leadAmount || 0
-    };
-    res.json(result);
+    res.json({
+      total: s.total || 0,
+      pending: s.pending || 0,
+      lead: s.lead || 0,
+      appointment: s.appointment || 0,
+      callBack: s.callback || 0,
+      invalid: s.invalid || 0,
+      hungUp: s.hungup || 0,
+      doNotCall: s.donotcall || 0,
+      totalLeadAmount: s.totalleadamount || 0,
+      totalAdmins,
+      allLead: s.alllead || 0,
+      allLeadAmount: s.allleadamount || 0
+    });
   } catch (err) {
     console.error('Stats error:', err);
     res.status(500).json({ error: 'Failed to fetch stats' });
@@ -411,28 +490,47 @@ router.get('/agent-queues', verify, authorize(['superadmin', 'admin', 'tl']), as
     if (req.user.role === 'tl') userQuery.tlId = req.user._id || req.user.id;
     if (req.user.role === 'admin') userQuery.adminId = req.user._id || req.user.id;
     const agents = await prisma.user.findMany({ where: userQuery });
-    
-    const result = await Promise.all(agents.map(async (a) => {
-      const q = { assignedTo: a.id, isDeleted: false };
-      const [total, pending, lead, appointment, agg] = await Promise.all([
-        prisma.contact.count({ where: q }),
-        prisma.contact.count({ where: { ...q, OR: [{ disposition: null }, { disposition: '' }] } }),
-        prisma.contact.count({ where: { ...q, disposition: 'Lead', status: 'Converted' } }),
-        prisma.contact.count({ where: { ...q, disposition: 'Appointment' } }),
-        prisma.contact.aggregate({ where: { ...q, disposition: 'Lead', status: 'Converted' }, _sum: { leadAmount: true } })
-      ]);
-      let tlName = '—';
-      if (a.tlId) {
-        const tl = await prisma.user.findUnique({ where: { id: a.tlId } });
-        if (tl) tlName = tl.name;
-      }
+    const agentIds = agents.map(a => a.id);
+
+    if (agentIds.length === 0) return res.json([]);
+
+    const rawQueues = await prisma.$queryRawUnsafe(`
+      SELECT 
+        assigned_to as "agentId",
+        COUNT(*)::int as total,
+        COUNT(CASE WHEN disposition IS NULL OR disposition = '' THEN 1 END)::int as pending,
+        COUNT(CASE WHEN disposition = 'Lead' AND status = 'Converted' THEN 1 END)::int as lead,
+        COUNT(CASE WHEN disposition = 'Appointment' THEN 1 END)::int as appointment,
+        COALESCE(SUM(CASE WHEN disposition = 'Lead' AND status = 'Converted' THEN lead_amount END), 0)::float as "totalLeadAmount"
+      FROM contacts
+      WHERE is_deleted = false AND assigned_to IN (${agentIds.map(id => `'${id}'`).join(',')})
+      GROUP BY assigned_to
+    `);
+
+    const queueMap = {};
+    rawQueues.forEach(q => {
+      queueMap[q.agentId] = q;
+    });
+
+    const tls = await prisma.user.findMany({ where: { role: 'tl', isDeleted: false } });
+    const tlMap = {};
+    tls.forEach(t => tlMap[t.id] = t);
+
+    const result = agents.map(a => {
+      const q = queueMap[a.id] || { total: 0, pending: 0, lead: 0, appointment: 0, totalLeadAmount: 0 };
+      const tl = a.tlId ? tlMap[a.tlId] : null;
       return {
         agent: { _id: a.id, name: a.name },
-        tlName, active: a.active,
-        total, pending, lead, appointment, disposed: total - pending,
-        totalLeadAmount: agg._sum.leadAmount || 0
+        tlName: tl ? tl.name : '—',
+        active: a.active,
+        total: q.total,
+        pending: q.pending,
+        lead: q.lead,
+        appointment: q.appointment,
+        disposed: q.total - q.pending,
+        totalLeadAmount: q.totalLeadAmount
       };
-    }));
+    });
 
     res.json(result);
   } catch (err) {
