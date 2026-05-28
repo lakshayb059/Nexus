@@ -639,10 +639,38 @@ const MyLeads = () => {
         .lead-card-icon { width: 50px; height: 50px; border-radius: var(--r-md); display: flex; alignItems: center; justify-content: center; flex-shrink: 0; }
         .lead-card-actions { display: flex; flex-direction: column; gap: 10px; align-items: flex-end; min-width: 120px; }
 
+        .history-upload-btn {
+          width: 28px;
+          height: 28px;
+          border-radius: 8px;
+          background: var(--bg-surface-2);
+          border: 1px solid var(--border);
+          color: var(--text-primary);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s;
+        }
+
+        .history-upload-btn .upload-icon {
+          width: 14px;
+          height: 14px;
+        }
+
         @media (max-width: 768px) {
           .lead-card-container { flex-direction: column; align-items: stretch; gap: 16px; padding-left: 0; padding-top: 24px; }
           .lead-card-actions { flex-direction: row; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 12px; }
           .lead-card-actions .lead-amount-box { text-align: left; }
+          
+          .history-upload-btn {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+          }
+          .history-upload-btn .upload-icon {
+            width: 18px;
+            height: 18px;
+          }
         }
       `}</style>
 
@@ -722,8 +750,7 @@ const MyLeads = () => {
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{new Date(h.createdAt).toLocaleString()}</span>
                           {h.status !== 'Converted' && (
                             <button
-                              className="btn btn-icon"
-                              style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--bg-surface-2)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                              className="btn btn-icon history-upload-btn"
                               title="Extract Transaction from Receipt"
                               onClick={() => {
                                 setUploadTargetLead(h);
@@ -731,7 +758,7 @@ const MyLeads = () => {
                               }}
                               disabled={extractingLeadId === h._id}
                             >
-                              {extractingLeadId === h._id ? <Loader2 size={14} className="animate-spin" /> : <ImageIcon size={14} />}
+                              {extractingLeadId === h._id ? <Loader2 className="animate-spin upload-icon" /> : <ImageIcon className="upload-icon" />}
                             </button>
                           )}
                         </div>
