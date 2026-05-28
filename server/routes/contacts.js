@@ -307,35 +307,81 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
 router.get('/notifications', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
     const now = new Date();
-    const query = { assignedTo: req.user._id || req.user.id, isDeleted: false };
+    const userId = req.user._id || req.user.id;
+    const contactQuery = { assignedTo: userId, isDeleted: false };
     const notifications = [];
+    const seen = new Set(); // Prevent duplicates across contacts and dedicated tables
 
-    const pastDueCallbacks = await prisma.contact.findMany({
-      where: { ...query, disposition: 'CallBack', callBackDt: { lt: now } },
-      orderBy: { callBackDt: 'desc' }, take: 10
+    // --- Past-due Callbacks from contacts table ---
+    const pastDueCallbackContacts = await prisma.contact.findMany({
+      where: { ...contactQuery, disposition: 'CallBack', callBackDt: { lt: now } },
+      orderBy: { callBackDt: 'desc' }, take: 20
     });
-    pastDueCallbacks.forEach(c => {
+    pastDueCallbackContacts.forEach(c => {
+      const key = `cb_contact_${c.id}`;
+      if (seen.has(key)) return;
+      seen.add(key);
       notifications.push({
-        type: 'callback', title: 'Callback Past Due',
-        message: `Callback for ${(c.fields || {}).Name || (c.fields || {}).name || 'Unknown'} was due at ${c.callBackDt ? new Date(c.callBackDt).toLocaleString() : ''}`,
-        path: `/workflow/${c.id}`
+        type: 'callback', title: '⚠️ Callback Breached',
+        message: `${(c.fields || {}).Name || (c.fields || {}).name || 'Unknown'} — was due at ${c.callBackDt ? new Date(c.callBackDt).toLocaleString() : ''}`,
+        path: '/callbacks'
       });
     });
 
-    const pastDueAppointments = await prisma.contact.findMany({
-      where: { ...query, disposition: 'Appointment', appointmentDt: { lt: now } },
-      orderBy: { appointmentDt: 'desc' }, take: 10
+    // --- Past-due Callbacks from callbacks table ---
+    const pastDueCallbackRecords = await prisma.callback.findMany({
+      where: { assignedTo: userId, callBackDt: { lt: now } },
+      orderBy: { callBackDt: 'desc' }, take: 20
     });
-    pastDueAppointments.forEach(c => {
+    pastDueCallbackRecords.forEach(cb => {
+      const key = `cb_record_${cb.contactId || cb.id}`;
+      if (seen.has(key)) return;
+      seen.add(key);
       notifications.push({
-        type: 'appointment', title: 'Appointment Past Due',
-        message: `Appointment for ${(c.fields || {}).Name || (c.fields || {}).name || 'Unknown'} was due at ${c.appointmentDt ? new Date(c.appointmentDt).toLocaleString() : ''}`,
-        path: `/workflow/${c.id}`
+        type: 'callback', title: '⚠️ Callback Breached',
+        message: `${(cb.fields || {}).Name || (cb.fields || {}).name || 'Unknown'} — was due at ${cb.callBackDt ? new Date(cb.callBackDt).toLocaleString() : ''}`,
+        path: '/callbacks'
       });
     });
 
-    res.json(notifications);
-  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+    // --- Past-due Appointments from contacts table ---
+    const pastDueAppointmentContacts = await prisma.contact.findMany({
+      where: { ...contactQuery, disposition: 'Appointment', appointmentDt: { lt: now } },
+      orderBy: { appointmentDt: 'desc' }, take: 20
+    });
+    pastDueAppointmentContacts.forEach(c => {
+      const key = `appt_contact_${c.id}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      notifications.push({
+        type: 'appointment', title: '⚠️ Appointment Breached',
+        message: `${(c.fields || {}).Name || (c.fields || {}).name || 'Unknown'} — was due at ${c.appointmentDt ? new Date(c.appointmentDt).toLocaleString() : ''}`,
+        path: '/appointments'
+      });
+    });
+
+    // --- Past-due Appointments from appointments table ---
+    const pastDueAppointmentRecords = await prisma.appointment.findMany({
+      where: { assignedTo: userId, appointmentDt: { lt: now } },
+      orderBy: { appointmentDt: 'desc' }, take: 20
+    });
+    pastDueAppointmentRecords.forEach(appt => {
+      const key = `appt_record_${appt.contactId || appt.id}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      notifications.push({
+        type: 'appointment', title: '⚠️ Appointment Breached',
+        message: `${(appt.fields || {}).Name || (appt.fields || {}).name || 'Unknown'} — was due at ${appt.appointmentDt ? new Date(appt.appointmentDt).toLocaleString() : ''}`,
+        path: '/appointments'
+      });
+    });
+
+    // Limit to 20 total notifications
+    res.json(notifications.slice(0, 20));
+  } catch (err) {
+    console.error('Notifications fetch error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 router.get('/admin-stats', verify, authorize(['superadmin']), async (req, res) => {

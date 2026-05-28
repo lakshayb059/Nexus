@@ -670,8 +670,8 @@ const MyLeads = () => {
           <div className="status-modal-content animate-scale-up" style={{ maxWidth: 600 }}>
             <div className="status-modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div className="status-icon-wrapper" style={{ background: '#8b5cf615', color: '#8b5cf6' }}>
-                  <TrendingUp size={24} />
+                <div className="status-icon-wrapper" style={{ background: '#8b5cf615', color: '#8b5cf6', width: 56, height: 56, minWidth: 56, borderRadius: 14 }}>
+                  <TrendingUp size={32} />
                 </div>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900 }}>Conversion History</h3>
@@ -690,7 +690,12 @@ const MyLeads = () => {
                 <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>No historical records found.</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {historyData.map((h, i) => (
+                  {[...historyData].sort((a, b) => {
+                    // Non-converted leads on top
+                    if (a.status === 'Converted' && b.status !== 'Converted') return 1;
+                    if (a.status !== 'Converted' && b.status === 'Converted') return -1;
+                    return new Date(b.createdAt) - new Date(a.createdAt);
+                  }).map((h, i) => (
                     <div key={h._id} style={{
                       padding: 16,
                       borderRadius: 16,

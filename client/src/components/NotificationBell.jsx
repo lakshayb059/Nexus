@@ -29,6 +29,24 @@ const NotificationBell = () => {
     }
   }, [user?._id]);
 
+  // Listen for the notifications_updated event dispatched by AuthContext after login
+  useEffect(() => {
+    const handleNotificationsUpdated = () => {
+      if (user?._id) {
+        try {
+          const saved = localStorage.getItem(`notifications_${user._id}`);
+          if (saved) {
+            setNotifications(JSON.parse(saved));
+          }
+        } catch (e) {
+          console.error('Failed to reload notifications after login', e);
+        }
+      }
+    };
+    window.addEventListener('notifications_updated', handleNotificationsUpdated);
+    return () => window.removeEventListener('notifications_updated', handleNotificationsUpdated);
+  }, [user?._id]);
+
   // Persist notifications to localStorage whenever they change
   useEffect(() => {
     if (user) {
