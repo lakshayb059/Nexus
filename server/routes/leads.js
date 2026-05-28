@@ -87,7 +87,15 @@ router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']
       const group = groupedMap.get(normPhone);
       group.totalAmount += (parseFloat(lead.leadAmount) || 0);
       group.leadsCount += 1;
-      if (new Date(lead.createdAt) > new Date(group.createdAt)) {
+
+      // Prioritize non-converted leads as the representative (they need attention)
+      const groupIsConverted = group.status === 'Converted';
+      const leadIsConverted = lead.status === 'Converted';
+      const shouldReplace = 
+        (groupIsConverted && !leadIsConverted) || // non-converted takes priority over converted
+        (groupIsConverted === leadIsConverted && new Date(lead.createdAt) > new Date(group.createdAt)); // same category: use newest
+
+      if (shouldReplace) {
         const currentAmount = group.totalAmount;
         const currentCount = group.leadsCount;
         Object.assign(group, lead);
