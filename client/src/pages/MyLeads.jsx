@@ -586,7 +586,24 @@ const MyLeads = () => {
                           <button 
                             className="btn btn-primary btn-icon" 
                             style={{ width: 36, height: 36, borderRadius: 10 }}
-                            onClick={() => {
+                            onClick={async () => {
+                              if (lead.status === 'Call Back') {
+                                window.location.href = `tel:${phone}`;
+                                return;
+                              }
+
+                              try {
+                                const response = await api.get(`/leads/history/${phone}`);
+                                const history = response.data || [];
+                                const activeLead = history.find(item => item._id !== lead._id && item.status !== 'Converted');
+                                if (activeLead) {
+                                  alert(`Already containing the lead with the lead status: ${activeLead.status}`);
+                                  return;
+                                }
+                              } catch (err) {
+                                console.error('Failed to check lead history', err);
+                              }
+
                               window.location.href = `tel:${phone}`;
                               setCallActionLead(lead);
                             }}

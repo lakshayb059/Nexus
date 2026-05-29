@@ -450,19 +450,12 @@ router.put('/:id', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), as
       await prisma.contact.update({
         where: { id: contactId },
         data: {
-          disposition: 'CallBack', status: 'Call Back', callBackDt,
+          disposition: 'Lead', status: 'Call Back', callBackDt, cbReminderSent: false,
           remarks: req.body.remarks ? (leadObj.remarks ? `${leadObj.remarks} | ${req.body.remarks}` : req.body.remarks) : 'Status changed from Lead to Callback',
         }
       });
 
       await prisma.callback.deleteMany({ where: { contactId } });
-      await prisma.callback.create({
-        data: {
-          contactId, fields: leadObj.fields || {}, batchId: leadObj.batchId,
-          assignedTo: leadObj.assignedTo, agentName: leadObj.agentName || req.user.name,
-          callBackDt, remarks: req.body.remarks || 'Status changed from Lead to Callback', source: 'lead'
-        }
-      });
 
       const fields = leadObj.fields || {};
       const phoneNum = fields.Phone || fields.phone || fields.Mobile;
@@ -690,20 +683,7 @@ router.post('/:id/clone-and-dispose', verify, authorize(['superadmin', 'agent', 
         }
       });
 
-      // ALSO create a Callback record if the lead status is 'Call Back'
-      if (finalStatus === 'Call Back') {
-        await prisma.callback.create({
-          data: {
-            contactId: newContactId, adminId: req.user.role === 'admin' ? (req.user._id || req.user.id) : (req.user.adminId || null),
-            fields: newContact.fields || {}, batchId: newContact.batchId,
-            assignedTo: newContact.assignedTo, agentName: newContact.agentName,
-            callBackDt: newContact.callBackDt || new Date(), remarks: newContact.remarks, source: 'lead'
-          }
-        });
-        const fields = newContact.fields || {};
-        const phoneNum = fields.Phone || fields.phone || fields.Mobile;
-        if (phoneNum) await consolidateCallbacks(phoneNum);
-      }
+      // Do not create a callback record for leads to prevent adding them to callbacks page or back to workflow queue
 
       if (finalStatus === 'Converted') {
         triggerConversionEmail(newContactId, req.body.receiptImage).then(emailResult => {

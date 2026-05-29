@@ -465,7 +465,10 @@ notificationsRouter.get('/alerts', async (req, res) => {
       prisma.contact.findMany({
         where: {
           assignedTo: userId,
-          disposition: 'CallBack',
+          OR: [
+            { disposition: 'CallBack' },
+            { status: 'Call Back' }
+          ],
           callBackDt: { lte: now, gte: yesterday },
           cbReminderSent: { not: true }
         },
@@ -559,7 +562,10 @@ async function checkCallbacks() {
     const now = new Date();
     const upcoming = await prisma.contact.findMany({
       where: {
-        disposition: 'CallBack',
+        OR: [
+          { disposition: 'CallBack' },
+          { status: 'Call Back' }
+        ],
         callBackDt: { gte: now, lte: new Date(now.getTime() + 2.5 * 60 * 1000) },
         cbReminderSent: { not: true }
       }

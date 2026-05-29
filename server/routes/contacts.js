@@ -762,7 +762,8 @@ router.put('/:id/status', verify, authorize(['superadmin', 'agent', 'tl', 'admin
     }
 
     if (status === 'Call Back') {
-      update.disposition = 'CallBack';
+      update.disposition = 'Lead';
+      update.cbReminderSent = false;
       update.callBackDt = callBackDt ? new Date(callBackDt) : (contact.callBackDt || new Date());
       
       await prisma.lead.updateMany({
@@ -774,14 +775,6 @@ router.put('/:id/status', verify, authorize(['superadmin', 'agent', 'tl', 'admin
         }
       });
       await prisma.callback.deleteMany({ where: { contactId: contact.id } });
-      await prisma.callback.create({
-        data: {
-          contactId: contact.id, fields: contact.fields || {}, batchId: contact.batchId,
-          assignedTo: contact.assignedTo, agentName: contact.agentName || req.user.name,
-          callBackDt: update.callBackDt, remarks: remarks || 'Status updated to Call Back',
-          adminId: contact.adminId, source: 'lead'
-        }
-      });
       
       const fields = contact.fields || {};
       const phoneNum = fields.Phone || fields.phone || fields.Mobile;
