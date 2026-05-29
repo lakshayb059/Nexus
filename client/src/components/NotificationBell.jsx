@@ -128,7 +128,7 @@ const NotificationBell = () => {
 
     socket.on('callback_reminder', (data) => {
       if (data.agentId === user._id) {
-        const title = 'Callback in 2 min';
+        const title = data.isLeadCallback ? 'Lead callback in 2 min' : 'Callback in 2 min';
         const msg = `${data.contactName} - Prepare for call`;
         notifyBrowser(title, msg);
         addNotification({
@@ -137,7 +137,7 @@ const NotificationBell = () => {
           title,
           message: msg,
           time: new Date(),
-          path: '/callbacks'
+          path: data.isLeadCallback ? '/leads' : '/callbacks'
         });
       }
     });

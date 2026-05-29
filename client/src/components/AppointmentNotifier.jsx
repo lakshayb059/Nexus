@@ -87,8 +87,8 @@ const AppointmentNotifier = () => {
       add({
         id: Date.now(),
         type: 'callback',
-        title: 'Callback Reminder',
-        message: `${data.contactName} — in 2 min`,
+        title: data.isLeadCallback ? 'Lead Callback Reminder' : 'Callback Reminder',
+        message: data.isLeadCallback ? `${data.contactName} — lead callback in 2 min` : `${data.contactName} — in 2 min`,
       });
     });
     

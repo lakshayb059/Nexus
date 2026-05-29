@@ -30,9 +30,20 @@ router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']
       prisma.user.findMany({})
     ]);
 
+    const leadContactIds = leads.map(l => l.contactId).filter(Boolean);
+    const relatedContacts = await prisma.contact.findMany({
+      where: { id: { in: leadContactIds } },
+      select: { id: true, callBackDt: true }
+    });
+
+    const contactMap = relatedContacts.reduce((acc, c) => {
+      acc[c.id] = c.callBackDt;
+      return acc;
+    }, {});
+
     const userMap = allUsers.reduce((acc, u) => { acc[u.id] = u; return acc; }, {});
-    const leadContactIds = new Set(leads.map(l => l.contactId));
-    const uniqueContactLeads = contactLeads.filter(c => !leadContactIds.has(c.id));
+    const leadContactIdsSet = new Set(leads.map(l => l.contactId));
+    const uniqueContactLeads = contactLeads.filter(c => !leadContactIdsSet.has(c.id));
 
     const mappedContactLeads = uniqueContactLeads.map(c => {
       const agent = c.assignedTo ? userMap[c.assignedTo] : null;
@@ -52,7 +63,8 @@ router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']
         status: c.status || 'Converted',
         remarks: c.remarks || 'Imported Lead',
         createdAt: c.createdAt,
-        lastModified: c.lastModified
+        lastModified: c.lastModified,
+        callBackDt: c.callBackDt
       };
     });
 
@@ -67,6 +79,7 @@ router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']
         agentName: agent ? agent.name : 'Unassigned',
         tlName: tl ? tl.name : 'N/A',
         adminName: admin ? admin.name : 'N/A',
+        callBackDt: l.contactId ? contactMap[l.contactId] : null
       };
     }), ...mappedContactLeads];
     const groupedMap = new Map();
@@ -82,25 +95,29 @@ router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']
       const rawPhone = fields.Phone || fields.phone || fields.Mobile || 'N/A';
       const normPhone = normalize(rawPhone);
       if (!groupedMap.has(normPhone)) {
-        groupedMap.set(normPhone, { ...lead, totalAmount: 0, leadsCount: 0 });
+        groupedMap.set(normPhone, { totalAmount: 0, leadsCount: 0, historyStatuses: [] });
       }
       const group = groupedMap.get(normPhone);
       group.totalAmount += (parseFloat(lead.leadAmount) || 0);
       group.leadsCount += 1;
+      group.historyStatuses.push(lead.status || 'Converted');
 
       // Prioritize non-converted leads as the representative (they need attention)
       const groupIsConverted = group.status === 'Converted';
       const leadIsConverted = lead.status === 'Converted';
       const shouldReplace = 
+        !group.id ||
         (groupIsConverted && !leadIsConverted) || // non-converted takes priority over converted
         (groupIsConverted === leadIsConverted && new Date(lead.createdAt) > new Date(group.createdAt)); // same category: use newest
 
       if (shouldReplace) {
         const currentAmount = group.totalAmount;
         const currentCount = group.leadsCount;
+        const currentHistory = group.historyStatuses;
         Object.assign(group, lead);
         group.totalAmount = currentAmount;
         group.leadsCount = currentCount;
+        group.historyStatuses = currentHistory;
       }
     });
 

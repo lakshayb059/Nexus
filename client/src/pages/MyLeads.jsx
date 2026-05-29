@@ -453,7 +453,7 @@ const MyLeads = () => {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {filtered.map(lead => {
-            const fields = lead.fields || {};
+        const fields = lead.fields || {};
             const name = fields.Name || fields.name || 'Unknown';
             const phone = fields.Phone || fields.phone || fields.Mobile || 'N/A';
             const isSelected = selectedIds.includes(lead._id);
@@ -461,6 +461,8 @@ const MyLeads = () => {
             const isNegative = lead.status === 'Not Interested' || lead.status === 'DNC/DND';
             const isConverted = lead.status === 'Converted';
             const isLocked = isConverted;
+            const hasActiveLeadInHistory = lead.historyStatuses?.some(status => status !== 'Converted' && status !== 'Not Interested');
+            const isCallButtonLocked = hasActiveLeadInHistory && lead.status !== 'Call Back';
 
             return (
               <div key={lead._id} className={`glass-panel lead-list-item ${isSelected ? 'selected' : ''}`} style={{
@@ -530,7 +532,7 @@ const MyLeads = () => {
 
                           {lead.status === 'Call Back' && lead.callBackDt && (
                             <span className="badge badge-cyan" style={{ fontSize: '0.65rem' }}>
-                              <Calendar size={10} /> {new Date(lead.callBackDt).toLocaleDateString()}
+                              <Calendar size={10} /> {new Date(lead.callBackDt).toLocaleString([], { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
                             </span>
                           )}
                           {lead.transactionId && <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>UTR: {lead.transactionId}</span>}
@@ -583,9 +585,21 @@ const MyLeads = () => {
                           >
                             <WhatsAppIcon size={16} fill="currentColor" />
                           </a>
-                          <button 
+                           <button 
                             className="btn btn-primary btn-icon" 
-                            style={{ width: 36, height: 36, borderRadius: 10 }}
+                            style={{ 
+                              width: 36, 
+                              height: 36, 
+                              borderRadius: 10,
+                              ...(isCallButtonLocked ? {
+                                background: 'var(--bg-surface-2)',
+                                border: '1px solid var(--border)',
+                                color: 'var(--text-muted)',
+                                opacity: 0.5,
+                                cursor: 'not-allowed'
+                              } : {})
+                            }}
+                            disabled={isCallButtonLocked}
                             onClick={async () => {
                               if (lead.status === 'Call Back') {
                                 window.location.href = `tel:${phone}`;
@@ -607,9 +621,9 @@ const MyLeads = () => {
                               window.location.href = `tel:${phone}`;
                               setCallActionLead(lead);
                             }}
-                            title="Call Lead"
+                            title={isCallButtonLocked ? "Call Locked - Active lead in history" : "Call Lead"}
                           >
-                            <PhoneCall size={16} fill="white" />
+                            <PhoneCall size={16} fill={isCallButtonLocked ? "gray" : "white"} />
                           </button>
                         </>
                       )}

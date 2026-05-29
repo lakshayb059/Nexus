@@ -577,6 +577,7 @@ async function checkCallbacks() {
         contactName: (cb.fields || {}).Name || (cb.fields || {}).name || 'Unknown',
         callbackTime: cb.callBackDt,
         agentId: cb.assignedTo,
+        isLeadCallback: cb.status === 'Call Back',
         minutesUntil: Math.max(0, Math.round((new Date(cb.callBackDt) - now) / 60000))
       });
       await prisma.contact.update({ where: { id: cb.id }, data: { cbReminderSent: true } });
