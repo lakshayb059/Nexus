@@ -760,7 +760,14 @@ router.put('/:id/status', verify, authorize(['superadmin', 'agent', 'tl', 'admin
       update.disposition = 'CallBack';
       update.callBackDt = callBackDt ? new Date(callBackDt) : (contact.callBackDt || new Date());
       
-      await prisma.lead.deleteMany({ where: { contactId: contact.id } });
+      await prisma.lead.updateMany({
+        where: { contactId: contact.id },
+        data: {
+          status: 'Call Back',
+          remarks: remarks || 'Status updated to Call Back',
+          lastModified: new Date()
+        }
+      });
       await prisma.callback.deleteMany({ where: { contactId: contact.id } });
       await prisma.callback.create({
         data: {

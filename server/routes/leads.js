@@ -431,15 +431,27 @@ router.put('/:id', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), as
       const leadObj = lead || await prisma.contact.findUnique({ where: { id: leadId } });
       if (!leadObj) return res.status(404).json({ error: 'Lead not found' });
 
-      await prisma.lead.deleteMany({ where: { id: leadId } });
-      await prisma.lead.deleteMany({ where: { contactId } });
+      // Update the Lead record(s) to 'Call Back' status rather than deleting them
+      await prisma.lead.updateMany({
+        where: {
+          OR: [
+            { id: leadId },
+            { contactId }
+          ]
+        },
+        data: {
+          status: 'Call Back',
+          remarks: req.body.remarks || leadObj.remarks || 'Status changed from Lead to Callback',
+          lastModified: new Date()
+        }
+      });
 
       const callBackDt = req.body.callBackDt ? new Date(req.body.callBackDt) : new Date();
       await prisma.contact.update({
         where: { id: contactId },
         data: {
           disposition: 'CallBack', status: 'Call Back', callBackDt,
-          remarks: req.body.remarks || 'Status changed from Lead to Callback',
+          remarks: req.body.remarks ? (leadObj.remarks ? `${leadObj.remarks} | ${req.body.remarks}` : req.body.remarks) : 'Status changed from Lead to Callback',
         }
       });
 
@@ -677,6 +689,22 @@ router.post('/:id/clone-and-dispose', verify, authorize(['superadmin', 'agent', 
           transactionId: transactionId || null
         }
       });
+
+      // ALSO create a Callback record if the lead status is 'Call Back'
+      if (finalStatus === 'Call Back') {
+        await prisma.callback.create({
+          data: {
+            contactId: newContactId, adminId: req.user.role === 'admin' ? (req.user._id || req.user.id) : (req.user.adminId || null),
+            fields: newContact.fields || {}, batchId: newContact.batchId,
+            assignedTo: newContact.assignedTo, agentName: newContact.agentName,
+            callBackDt: newContact.callBackDt || new Date(), remarks: newContact.remarks, source: 'lead'
+          }
+        });
+        const fields = newContact.fields || {};
+        const phoneNum = fields.Phone || fields.phone || fields.Mobile;
+        if (phoneNum) await consolidateCallbacks(phoneNum);
+      }
+
       if (finalStatus === 'Converted') {
         triggerConversionEmail(newContactId, req.body.receiptImage).then(emailResult => {
             broadcast('email_status', {

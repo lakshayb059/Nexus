@@ -81,13 +81,6 @@ const CallActionModal = ({ lead, onClose, onSubmit }) => {
                   <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>Create a new successful lead record</div>
                 </div>
               </button>
-              <button className="action-choice-btn" style={{ '--acc': 'var(--cyan)' }} onClick={() => setAction('Followup')}>
-                <Calendar size={20} />
-                <div style={{ textAlign: 'left' }}>
-                  <div style={{ fontWeight: 800 }}>Schedule Follow-up</div>
-                  <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>Add to callbacks for another time</div>
-                </div>
-              </button>
               <button className="action-choice-btn" style={{ '--acc': 'var(--danger)' }} onClick={() => setAction('Not Interested')}>
                 <XCircle size={20} />
                 <div style={{ textAlign: 'left' }}>
@@ -104,7 +97,6 @@ const CallActionModal = ({ lead, onClose, onSubmit }) => {
                 </button>
                 <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                   {action === 'Lead' && 'Convert to Lead'}
-                  {action === 'Followup' && 'Schedule Follow-up'}
                   {action === 'Not Interested' && 'Mark as Not Interested'}
                 </div>
               </div>
@@ -139,13 +131,6 @@ const CallActionModal = ({ lead, onClose, onSubmit }) => {
                     </div>
                   )}
                 </>
-              )}
-
-              {action === 'Followup' && (
-                <div className="input-group">
-                  <label>Callback Date & Time *</label>
-                  <input type="datetime-local" className="input-field" value={formData.callBackDt} min={new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)} onChange={e => setFormData(p => ({...p, callBackDt: e.target.value}))} required autoFocus />
-                </div>
               )}
 
               <div className="input-group">
