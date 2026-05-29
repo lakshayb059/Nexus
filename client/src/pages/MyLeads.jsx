@@ -55,6 +55,7 @@ const MyLeads = () => {
 
   const [historyContact, setHistoryContact] = useState(null);
   const [historyData, setHistoryData] = useState([]);
+  const [selectedHistoryIds, setSelectedHistoryIds] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
   const [toasts, setToasts] = useState([]);
@@ -229,6 +230,21 @@ const MyLeads = () => {
     }
   };
 
+  const handleHistoryBulkDelete = async () => {
+    if (!window.confirm(`Are you sure you want to delete ${selectedHistoryIds.length} selected history records?`)) return;
+    try {
+      await api.post('/leads/bulk-delete', { ids: selectedHistoryIds });
+      setSelectedHistoryIds([]);
+      addToast('Selected history records deleted successfully!', 'success');
+      fetchData();
+      if (historyContact) {
+        fetchHistory(historyContact.phone, historyContact.name);
+      }
+    } catch (err) {
+      alert('Failed to delete history records');
+    }
+  };
+
   const handleWipeLeads = async () => {
     const confirmation = window.prompt("WARNING: This will delete ALL leads and lead history. Type 'DELETE' to confirm.");
     if (confirmation === 'DELETE') {
@@ -325,6 +341,10 @@ const MyLeads = () => {
 
   const toggleSelect = (id) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
+  const toggleSelectHistory = (id) => {
+    setSelectedHistoryIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
   const handleCallActionSubmit = async (payload) => {
@@ -727,7 +747,7 @@ const MyLeads = () => {
       {historyContact && (
         <div className="status-modal-overlay animate-fade-in">
           <div className="status-modal-content animate-scale-up" style={{ maxWidth: 600 }}>
-            <div className="status-modal-header">
+            <div className="status-modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div className="status-icon-wrapper" style={{ background: '#8b5cf615', color: '#8b5cf6', width: 56, height: 56, minWidth: 56, borderRadius: 14 }}>
                   <TrendingUp size={32} />
@@ -737,9 +757,20 @@ const MyLeads = () => {
                   <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>{historyContact.name} ({historyContact.phone})</p>
                 </div>
               </div>
-              <button onClick={() => setHistoryContact(null)} className="status-modal-close">
-                <X size={20} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {(user?.role === 'admin' || user?.role === 'superadmin') && selectedHistoryIds.length > 0 && (
+                  <button 
+                    className="btn btn-danger" 
+                    onClick={handleHistoryBulkDelete}
+                    style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <Trash2 size={14} /> Delete ({selectedHistoryIds.length})
+                  </button>
+                )}
+                <button onClick={() => { setHistoryContact(null); setSelectedHistoryIds([]); }} className="status-modal-close">
+                  <X size={20} />
+                </button>
+              </div>
             </div>
 
             <div className="status-modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
@@ -754,77 +785,95 @@ const MyLeads = () => {
                     if (a.status === 'Converted' && b.status !== 'Converted') return 1;
                     if (a.status !== 'Converted' && b.status === 'Converted') return -1;
                     return new Date(b.createdAt) - new Date(a.createdAt);
-                  }).map((h, i) => (
-                    <div key={h._id} style={{
-                      padding: 16,
-                      borderRadius: 16,
-                      background: 'var(--bg-surface-2)',
-                      borderLeft: `4px solid ${h.status === 'Converted' ? '#10b981' : h.status === 'Not Interested' ? '#ef4444' : 'var(--border)'}`
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-                        <select
-                          className="input-field"
-                          style={{ marginBottom: 0, padding: '2px 8px', fontSize: '0.7rem', height: 28, width: 'auto', minWidth: 120 }}
-                          value={h.status || ''}
-                          disabled={h.status === 'Converted'}
-                          title={h.status === 'Converted' ? "Locked conversions cannot be modified." : ""}
-                          onChange={(e) => handleStatusChange(h, e.target.value, 'lead')}
-                        >
-                          <option value="">Set Status</option>
-                          <option value="Converted">Converted</option>
-                          <option value="Not Interested">Not Interested</option>
-                          <option value="DNC/DND">DNC/DND</option>
-                          <option value="Call Back">Call Back</option>
-                          <option value="Others">Others</option>
-                        </select>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{new Date(h.createdAt).toLocaleString()}</span>
-                          {h.status !== 'Converted' && (
-                            <button
-                              className="btn btn-icon history-upload-btn"
-                              title="Extract Transaction from Receipt"
-                              onClick={() => {
-                                setUploadTargetLead(h);
-                                fileInputRef.current?.click();
-                              }}
-                              disabled={extractingLeadId === h._id}
-                            >
-                              {extractingLeadId === h._id ? <Loader2 className="animate-spin upload-icon" /> : <ImageIcon className="upload-icon" />}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                        <div>
-                          <div style={{ fontSize: '1.1rem', fontWeight: 900, color: 'var(--text-primary)' }}>₹{(h.leadAmount || 0).toLocaleString()}</div>
-                          {h.agentName && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>Handled by: {h.agentName}</div>}
-
-                          {/* Specific Details - Conditional based on current record status */}
-                          {h.status === 'Call Back' && h.callBackDt && (
-                            <div style={{ fontSize: '0.75rem', color: 'var(--cyan)', fontWeight: 700, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <Calendar size={12} /> Callback: {new Date(h.callBackDt).toLocaleString()}
-                            </div>
-                          )}
-                          {h.status === 'Appointment' && h.appointmentDt && (
-                            <div style={{ fontSize: '0.75rem', color: 'var(--violet)', fontWeight: 700, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <Calendar size={12} /> Appointment: {new Date(h.appointmentDt).toLocaleString()}
-                            </div>
-                          )}
-                        </div>
-                        {h.status === 'Converted' && h.transactionId && (
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>UTR / Trans ID</div>
-                            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--success)' }}>{h.transactionId}</div>
+                  }).map((h, i) => {
+                    const isHistorySelected = selectedHistoryIds.includes(h._id);
+                    return (
+                      <div key={h._id} style={{
+                        padding: 16,
+                        borderRadius: 16,
+                        background: 'var(--bg-surface-2)',
+                        borderLeft: `4px solid ${h.status === 'Converted' ? '#10b981' : h.status === 'Not Interested' ? '#ef4444' : 'var(--border)'}`,
+                        display: 'flex',
+                        gap: 12,
+                        alignItems: 'flex-start'
+                      }}>
+                        {(user?.role === 'admin' || user?.role === 'superadmin') && (
+                          <div style={{ display: 'flex', alignItems: 'center', height: 28 }}>
+                            <input
+                              type="checkbox"
+                              checked={isHistorySelected}
+                              onChange={() => toggleSelectHistory(h._id)}
+                              style={{ width: 18, height: 18, cursor: 'pointer', accentColor: 'var(--primary)' }}
+                            />
                           </div>
                         )}
-                      </div>
-                      {(h.statusDetails || h.remarks) && (
-                        <div style={{ marginTop: 12, fontSize: '0.8rem', fontStyle: 'italic', color: 'var(--text-secondary)', background: 'rgba(0,0,0,0.03)', padding: '8px 12px', borderRadius: 8 }}>
-                          "{h.statusDetails || h.remarks}"
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                            <select
+                              className="input-field"
+                              style={{ marginBottom: 0, padding: '2px 8px', fontSize: '0.7rem', height: 28, width: 'auto', minWidth: 120 }}
+                              value={h.status || ''}
+                              disabled={h.status === 'Converted'}
+                              title={h.status === 'Converted' ? "Locked conversions cannot be modified." : ""}
+                              onChange={(e) => handleStatusChange(h, e.target.value, 'lead')}
+                            >
+                              <option value="">Set Status</option>
+                              <option value="Converted">Converted</option>
+                              <option value="Not Interested">Not Interested</option>
+                              <option value="DNC/DND">DNC/DND</option>
+                              <option value="Call Back">Call Back</option>
+                              <option value="Others">Others</option>
+                            </select>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{new Date(h.createdAt).toLocaleString()}</span>
+                              {h.status !== 'Converted' && (
+                                <button
+                                  className="btn btn-icon history-upload-btn"
+                                  title="Extract Transaction from Receipt"
+                                  onClick={() => {
+                                    setUploadTargetLead(h);
+                                    fileInputRef.current?.click();
+                                  }}
+                                  disabled={extractingLeadId === h._id}
+                                >
+                                  {extractingLeadId === h._id ? <Loader2 className="animate-spin upload-icon" /> : <ImageIcon className="upload-icon" />}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                            <div>
+                              <div style={{ fontSize: '1.1rem', fontWeight: 900, color: 'var(--text-primary)' }}>₹{(h.leadAmount || 0).toLocaleString()}</div>
+                              {h.agentName && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>Handled by: {h.agentName}</div>}
+
+                              {/* Specific Details - Conditional based on current record status */}
+                              {h.status === 'Call Back' && h.callBackDt && (
+                                <div style={{ fontSize: '0.75rem', color: 'var(--cyan)', fontWeight: 700, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <Calendar size={12} /> Callback: {new Date(h.callBackDt).toLocaleString()}
+                                </div>
+                              )}
+                              {h.status === 'Appointment' && h.appointmentDt && (
+                                <div style={{ fontSize: '0.75rem', color: 'var(--violet)', fontWeight: 700, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <Calendar size={12} /> Appointment: {new Date(h.appointmentDt).toLocaleString()}
+                                </div>
+                              )}
+                            </div>
+                            {h.status === 'Converted' && h.transactionId && (
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>UTR / Trans ID</div>
+                                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--success)' }}>{h.transactionId}</div>
+                              </div>
+                            )}
+                          </div>
+                          {(h.statusDetails || h.remarks) && (
+                            <div style={{ marginTop: 12, fontSize: '0.8rem', fontStyle: 'italic', color: 'var(--text-secondary)', background: 'rgba(0,0,0,0.03)', padding: '8px 12px', borderRadius: 8 }}>
+                              "{h.statusDetails || h.remarks}"
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  ))}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
