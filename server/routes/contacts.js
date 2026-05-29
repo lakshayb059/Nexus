@@ -622,7 +622,10 @@ router.get('/queue', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), 
       
       if (dueCallbacks.length > 0) {
         contact = dueCallbacks[0];
-        await prisma.contact.update({ where: { id: contact.id }, data: { queueOrder: 0, callBackDt: null } });
+        await prisma.contact.update({ 
+          where: { id: contact.id }, 
+          data: { queueOrder: -10, callBackDt: null, disposition: null } 
+        });
         type = 'callback_due';
       } else {
         const standardPending = await prisma.contact.findMany({
@@ -642,6 +645,8 @@ router.get('/queue', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), 
     if (contact && type !== 'callback_due') {
       if (contact.disposition === 'CallNotAnswered' || contact.disposition === 'HungUp') {
         type = 'rechurn'; rechurnNum = (contact.rechurnCount || 0) + 1;
+      } else if (contact.queueOrder === -10) {
+        type = 'callback_due';
       }
     }
     
@@ -848,7 +853,7 @@ router.post('/:id/requeue', verify, authorize(['superadmin', 'agent', 'tl', 'adm
     const update = {
       disposition: null, status: null, leadAmount: null, appointmentDt: null, callBackDt: null,
       remarks: contact.remarks ? `${contact.remarks} | [Requeued at ${new Date().toLocaleString()}]` : `[Requeued at ${new Date().toLocaleString()}]`,
-      queueOrder: 0
+      queueOrder: -10
     };
 
     await Promise.all([
