@@ -950,41 +950,50 @@ router.get('/customer-360/:phone', verify, authorize(['superadmin', 'agent', 'tl
     });
 
     const convertedLeads = [];
-    const seenConvertedKeys = new Set();
+    const seenContactIds = new Set();
+    const seenTransactionIds = new Set();
 
+    // 1. Process matchingLeads first
     matchingLeads.forEach(l => {
       if (l.status === 'Converted') {
-        const key = `${l.transactionId || ''}_${l.leadAmount || 0}_${new Date(l.createdAt).getTime()}`;
-        if (!seenConvertedKeys.has(key)) {
-          seenConvertedKeys.add(key);
-          convertedLeads.push({
-            id: l.id,
-            contactId: l.contactId,
-            leadAmount: l.leadAmount,
-            transactionId: l.transactionId,
-            agentName: l.agentName || userMap[l.assignedTo] || 'Agent',
-            createdAt: l.createdAt,
-            remarks: l.remarks
-          });
-        }
+        const txId = (l.transactionId || '').trim();
+        if (txId && seenTransactionIds.has(txId)) return; // skip duplicate TxID
+        
+        if (txId) seenTransactionIds.add(txId);
+        if (l.contactId) seenContactIds.add(l.contactId);
+        
+        convertedLeads.push({
+          id: l.id,
+          contactId: l.contactId,
+          leadAmount: l.leadAmount,
+          transactionId: l.transactionId,
+          agentName: l.agentName || userMap[l.assignedTo] || 'Agent',
+          createdAt: l.createdAt,
+          remarks: l.remarks
+        });
       }
     });
 
+    // 2. Process matchingContacts, skipping any already represented
     matchingContacts.forEach(c => {
       if (c.status === 'Converted' && c.disposition === 'Lead') {
-        const key = `${c.transactionId || ''}_${c.leadAmount || 0}_${new Date(c.conversionDate || c.disposedAt || c.createdAt).getTime()}`;
-        if (!seenConvertedKeys.has(key)) {
-          seenConvertedKeys.add(key);
-          convertedLeads.push({
-            id: c.id,
-            contactId: c.id,
-            leadAmount: c.leadAmount,
-            transactionId: c.transactionId,
-            agentName: c.agentName || userMap[c.assignedTo] || 'Agent',
-            createdAt: c.conversionDate || c.disposedAt || c.createdAt,
-            remarks: c.remarks
-          });
-        }
+        if (seenContactIds.has(c.id)) return; // already added from leads table
+        
+        const txId = (c.transactionId || '').trim();
+        if (txId && seenTransactionIds.has(txId)) return; // skip duplicate TxID
+        
+        seenContactIds.add(c.id);
+        if (txId) seenTransactionIds.add(txId);
+
+        convertedLeads.push({
+          id: c.id,
+          contactId: c.id,
+          leadAmount: c.leadAmount,
+          transactionId: c.transactionId,
+          agentName: c.agentName || userMap[c.assignedTo] || 'Agent',
+          createdAt: c.conversionDate || c.disposedAt || c.createdAt,
+          remarks: c.remarks
+        });
       }
     });
 
