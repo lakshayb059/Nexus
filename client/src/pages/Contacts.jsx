@@ -61,6 +61,34 @@ const Contacts = ({ filterType }) => {
   const fetchContacts = async () => {
     try {
       setLoading(true);
+
+      const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
+      const isAllContacts = !filterType || filterType === 'all';
+      const hasNoFilters = !selectedTl && !selectedAgent && !debouncedSearchTerm;
+
+      // Load TLs/Agents dropdown options if they aren't loaded yet
+      if (isAdmin && tls.length === 0) {
+        try {
+          const usersRes = await api.get('/users');
+          const all = usersRes.data;
+          setTls(all.filter(u => u.role === 'tl'));
+          setAllAgents(all.filter(u => u.role === 'agent'));
+          setFilteredAgents(all.filter(u => u.role === 'agent'));
+        } catch (err) {
+          console.error('Failed to fetch users', err);
+        }
+      }
+
+      if (isAdmin && isAllContacts && hasNoFilters) {
+        setContacts([]);
+        setTotalRecords(0);
+        setTotalPages(1);
+        setTotalLeadValue(0);
+        setError(null);
+        setLoading(false);
+        return;
+      }
+
       let query = `?page=${page}&limit=${limit}`;
       
       if (filterType === 'leads')        query += '&disposition=Lead';
@@ -275,6 +303,12 @@ const Contacts = ({ filterType }) => {
             <h3 style={{ color: '#ef4444' }}>Connection Error</h3>
             <p style={{ color: 'var(--text-muted)' }}>{error}</p>
             <button className="btn btn-primary" style={{ marginTop: 20 }} onClick={fetchContacts}>Retry Connection</button>
+          </div>
+        ) : (user?.role === 'admin' || user?.role === 'superadmin') && (!filterType || filterType === 'all') && !selectedTl && !selectedAgent && !debouncedSearchTerm ? (
+          <div className="glass-panel" style={{ padding: '60px 40px', textAlign: 'center', gridColumn: '1 / -1' }}>
+            <Search size={40} style={{ color: 'var(--primary)', marginBottom: 16, opacity: 0.8 }} />
+            <h3>Please search or apply a filter</h3>
+            <p style={{ color: 'var(--text-muted)' }}>Contacts will be shown once you apply a filter or use the search bar.</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="glass-panel" style={{ padding: '60px 40px', textAlign: 'center', gridColumn: '1 / -1' }}>
