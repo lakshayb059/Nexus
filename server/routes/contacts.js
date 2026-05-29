@@ -861,4 +861,224 @@ router.post('/:id/requeue', verify, authorize(['superadmin', 'agent', 'tl', 'adm
   }
 });
 
+router.get('/customer-360/:phone', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
+  try {
+    const phoneParam = req.params.phone;
+    if (!phoneParam) return res.status(400).json({ error: 'Phone parameter is required' });
+
+    const targetNorm = normalizePhone(phoneParam);
+    if (!targetNorm) {
+      return res.json({
+        phone: phoneParam,
+        normalizedPhone: null,
+        hasConvertedLead: false,
+        convertedLeads: [],
+        timeline: [],
+        contactsCount: 0,
+        leadsCount: 0,
+        callbacksCount: 0,
+        appointmentsCount: 0
+      });
+    }
+
+    const [rawContacts, rawLeads, rawCallbacks, rawAppointments, allUsers] = await Promise.all([
+      prisma.contact.findMany({
+        select: {
+          id: true, fields: true, remarks: true, status: true, disposition: true,
+          leadAmount: true, transactionId: true, createdAt: true, disposedAt: true,
+          lastModified: true, assignedTo: true, agentName: true, conversionDate: true
+        }
+      }),
+      prisma.lead.findMany({
+        select: {
+          id: true, contactId: true, fields: true, remarks: true, status: true,
+          leadAmount: true, transactionId: true, createdAt: true, lastModified: true,
+          assignedTo: true, agentName: true
+        }
+      }),
+      prisma.callback.findMany({
+        select: {
+          id: true, contactId: true, fields: true, remarks: true, callBackDt: true,
+          createdAt: true, assignedTo: true, agentName: true
+        }
+      }),
+      prisma.appointment.findMany({
+        select: {
+          id: true, contactId: true, fields: true, remarks: true, appointmentDt: true,
+          createdAt: true, assignedTo: true, agentName: true
+        }
+      }),
+      prisma.user.findMany({
+        select: { id: true, name: true, username: true }
+      })
+    ]);
+
+    const userMap = {};
+    allUsers.forEach(u => {
+      userMap[u.id] = u.name || u.username || 'System';
+    });
+
+    const matchingContacts = rawContacts.filter(c => {
+      const f = c.fields || {};
+      const p = f.Phone || f.phone || f.Mobile;
+      return p && normalizePhone(p) === targetNorm;
+    });
+
+    const matchingLeads = rawLeads.filter(l => {
+      const f = l.fields || {};
+      const p = f.Phone || f.phone || f.Mobile;
+      return p && normalizePhone(p) === targetNorm;
+    });
+
+    const matchingCallbacks = rawCallbacks.filter(cb => {
+      const f = cb.fields || {};
+      const p = f.Phone || f.phone || f.Mobile;
+      return p && normalizePhone(p) === targetNorm;
+    });
+
+    const matchingAppointments = rawAppointments.filter(appt => {
+      const f = appt.fields || {};
+      const p = f.Phone || f.phone || f.Mobile;
+      return p && normalizePhone(p) === targetNorm;
+    });
+
+    const convertedLeads = [];
+    const seenConvertedKeys = new Set();
+
+    matchingLeads.forEach(l => {
+      if (l.status === 'Converted') {
+        const key = `${l.transactionId || ''}_${l.leadAmount || 0}_${new Date(l.createdAt).getTime()}`;
+        if (!seenConvertedKeys.has(key)) {
+          seenConvertedKeys.add(key);
+          convertedLeads.push({
+            id: l.id,
+            contactId: l.contactId,
+            leadAmount: l.leadAmount,
+            transactionId: l.transactionId,
+            agentName: l.agentName || userMap[l.assignedTo] || 'Agent',
+            createdAt: l.createdAt,
+            remarks: l.remarks
+          });
+        }
+      }
+    });
+
+    matchingContacts.forEach(c => {
+      if (c.status === 'Converted' && c.disposition === 'Lead') {
+        const key = `${c.transactionId || ''}_${c.leadAmount || 0}_${new Date(c.conversionDate || c.disposedAt || c.createdAt).getTime()}`;
+        if (!seenConvertedKeys.has(key)) {
+          seenConvertedKeys.add(key);
+          convertedLeads.push({
+            id: c.id,
+            contactId: c.id,
+            leadAmount: c.leadAmount,
+            transactionId: c.transactionId,
+            agentName: c.agentName || userMap[c.assignedTo] || 'Agent',
+            createdAt: c.conversionDate || c.disposedAt || c.createdAt,
+            remarks: c.remarks
+          });
+        }
+      }
+    });
+
+    const parseRemark = (remarkStr) => {
+      const requeueRegex = /^\[Requeued by (.+?) on (.+?)\]$/;
+      const standardRegex = /^\[(.+?) by (.+?) on (.+?)\]:\s*(.*)$/;
+      const cbRegex = /^\[Later CB Remark:\s*(.*)\]$/;
+      const oldRequeueRegex = /^Requeued by (.+)$/;
+      const requeuedAtRegex = /^\[Requeued at (.+?)\]$/;
+
+      if (requeueRegex.test(remarkStr)) {
+        const [_, name, date] = remarkStr.match(requeueRegex);
+        return { type: 'requeue', label: 'Requeued', agent: name, date: new Date(date), content: 'Contact was returned to the active calling queue.' };
+      }
+      if (requeuedAtRegex.test(remarkStr)) {
+        const [_, date] = remarkStr.match(requeuedAtRegex);
+        return { type: 'requeue', label: 'Requeued', date: new Date(date), content: 'Contact was returned to the active calling queue.' };
+      }
+      if (standardRegex.test(remarkStr)) {
+        const [_, disposal, agent, date, content] = remarkStr.match(standardRegex);
+        return { type: 'disposal', label: disposal, agent, date: new Date(date), content };
+      }
+      if (cbRegex.test(remarkStr)) {
+        const [_, content] = remarkStr.match(cbRegex);
+        return { type: 'callback', label: 'Callback', content };
+      }
+      if (oldRequeueRegex.test(remarkStr)) {
+        const [_, name] = remarkStr.match(oldRequeueRegex);
+        return { type: 'requeue', label: 'Requeued', agent: name, content: 'Contact was returned to the active calling queue.' };
+      }
+      return { type: 'legacy', content: remarkStr };
+    };
+
+    const timelineEntries = [];
+    const seenRemarks = new Set();
+
+    const addRemarkToTimeline = (remarkStr, recordDate) => {
+      const trimmed = remarkStr.trim();
+      if (!trimmed || seenRemarks.has(trimmed)) return;
+      seenRemarks.add(trimmed);
+
+      const parsed = parseRemark(trimmed);
+      let entryDate = recordDate || new Date();
+      if (parsed.date && !isNaN(parsed.date.getTime())) {
+        entryDate = parsed.date;
+      }
+      
+      timelineEntries.push({
+        ...parsed,
+        date: entryDate.toISOString(),
+        originalRemark: trimmed
+      });
+    };
+
+    matchingContacts.forEach(c => {
+      if (c.remarks) {
+        c.remarks.split(' | ').forEach(r => {
+          addRemarkToTimeline(r, c.disposedAt || c.lastModified || c.createdAt);
+        });
+      }
+    });
+
+    matchingLeads.forEach(l => {
+      if (l.remarks) {
+        l.remarks.split(' | ').forEach(r => {
+          addRemarkToTimeline(r, l.createdAt || l.lastModified);
+        });
+      }
+    });
+
+    matchingCallbacks.forEach(cb => {
+      const agentName = cb.agentName || userMap[cb.assignedTo] || 'Agent';
+      const callbackDate = cb.callBackDt ? new Date(cb.callBackDt).toLocaleString() : 'N/A';
+      const entryText = `[Callback Scheduled by ${agentName} for ${callbackDate}]: ${cb.remarks || ''}`;
+      addRemarkToTimeline(entryText, cb.createdAt);
+    });
+
+    matchingAppointments.forEach(appt => {
+      const agentName = appt.agentName || userMap[appt.assignedTo] || 'Agent';
+      const apptDate = appt.appointmentDt ? new Date(appt.appointmentDt).toLocaleString() : 'N/A';
+      const entryText = `[Appointment Scheduled by ${agentName} for ${apptDate}]: ${appt.remarks || ''}`;
+      addRemarkToTimeline(entryText, appt.createdAt);
+    });
+
+    timelineEntries.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    res.json({
+      phone: phoneParam,
+      normalizedPhone: targetNorm,
+      hasConvertedLead: convertedLeads.length > 0,
+      convertedLeads,
+      timeline: timelineEntries,
+      contactsCount: matchingContacts.length,
+      leadsCount: matchingLeads.length,
+      callbacksCount: matchingCallbacks.length,
+      appointmentsCount: matchingAppointments.length
+    });
+  } catch (err) {
+    console.error('Customer 360 fetch failed:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

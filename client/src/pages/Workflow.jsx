@@ -33,6 +33,8 @@ const Workflow = () => {
   const [emptyStateContacts, setEmptyStateContacts] = useState(null);
   const [requeuing, setRequeuing] = useState(null);
   const [toasts, setToasts] = useState([]);
+  const [customer360, setCustomer360] = useState(null);
+  const [loading360, setLoading360] = useState(false);
 
   const addToast = (message, type = 'success') => {
     const id = Date.now();
@@ -40,6 +42,18 @@ const Workflow = () => {
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 5000);
+  };
+
+  const fetchCustomer360 = async (phone) => {
+    try {
+      setLoading360(true);
+      const res = await api.get(`/contacts/customer-360/${phone}`);
+      setCustomer360(res.data);
+    } catch (err) {
+      console.error('Failed to fetch Customer 360 history:', err);
+    } finally {
+      setLoading360(false);
+    }
   };
 
   const fetchNext = async (cid) => {
@@ -52,8 +66,17 @@ const Workflow = () => {
       if (!res.data?.contact) {
         const allRes = await api.get('/contacts');
         setEmptyStateContacts(allRes.data);
+        setCustomer360(null);
       } else {
         setEmptyStateContacts(null);
+        const contact = res.data.contact;
+        const fields = contact.fields || {};
+        const phone = fields.Phone || fields.phone || fields.Mobile;
+        if (phone) {
+          fetchCustomer360(phone);
+        } else {
+          setCustomer360(null);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -357,30 +380,8 @@ const Workflow = () => {
           </div>
 
           {(() => {
-            const parseRemark = (remarkStr) => {
-              const requeueRegex = /^\[Requeued by (.+?) on (.+?)\]$/;
-              const standardRegex = /^\[(.+?) by (.+?) on (.+?)\]:\s*(.*)$/;
-              const cbRegex = /^\[Later CB Remark:\s*(.*)\]$/;
-              const oldRequeueRegex = /^Requeued by (.+)$/;
-
-              if (requeueRegex.test(remarkStr)) {
-                const [_, name, date] = remarkStr.match(requeueRegex);
-                return { type: 'requeue', label: 'Requeued', agent: name, date, content: 'Contact was returned to the active calling queue.' };
-              }
-              if (standardRegex.test(remarkStr)) {
-                const [_, disposal, agent, date, content] = remarkStr.match(standardRegex);
-                return { type: 'disposal', label: disposal, agent, date, content };
-              }
-              if (cbRegex.test(remarkStr)) {
-                const [_, content] = remarkStr.match(cbRegex);
-                return { type: 'callback', label: 'Callback', content };
-              }
-              if (oldRequeueRegex.test(remarkStr)) {
-                const [_, name] = remarkStr.match(oldRequeueRegex);
-                return { type: 'requeue', label: 'Requeued', agent: name, content: 'Contact was returned to the active calling queue.' };
-              }
-              return { type: 'legacy', content: remarkStr };
-            };
+            const phoneNum = fields.Phone || fields.phone || fields.Mobile;
+            if (!phoneNum) return null;
 
             const getEntryMeta = (type, label) => {
               const normLabel = (label || '').toLowerCase();
@@ -399,96 +400,160 @@ const Workflow = () => {
               return { color: 'var(--primary)', bgColor: 'rgba(99, 102, 241, 0.1)', border: 'var(--primary)' };
             };
 
-            if (!contact.remarks) return null;
+            if (loading360) {
+              return (
+                <div style={{ marginTop: 24, padding: '20px 24px 24px', background: 'var(--bg-surface-2)', borderRadius: 'var(--r-lg)', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 900, letterSpacing: '0.08em', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <TrendingUp size={14} className="animate-pulse" color="var(--primary)" /> Customer 360 (Loading...)
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingLeft: 18, borderLeft: '2px dashed var(--border)' }}>
+                    {[1, 2].map(n => (
+                      <div key={n} style={{ position: 'relative', opacity: 0.5 }}>
+                        <div style={{ position: 'absolute', left: -25, top: 4, width: 12, height: 12, borderRadius: '50%', background: 'var(--border)' }} />
+                        <div style={{ width: '120px', height: '14px', background: 'var(--border)', borderRadius: '4px', marginBottom: '8px', animation: 'pulse 1.5s infinite ease-in-out' }} />
+                        <div style={{ width: '100%', height: '36px', background: 'var(--border)', borderRadius: 'var(--r-md)', animation: 'pulse 1.5s infinite ease-in-out' }} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+
+            if (!customer360) return null;
 
             return (
               <div style={{ marginTop: 24, padding: '20px 24px 24px', background: 'var(--bg-surface-2)', borderRadius: 'var(--r-lg)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 900, letterSpacing: '0.08em', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <TrendingUp size={14} color="var(--primary)" /> Customer 360
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 0, position: 'relative', paddingLeft: 18, borderLeft: '2px solid var(--border)' }}>
-                  {contact.remarks.split(' | ').reverse().map((remarkStr, idx, arr) => {
-                    const entry = parseRemark(remarkStr);
-                    const meta = getEntryMeta(entry.type, entry.label);
-                    
-                    return (
-                      <div key={idx} style={{ position: 'relative', marginBottom: idx === arr.length - 1 ? 0 : 20 }}>
-                        {/* Timeline indicator node */}
-                        <div style={{ 
-                          position: 'absolute', 
-                          left: -27, 
-                          top: 2, 
-                          width: 16, 
-                          height: 16, 
-                          borderRadius: '50%', 
-                          background: 'var(--bg-surface-2)', 
-                          border: `3px solid ${meta.color}`,
-                          boxShadow: 'var(--shadow-sm)'
-                        }} />
-                        
-                        {/* Entry Header */}
-                        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                          {entry.label ? (
-                            <span style={{ 
-                              fontSize: '0.68rem', 
-                              fontWeight: 800, 
-                              color: meta.color, 
-                              background: meta.bgColor, 
-                              border: `1px solid ${meta.border}`,
-                              padding: '2px 8px', 
-                              borderRadius: '20px', 
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.02em'
+
+                {customer360.hasConvertedLead && (
+                  <div style={{ 
+                    marginBottom: 20, 
+                    padding: '20px', 
+                    background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(5, 150, 105, 0.04))',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(16, 185, 129, 0.25)', 
+                    borderRadius: 'var(--r-lg)',
+                    boxShadow: '0 8px 32px 0 rgba(16, 185, 129, 0.05)',
+                    animation: 'revealUp 0.4s ease-out'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#10b981', fontWeight: 900, fontSize: '0.95rem', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      <span>🌟</span> Converted Lead History Found
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
+                      {customer360.convertedLeads.map((lead, idx) => (
+                        <div key={idx} style={{ background: 'var(--bg-surface-1)', border: '1px solid var(--border)', padding: '10px 12px', borderRadius: 'var(--r-md)' }}>
+                          <span style={{ display: 'block', fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.05em', marginBottom: 3 }}>
+                            Amt: ₹{(lead.leadAmount || 0).toLocaleString()}
+                          </span>
+                          <span style={{ display: 'block', fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', wordBreak: 'break-all' }}>
+                            UTR: {lead.transactionId || 'N/A'}
+                          </span>
+                          <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                            By {lead.agentName}
+                          </span>
+                          <span style={{ display: 'block', fontSize: '0.62rem', color: 'var(--text-muted)' }}>
+                            on {new Date(lead.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {customer360.timeline.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '16px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    No past remarks or interaction history found.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 0, position: 'relative', paddingLeft: 18, borderLeft: '2px solid var(--border)' }}>
+                    {customer360.timeline.map((entry, idx, arr) => {
+                      const meta = getEntryMeta(entry.type, entry.label);
+                      
+                      return (
+                        <div key={idx} className="timeline-item" style={{ position: 'relative', marginBottom: idx === arr.length - 1 ? 0 : 20, transition: 'all 0.2s ease' }}>
+                          {/* Timeline indicator node */}
+                          <div 
+                            className="timeline-node"
+                            style={{ 
+                              position: 'absolute', 
+                              left: -27, 
+                              top: 2, 
+                              width: 16, 
+                              height: 16, 
+                              borderRadius: '50%', 
+                              background: 'var(--bg-surface-2)', 
+                              border: `3px solid ${meta.color}`,
+                              boxShadow: 'var(--shadow-sm)',
+                              transition: 'transform 0.2s ease'
+                            }} 
+                          />
+                          
+                          {/* Entry Header */}
+                          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                            {entry.label ? (
+                              <span style={{ 
+                                fontSize: '0.68rem', 
+                                fontWeight: 800, 
+                                color: meta.color, 
+                                background: meta.bgColor, 
+                                border: `1px solid ${meta.border}`,
+                                padding: '2px 8px', 
+                                borderRadius: '20px', 
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.02em'
+                              }}>
+                                {entry.label}
+                              </span>
+                            ) : (
+                              <span style={{ 
+                                fontSize: '0.68rem', 
+                                fontWeight: 800, 
+                                color: 'var(--text-muted)', 
+                                background: 'var(--bg-surface-1)', 
+                                border: '1px solid var(--border)',
+                                padding: '2px 8px', 
+                                borderRadius: '20px', 
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.02em'
+                              }}>
+                                Remark
+                              </span>
+                            )}
+                            {entry.agent && (
+                              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                by <strong style={{ color: 'var(--primary)' }}>{entry.agent}</strong>
+                              </span>
+                            )}
+                            {entry.date && (
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                on {new Date(entry.date).toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+                          
+                          {/* Entry Content (Remarks Text) */}
+                          {entry.content && (
+                            <div style={{ 
+                              fontSize: '0.88rem', 
+                              color: 'var(--text-primary)', 
+                              fontStyle: entry.type === 'legacy' ? 'normal' : 'italic', 
+                              lineHeight: 1.45,
+                              background: 'var(--bg-surface-1)',
+                              padding: '8px 12px',
+                              borderRadius: 'var(--r-md)',
+                              borderLeft: `3px solid ${meta.color}`,
+                              wordBreak: 'break-word'
                             }}>
-                              {entry.label}
-                            </span>
-                          ) : (
-                            <span style={{ 
-                              fontSize: '0.68rem', 
-                              fontWeight: 800, 
-                              color: 'var(--text-muted)', 
-                              background: 'var(--bg-surface-1)', 
-                              border: '1px solid var(--border)',
-                              padding: '2px 8px', 
-                              borderRadius: '20px', 
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.02em'
-                            }}>
-                              Remark
-                            </span>
-                          )}
-                          {entry.agent && (
-                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                              by <strong style={{ color: 'var(--primary)' }}>{entry.agent}</strong>
-                            </span>
-                          )}
-                          {entry.date && (
-                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                              on {entry.date}
-                            </span>
+                              {entry.content}
+                            </div>
                           )}
                         </div>
-                        
-                        {/* Entry Content (Remarks Text) */}
-                        {entry.content && (
-                          <div style={{ 
-                            fontSize: '0.88rem', 
-                            color: 'var(--text-primary)', 
-                            fontStyle: entry.type === 'legacy' ? 'normal' : 'italic', 
-                            lineHeight: 1.45,
-                            background: 'var(--bg-surface-1)',
-                            padding: '8px 12px',
-                            borderRadius: 'var(--r-md)',
-                            borderLeft: `3px solid ${meta.color}`,
-                            wordBreak: 'break-word'
-                          }}>
-                            {entry.content}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })()}
@@ -671,6 +736,17 @@ const Workflow = () => {
         @media (max-width: 1024px) { 
           .workflow-grid { grid-template-columns: 1fr; } 
           .detail-grid { grid-template-columns: 1fr; }
+        }
+
+        .timeline-item {
+          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .timeline-item:hover {
+          transform: translateX(4px);
+        }
+        .timeline-item:hover .timeline-node {
+          transform: scale(1.35);
+          filter: brightness(1.1);
         }
       `}</style>
     </div>
