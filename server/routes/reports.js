@@ -17,21 +17,37 @@ router.get('/download', verify, authorize(['superadmin', 'admin', 'tl', 'agent']
     const { format = 'csv', agentId, disposition, batchId, reportType, fromDate, toDate } = req.query;
     let where = { isDeleted: false };
     
-    if (fromDate && toDate) {
-      where.createdAt = {
-        gte: new Date(fromDate),
-        lte: new Date(new Date(toDate).setHours(23, 59, 59, 999))
-      };
-    }
-
-    if (reportType === 'lead') where.disposition = 'Lead';
-    else if (reportType === 'converted') {
+    if (reportType === 'lead') {
+      where.disposition = 'Lead';
+      if (fromDate && toDate) {
+        where.disposedAt = {
+          gte: new Date(fromDate),
+          lte: new Date(new Date(toDate).setHours(23, 59, 59, 999))
+        };
+      }
+    } else if (reportType === 'converted') {
       where.status = 'Converted';
-    }
-    else {
+      if (fromDate && toDate) {
+        where.disposedAt = {
+          gte: new Date(fromDate),
+          lte: new Date(new Date(toDate).setHours(23, 59, 59, 999))
+        };
+      }
+    } else {
       if (disposition === 'pending') where.disposition = null;
       else if (disposition) where.disposition = disposition;
+
+      if (fromDate && toDate) {
+        const start = new Date(fromDate);
+        const end = new Date(new Date(toDate).setHours(23, 59, 59, 999));
+        where.OR = [
+          { disposedAt: { gte: start, lte: end } },
+          { disposition: null, createdAt: { gte: start, lte: end } },
+          { disposition: '', createdAt: { gte: start, lte: end } }
+        ];
+      }
     }
+
     if (batchId) where.batchId = batchId;
 
     if (req.user.role === 'tl') {

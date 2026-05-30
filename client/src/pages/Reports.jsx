@@ -39,15 +39,19 @@ const Reports = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const query = selectedAgent ? `?agentId=${selectedAgent}` : '';
+      const queryParams = new URLSearchParams();
+      if (selectedAgent) queryParams.append('agentId', selectedAgent);
+      if (fromDate) queryParams.append('fromDate', fromDate);
+      if (toDate) queryParams.append('toDate', toDate);
+      const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
       
       const reqs = [
-        api.get(`/contacts/stats${query}`),
+        api.get(`/contacts/stats${queryString}`),
         user.role !== 'agent'
           ? api.get(['admin', 'superadmin'].includes(user.role) ? '/users' : '/users/my-agents')
           : Promise.resolve({ data: [] })
       ];
-      if (user.role === 'superadmin') reqs.push(api.get('/contacts/admin-stats'));
+      if (user.role === 'superadmin') reqs.push(api.get(`/contacts/admin-stats${queryString}`));
 
       const responses = await Promise.all(reqs);
       setStats(responses[0].data);
@@ -66,7 +70,7 @@ const Reports = () => {
     const events = ['contacts_updated', 'batch_uploaded', 'users_updated'];
     events.forEach(e => socket.on(e, fetchData));
     return () => events.forEach(e => socket.off(e, fetchData));
-  }, [selectedAgent, socket]);
+  }, [selectedAgent, fromDate, toDate, socket]);
 
   const handleExport = async (format) => {
     if (!fromDate || !toDate) {
