@@ -146,10 +146,13 @@ router.get('/download', verify, authorize(['superadmin', 'admin', 'tl', 'agent']
     } else if (reportType === 'converted') {
       where.status = 'Converted';
       if (fromDate && toDate) {
-        where.disposedAt = {
-          gte: new Date(fromDate),
-          lte: new Date(new Date(toDate).setHours(23, 59, 59, 999))
-        };
+        const start = new Date(fromDate);
+        const end = new Date(new Date(toDate).setHours(23, 59, 59, 999));
+        where.OR = [
+          { conversionDate: { gte: start, lte: end } },
+          { conversionDate: null, disposedAt: { gte: start, lte: end } },
+          { conversionDate: null, createdAt: { gte: start, lte: end } }
+        ];
       }
     } else {
       if (disposition === 'pending') where.disposition = null;
@@ -230,6 +233,9 @@ router.get('/download', verify, authorize(['superadmin', 'admin', 'tl', 'agent']
         }
         
         const txDate = c.lastModified ? new Date(c.lastModified).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' }).replace(/ /g, '-') : '';
+        const effectiveAmount = (c.isCharityConfirmed && c.charityAmount !== null && c.charityAmount !== undefined)
+          ? c.charityAmount
+          : (c.leadAmount || '');
 
         return {
           'Sl No': slNo,
@@ -240,9 +246,16 @@ router.get('/download', verify, authorize(['superadmin', 'admin', 'tl', 'agent']
           'Pincode': pincode,
           'Mobile No (Mandatory)': phone,
           'Email ID ( Mandatory)': email,
-          'Amount': c.leadAmount || '',
-          'Transaction No / Cheque No': '',
-          'Updated Transaction No': txId,
+          'Amount': effectiveAmount,
+          'Agent Amount': c.leadAmount || '',
+          'Charity Amount': c.charityAmount || '',
+          'UTR-Internal': c.transactionId || '',
+          'UTR-Charity': c.utrCharity || '',
+          'Confirmed by Charity': c.isCharityConfirmed ? 'Yes' : 'No',
+          'Charity Confirmed At': c.charityConfirmedAt ? new Date(c.charityConfirmedAt).toLocaleString('en-IN') : '',
+          'Charity Confirmed By': c.charityConfirmedBy || '',
+          'Transaction No / Cheque No': c.transactionId || '',
+          'Updated Transaction No': c.utrCharity || txId,
           'Transaction / Cheque Date': txDate,
           'Bank Name': '',
           'Mode Of Payment': 'Online',
@@ -264,7 +277,14 @@ router.get('/download', verify, authorize(['superadmin', 'admin', 'tl', 'agent']
       const row = { 'Agent': agentName };
       fieldCols.forEach(col => { row[col] = c.fields?.[col] || ''; });
       row['Disposition'] = c.disposition ? (DISP_LABELS[c.disposition] || c.disposition) : 'Pending';
-      row['Lead Amount'] = c.leadAmount || '';
+      row['Lead Amount'] = (c.isCharityConfirmed && c.charityAmount !== null && c.charityAmount !== undefined)
+        ? c.charityAmount
+        : (c.leadAmount || '');
+      row['Agent Amount'] = c.leadAmount || '';
+      row['Charity Amount'] = c.charityAmount || '';
+      row['UTR-Internal'] = c.transactionId || '';
+      row['UTR-Charity'] = c.utrCharity || '';
+      row['Confirmed by Charity'] = c.isCharityConfirmed ? 'Yes' : 'No';
       row['Lead Status'] = c.status || '';
       row['Other Remarks'] = c.remarks || '';
       row['Agent Remarks'] = c.remarks || '';

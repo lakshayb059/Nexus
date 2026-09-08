@@ -118,26 +118,12 @@ async function processAdminInbox(admin) {
                     const cleanBody = replyTextOnly.substring(0, 300);
                     let replySnippet = '';
 
-                    // 3. Align and Update Transaction ID
+                    // 3. Format Reply Snippet (Preserve internal transactionId/UTR intact)
                     if (extractedTxId) {
-                      replySnippet = `[Email Transaction ID: ${extractedTxId}] (Reply from ${from} on ${new Date().toLocaleString()}): "${cleanBody}" [MsgID: ${messageId}]\n\n`;
-
-                      console.log(`[Email Reply Worker] Syncing verified transaction ID: ${extractedTxId} to contact ${contactId}`);
-                      await prisma.contact.update({
-                        where: { id: contactId },
-                        data: { transactionId: extractedTxId }
-                      });
-
-                      // Sync to Lead record if exists
-                      const leadRecord = await prisma.lead.findFirst({ where: { contactId } });
-                      if (leadRecord) {
-                        await prisma.lead.update({
-                          where: { id: leadRecord.id },
-                          data: { transactionId: extractedTxId }
-                        });
-                      }
+                      replySnippet = `[Charity Confirmation Email - Detected UTR: ${extractedTxId}] (Reply from ${from} on ${new Date().toLocaleString()}): "${cleanBody}" [MsgID: ${messageId}]\n\n`;
+                      console.log(`[Email Reply Worker] Detected charity confirmation email for contact ${contactId} with UTR: ${extractedTxId}. Preserving internal transaction ID.`);
                     } else {
-                      replySnippet = `[Email Reply] (Reply from ${from} on ${new Date().toLocaleString()}): "${cleanBody}" [MsgID: ${messageId}]\n\n`;
+                      replySnippet = `[Charity Email Reply] (Reply from ${from} on ${new Date().toLocaleString()}): "${cleanBody}" [MsgID: ${messageId}]\n\n`;
                     }
 
                     // 4. Update Remarks for both Contact and Lead

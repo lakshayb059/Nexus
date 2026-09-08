@@ -137,27 +137,50 @@
   }
 }
 
+@media (max-width: 900px) {
+  .sa-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+}
+
 @media (max-width: 768px) {
   .sa-header {
     flex-direction: column;
     align-items: flex-start;
     padding: 16px;
   }
-  .sa-grid-4, .sa-grid-3 {
+  .sa-grid-3 {
     grid-template-columns: 1fr;
-    gap: 16px;
+    gap: 14px;
   }
   .sa-title {
     font-size: clamp(1.1rem, 2vw, 1.3rem);
   }
   .sa-card-value {
-    font-size: clamp(1.2rem, 4vw, 1.5rem);
+    font-size: clamp(1.15rem, 3.5vw, 1.45rem);
   }
   .sa-glass-card {
     padding: 16px;
   }
   .sa-chart-container {
     padding: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .sa-grid-4 {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .sa-glass-card {
+    padding: 14px 12px;
+  }
+}
+
+@media (max-width: 360px) {
+  .sa-grid-4 {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -214,18 +237,23 @@
 }
 
 .sa-card-value {
-  font-size: clamp(1.4rem, 4vw, 1.9rem);
+  font-size: clamp(1.25rem, 3.5vw, 1.85rem);
   font-weight: 900;
   color: #0f172a;
-  line-height: 1;
-  letter-spacing: -0.04em;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
   margin-bottom: 6px;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .sa-card-subtext {
   font-size: 0.72rem;
   color: #94a3b8;
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sa-card-icon-wrapper {

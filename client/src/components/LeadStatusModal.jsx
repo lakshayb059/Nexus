@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Check, Calendar, MessageSquare, CreditCard, RotateCw, XCircle, ShieldAlert } from 'lucide-react';
+import { X, Check, Calendar, MessageSquare, CreditCard, RotateCw, XCircle, ShieldAlert, UploadCloud, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import api from '../utils/api';
 
 const LeadStatusModal = ({ lead, newStatus, onClose, onSave, submitting }) => {
   const [formData, setFormData] = useState({
@@ -19,6 +20,72 @@ const LeadStatusModal = ({ lead, newStatus, onClose, onSave, submitting }) => {
     remarks: '',
   });
 
+  const [receiptImage, setReceiptImage] = useState('');
+  const [receiptName, setReceiptName] = useState('');
+  const [scanning, setScanning] = useState(false);
+  const [scanStatus, setScanStatus] = useState(null); // 'success' | 'failed' | null
+  const [scanMessage, setScanMessage] = useState('');
+  const fileInputRef = useRef(null);
+
+  if (!lead || !newStatus) return null;
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processImageFile(file);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file) processImageFile(file);
+  };
+
+  const processImageFile = (file) => {
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file (PNG, JPG, or JPEG).');
+      return;
+    }
+    setReceiptName(file.name);
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64 = reader.result;
+      setReceiptImage(base64);
+      runOcrExtraction(base64);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const runOcrExtraction = async (base64) => {
+    setScanning(true);
+    setScanStatus(null);
+    setScanMessage('');
+    try {
+      const res = await api.post('/leads/extract-transaction', { imageBase64: base64 });
+      if (res.data.success && res.data.transactionId && res.data.transactionId !== 'NOT_FOUND') {
+        const txId = res.data.transactionId;
+        const amount = res.data.amount;
+        setFormData(prev => ({
+          ...prev,
+          transactionId: txId,
+          leadAmount: amount || prev.leadAmount,
+          remarks: prev.remarks || `[Auto-converted via receipt scan] Transaction ID: ${txId}${amount ? ` (Amount: ₹${amount})` : ''}`
+        }));
+        setScanStatus('success');
+        setScanMessage(`Transaction ID detected: ${txId}${amount ? ` | Amount: ₹${amount}` : ''}`);
+      } else {
+        setScanStatus('failed');
+        setScanMessage('Could not detect Transaction ID automatically. Please verify and fill in details manually.');
+      }
+    } catch (err) {
+      console.warn('OCR extraction error:', err);
+      setScanStatus('failed');
+      setScanMessage('AI scanning unavailable. Please verify and enter Amount and Transaction ID manually.');
+    } finally {
+      setScanning(false);
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     let payload = { ...formData };
@@ -33,10 +100,11 @@ const LeadStatusModal = ({ lead, newStatus, onClose, onSave, submitting }) => {
     if (payload.leadAmount) {
       payload.leadAmount = parseFloat(payload.leadAmount) || 0;
     }
+    if (receiptImage) {
+      payload.receiptImage = receiptImage;
+    }
     onSave(payload);
   };
-
-  if (!lead || !newStatus) return null;
 
   const getTitle = () => {
     switch (newStatus) {
@@ -60,7 +128,7 @@ const LeadStatusModal = ({ lead, newStatus, onClose, onSave, submitting }) => {
     }
   };
 
-  const leadName = lead.fields?.Name || lead.fields?.name || lead.name || 'Lead';
+  const leadName = lead.fields?.Name || lead.fields?.name || lead.fields?.['Full Name'] || lead.name || 'Lead';
 
   return createPortal(
     <div className="detail-modal-overlay animate-fade-in" onClick={onClose}>
@@ -83,6 +151,97 @@ const LeadStatusModal = ({ lead, newStatus, onClose, onSave, submitting }) => {
         <form onSubmit={handleSubmit} className="detail-modal-body">
           {newStatus === 'Converted' && (
             <>
+              {/* Optional Receipt Image Upload */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: 6, display: 'block' }}>
+                  Payment Receipt / Screenshot (Optional)
+                </label>
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  style={{ position: 'fixed', top: -1000, left: -1000, opacity: 0, width: 0, height: 0, pointerEvents: 'none' }} 
+                  accept="image/*" 
+                  onChange={handleFileChange} 
+                  onClick={e => e.stopPropagation()}
+                />
+
+                {!receiptImage ? (
+                  <div 
+                    onClick={() => fileInputRef.current?.click()}
+                    onDragOver={e => { e.preventDefault(); e.stopPropagation(); }}
+                    onDrop={handleDrop}
+                    style={{
+                      border: '2px dashed var(--border)',
+                      borderRadius: 14,
+                      padding: '20px 14px',
+                      textAlign: 'center',
+                      cursor: 'pointer',
+                      background: 'var(--bg-surface-2)',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <UploadCloud size={30} color="var(--primary)" style={{ margin: '0 auto 8px', display: 'block', opacity: 0.8 }} />
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      Click or drag payment receipt to scan
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                      Auto-extracts UTR & Amount using AI OCR
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center', background: 'var(--bg-surface-2)', padding: 10, borderRadius: 12, border: '1px solid var(--border)' }}>
+                    <img 
+                      src={receiptImage} 
+                      alt="Receipt Preview" 
+                      style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} 
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {receiptName || 'Receipt Image'}
+                      </div>
+                      <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                        <button 
+                          type="button" 
+                          onClick={() => fileInputRef.current?.click()} 
+                          style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 600, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                        >
+                          Change
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={() => { setReceiptImage(''); setReceiptName(''); setScanStatus(null); }} 
+                          style={{ fontSize: '0.72rem', color: 'var(--danger)', fontWeight: 600, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* AI Scan Feedback */}
+              {scanning && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary)', padding: '8px 12px', borderRadius: 8, fontSize: '0.78rem', fontWeight: 600, marginBottom: 14 }}>
+                  <Loader2 size={15} className="animate-spin" />
+                  <span>AI scanning receipt for transaction details...</span>
+                </div>
+              )}
+
+              {scanStatus === 'success' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '8px 12px', borderRadius: 8, fontSize: '0.78rem', fontWeight: 600, marginBottom: 14 }}>
+                  <CheckCircle2 size={15} />
+                  <span>{scanMessage}</span>
+                </div>
+              )}
+
+              {scanStatus === 'failed' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', padding: '8px 12px', borderRadius: 8, fontSize: '0.78rem', fontWeight: 600, marginBottom: 14 }}>
+                  <AlertCircle size={15} />
+                  <span>{scanMessage}</span>
+                </div>
+              )}
+
               <div className="input-group" style={{ marginBottom: 14 }}>
                 <label htmlFor="modalAmount" style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: 4, display: 'block' }}>Conversion Amount (₹)</label>
                 <input 
@@ -154,7 +313,7 @@ const LeadStatusModal = ({ lead, newStatus, onClose, onSave, submitting }) => {
 
           <div className="detail-modal-footer">
             <button type="button" onClick={onClose} className="btn btn-outline" disabled={submitting}>Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={submitting}>
+            <button type="submit" className="btn btn-primary" disabled={submitting || scanning}>
               {submitting ? <RotateCw className="animate-spin" size={18} /> : 'Save Status & Remarks'}
             </button>
           </div>
@@ -183,7 +342,7 @@ const LeadStatusModal = ({ lead, newStatus, onClose, onSave, submitting }) => {
         .detail-modal-content {
           background: var(--bg-surface);
           width: 100%;
-          max-width: 460px;
+          max-width: 480px;
           border-radius: 20px;
           box-shadow: 0 30px 90px -10px rgba(0, 0, 0, 0.5);
           border: 1px solid var(--border);

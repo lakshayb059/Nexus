@@ -7,6 +7,7 @@ import { Star, TrendingUp, Users, Calendar, Search, PhoneCall, Award, Target, Tr
 import LeadStatusModal from '../components/LeadStatusModal';
 import CallActionModal from '../components/CallActionModal';
 import ReceiptUploadModal from '../components/ReceiptUploadModal';
+import CharityConfirmModal from '../components/CharityConfirmModal';
 import WhatsAppIcon from '../components/WhatsAppIcon';
 import CreateLeadModal from '../components/CreateLeadModal';
 import './SuperAdminDashboard.css';
@@ -107,6 +108,14 @@ const MyLeads = () => {
   // Receipt Conversion Modal State
   const [receiptModalLead, setReceiptModalLead] = useState(null);
 
+  // Charity Confirm Modal State
+  const [charityConfirmLead, setCharityConfirmLead] = useState(null);
+
+  // Converted Leads Date Filter State
+  const [convertedDatePreset, setConvertedDatePreset] = useState('all');
+  const [convertedStartDate, setConvertedStartDate] = useState('');
+  const [convertedEndDate, setConvertedEndDate] = useState('');
+
   // Call Action Modal State
   const [callActionLead, setCallActionLead] = useState(null);
 
@@ -175,6 +184,56 @@ const MyLeads = () => {
     setReceiptModalLead(lead);
   };
 
+  const openCharityModal = (lead) => {
+    if (!lead) return;
+    const leadId = lead._id || lead.id || lead.contactId;
+    saveScrollPosition(leadId);
+    setCharityConfirmLead(lead);
+  };
+
+  const handleCharitySuccess = (updatedLead) => {
+    addToast('Lead confirmed by charity successfully!', 'success');
+    const leadId = updatedLead?._id || updatedLead?.id || updatedLead?.contactId;
+    fetchData(true, leadId);
+  };
+
+  const handleDatePresetChange = (preset) => {
+    setConvertedDatePreset(preset);
+    const now = new Date();
+    const formatDateInput = (d) => {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
+    if (preset === 'all') {
+      setConvertedStartDate('');
+      setConvertedEndDate('');
+    } else if (preset === 'today') {
+      const todayStr = formatDateInput(now);
+      setConvertedStartDate(todayStr);
+      setConvertedEndDate(todayStr);
+    } else if (preset === 'yesterday') {
+      const yest = new Date(now);
+      yest.setDate(yest.getDate() - 1);
+      const yestStr = formatDateInput(yest);
+      setConvertedStartDate(yestStr);
+      setConvertedEndDate(yestStr);
+    } else if (preset === 'this_week') {
+      const day = now.getDay();
+      const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(now);
+      monday.setDate(diff);
+      setConvertedStartDate(formatDateInput(monday));
+      setConvertedEndDate(formatDateInput(now));
+    } else if (preset === 'this_month') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      setConvertedStartDate(formatDateInput(firstDay));
+      setConvertedEndDate(formatDateInput(now));
+    }
+  };
+
   const openCallActionModal = (lead) => {
     if (!lead) return;
     const leadId = lead._id || lead.id || lead.contactId;
@@ -219,6 +278,8 @@ const MyLeads = () => {
       if (searchTerm) params.append('search', searchTerm);
       if (sourceFilter !== 'all') params.append('source', sourceFilter);
       if (statusFilter !== 'all') params.append('status', statusFilter);
+      if (convertedStartDate) params.append('convertedFrom', convertedStartDate);
+      if (convertedEndDate) params.append('convertedTo', convertedEndDate);
       params.append('page', page);
       params.append('limit', limit);
 
@@ -283,7 +344,7 @@ const MyLeads = () => {
       socket.off('contacts_updated', handleSilentSync);
       socket.off('email_status', emailStatusHandler);
     };
-  }, [socket, page, limit, searchTerm, sourceFilter, statusFilter]);
+  }, [socket, page, limit, searchTerm, sourceFilter, statusFilter, convertedStartDate, convertedEndDate]);
 
   const toggleSelect = (id) => {
     setSelectedIds(prev =>
@@ -486,7 +547,27 @@ const MyLeads = () => {
     const matchesSource = sourceFilter === 'all' || 
       (sourceFilter === 'created' ? fields.manuallyCreated : !fields.manuallyCreated);
     const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
-    return matchesSearch && matchesSource && matchesStatus;
+
+    let matchesConvertedDate = true;
+    if (convertedStartDate || convertedEndDate) {
+      const convDate = lead.conversionDate ? new Date(lead.conversionDate) : (lead.createdAt ? new Date(lead.createdAt) : null);
+      if (convDate && !isNaN(convDate.getTime())) {
+        if (convertedStartDate) {
+          const sDate = new Date(convertedStartDate);
+          sDate.setHours(0, 0, 0, 0);
+          if (convDate < sDate) matchesConvertedDate = false;
+        }
+        if (convertedEndDate) {
+          const eDate = new Date(convertedEndDate);
+          eDate.setHours(23, 59, 59, 999);
+          if (convDate > eDate) matchesConvertedDate = false;
+        }
+      } else {
+        matchesConvertedDate = false;
+      }
+    }
+
+    return matchesSearch && matchesSource && matchesStatus && matchesConvertedDate;
   });
 
   return (
@@ -598,6 +679,53 @@ const MyLeads = () => {
           <option value="created">Agent Added</option>
           <option value="uploaded">Uploaded</option>
         </select>
+
+        {/* ── Converted Date Filter ── */}
+        <select 
+          className="input-field" 
+          style={{ width: 'auto', flex: 1, minWidth: 150, marginBottom: 0 }} 
+          value={convertedDatePreset} 
+          onChange={e => handleDatePresetChange(e.target.value)}
+        >
+          <option value="all">📅 All Dates</option>
+          <option value="today">Today</option>
+          <option value="yesterday">Yesterday</option>
+          <option value="this_week">This Week</option>
+          <option value="this_month">This Month</option>
+          <option value="custom">Custom Date Range...</option>
+        </select>
+
+        {convertedDatePreset === 'custom' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <input 
+              type="date" 
+              className="input-field" 
+              style={{ width: 135, height: 38, padding: '4px 8px', fontSize: '0.78rem', marginBottom: 0 }}
+              value={convertedStartDate}
+              onChange={e => setConvertedStartDate(e.target.value)}
+              title="From Date"
+            />
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>to</span>
+            <input 
+              type="date" 
+              className="input-field" 
+              style={{ width: 135, height: 38, padding: '4px 8px', fontSize: '0.78rem', marginBottom: 0 }}
+              value={convertedEndDate}
+              onChange={e => setConvertedEndDate(e.target.value)}
+              title="To Date"
+            />
+          </div>
+        )}
+        {(convertedStartDate || convertedEndDate) && (
+          <button 
+            type="button" 
+            className="btn btn-outline" 
+            style={{ padding: '4px 10px', fontSize: '0.75rem', height: 38 }}
+            onClick={() => handleDatePresetChange('all')}
+          >
+            Clear Date
+          </button>
+        )}
       </div>
 
       {/* ── LEADS LIST ── */}
@@ -747,7 +875,58 @@ const MyLeads = () => {
                               <Calendar size={11} /> {formatSafeDateTime(lead.callBackDt)}
                             </span>
                           )}
-                          {lead.transactionId && <span className="badge badge-success" style={{ fontSize: '0.7rem', padding: '4px 8px' }}>UTR: {lead.transactionId}</span>}
+                          {/* ── UTR & Charity Confirmation Section ── */}
+                          {lead.isCharityConfirmed ? (
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                              <span className="badge" style={{ fontSize: '0.7rem', padding: '4px 8px', background: 'var(--bg-surface-2)', border: '1px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 700 }}>
+                                UTR-Internal: {lead.transactionId || 'N/A'}
+                              </span>
+                              <span className="badge badge-success" style={{ fontSize: '0.7rem', padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 800 }}>
+                                ✓ UTR-Charity: {lead.utrCharity}
+                              </span>
+                              {!isLocked && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); openCharityModal(lead); }}
+                                  style={{ background: 'none', border: 'none', fontSize: '0.68rem', color: 'var(--primary)', cursor: 'pointer', fontWeight: 800, padding: '2px 4px' }}
+                                  title="Edit confirmed charity details"
+                                >
+                                  ✏️ Edit Charity
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                              {lead.transactionId && (
+                                <span className="badge badge-success" style={{ fontSize: '0.7rem', padding: '4px 8px', fontWeight: 700 }}>
+                                  UTR: {lead.transactionId}
+                                </span>
+                              )}
+                              {(lead.status === 'Converted' || lead.transactionId) && !isLocked && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); openCharityModal(lead); }}
+                                  className="btn btn-sm"
+                                  style={{
+                                    fontSize: '0.68rem',
+                                    padding: '3px 8px',
+                                    borderRadius: '6px',
+                                    fontWeight: 800,
+                                    border: '1px solid #10b981',
+                                    color: '#10b981',
+                                    background: 'rgba(16, 185, 129, 0.1)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    cursor: 'pointer'
+                                  }}
+                                  title="Confirm with UTR and amount from charity reply email"
+                                >
+                                  ✓ Confirmed by Charity
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                         
                         {/* ── Line 4: Remarks Box (Clickable to Edit/Re-enter Remarks) ── */}
@@ -789,14 +968,30 @@ const MyLeads = () => {
                   {/* ── RIGHT ACTION COLUMN: AMOUNT & BUTTONS ── */}
                   <div className="lead-card-actions">
                     <div className="lead-amount-box" style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Amount</div>
-                      <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#10b981', lineHeight: 1.1, margin: '2px 0' }}>
-                        ₹{(lead.leadAmount || 0).toLocaleString()}
-                      </div>
-                      {lead.totalAmount > lead.leadAmount && (
-                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--violet)' }}>
-                          Total: ₹{lead.totalAmount.toLocaleString()}
-                        </div>
+                      {lead.isCharityConfirmed && (lead.charityAmount !== null && lead.charityAmount !== undefined) ? (
+                        <>
+                          <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Charity Amount
+                          </div>
+                          <div style={{ fontSize: '1.45rem', fontWeight: 900, color: '#10b981', lineHeight: 1.1, margin: '2px 0' }}>
+                            ₹{(lead.charityAmount || 0).toLocaleString()}
+                          </div>
+                          <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                            Agent: ₹{(lead.leadAmount || 0).toLocaleString()}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Amount</div>
+                          <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#10b981', lineHeight: 1.1, margin: '2px 0' }}>
+                            ₹{(lead.leadAmount || 0).toLocaleString()}
+                          </div>
+                          {lead.totalAmount > lead.leadAmount && (
+                            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--violet)' }}>
+                              Total: ₹{lead.totalAmount.toLocaleString()}
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
 
@@ -1128,9 +1323,17 @@ const MyLeads = () => {
                               )}
                             </div>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 8 }}>
                             <div>
-                              <div style={{ fontSize: '1.1rem', fontWeight: 900, color: 'var(--text-primary)' }}>₹{(h.leadAmount || 0).toLocaleString()}</div>
+                              {h.isCharityConfirmed && (h.charityAmount !== null && h.charityAmount !== undefined) ? (
+                                <div>
+                                  <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#10b981', textTransform: 'uppercase' }}>Charity Amount</div>
+                                  <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#10b981' }}>₹{(h.charityAmount || 0).toLocaleString()}</div>
+                                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Agent: ₹{(h.leadAmount || 0).toLocaleString()}</div>
+                                </div>
+                              ) : (
+                                <div style={{ fontSize: '1.1rem', fontWeight: 900, color: 'var(--text-primary)' }}>₹{(h.leadAmount || 0).toLocaleString()}</div>
+                              )}
                               {h.agentName && (
                                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
                                 <span>Handled by: {h.agentName}</span>
@@ -1153,10 +1356,27 @@ const MyLeads = () => {
                                 </div>
                               )}
                             </div>
-                            {h.status === 'Converted' && h.transactionId && (
+                            {h.status === 'Converted' && (
                               <div style={{ textAlign: 'right' }}>
-                                <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>UTR / Trans ID</div>
-                                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--success)' }}>{h.transactionId}</div>
+                                {h.isCharityConfirmed ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end' }}>
+                                    <span className="badge" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>UTR-Internal: {h.transactionId || 'N/A'}</span>
+                                    <span className="badge badge-success" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>✓ UTR-Charity: {h.utrCharity}</span>
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>UTR / Trans ID</div>
+                                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--success)' }}>{h.transactionId || 'N/A'}</div>
+                                    <button
+                                      type="button"
+                                      onClick={() => openCharityModal(h)}
+                                      className="btn btn-sm"
+                                      style={{ marginTop: 4, fontSize: '0.65rem', padding: '2px 6px', border: '1px solid #10b981', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', cursor: 'pointer' }}
+                                    >
+                                      ✓ Confirmed by Charity
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
@@ -1264,6 +1484,15 @@ const MyLeads = () => {
           </div>
         </div>,
         document.body
+      )}
+
+      {/* ── CHARITY CONFIRM MODAL ── */}
+      {charityConfirmLead && (
+        <CharityConfirmModal
+          lead={charityConfirmLead}
+          onClose={() => setCharityConfirmLead(null)}
+          onSuccess={handleCharitySuccess}
+        />
       )}
 
       {/* ── TOAST NOTIFICATIONS ── */}

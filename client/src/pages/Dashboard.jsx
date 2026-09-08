@@ -36,37 +36,54 @@ const SkeletonCard = () => (
 /* ─────────────────────────────────────────
    PREMIUM STAT CARD
 ───────────────────────────────────────── */
-const StatCard = ({ title, value, subtext, icon: Icon, accent, delay = 0 }) => (
-  <div className="stat-card-premium" style={{ animationDelay: `${delay}ms` }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(10px, 2vw, 18px)', position: 'relative', zIndex: 2 }}>
+const StatCard = ({ title, value, subtext, icon: Icon, accent, delay = 0 }) => {
+  const valStr = String(value || '');
+  const fontSize = valStr.length > 12 
+    ? 'clamp(1.05rem, 2.2vw, 1.25rem)' 
+    : valStr.length > 8 
+      ? 'clamp(1.18rem, 2.5vw, 1.45rem)' 
+      : 'clamp(1.35rem, 3.2vw, 1.85rem)';
+
+  return (
+    <div className="stat-card-premium" style={{ animationDelay: `${delay}ms`, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(8px, 1.5vw, 14px)', position: 'relative', zIndex: 2 }}>
+        <div style={{
+          width: 'clamp(38px, 4vw, 48px)',
+          height: 'clamp(38px, 4vw, 48px)',
+          borderRadius: 'var(--r-md)',
+          flexShrink: 0,
+          background: `${accent}14`, color: accent,
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }} className="stat-icon-hover">
+          <Icon size={20} strokeWidth={2.2} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+          <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {title}
+          </div>
+          <div style={{ 
+            fontSize, 
+            fontWeight: 900, 
+            color: 'var(--text-primary)', 
+            lineHeight: 1.15, 
+            letterSpacing: '-0.02em',
+            wordBreak: 'break-word',
+            overflowWrap: 'break-word'
+          }}>
+            {value}
+          </div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 500, marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {subtext}
+          </div>
+        </div>
+      </div>
       <div style={{
-        width: 'clamp(40px, 5vw, 52px)',
-        height: 'clamp(40px, 5vw, 52px)',
-        borderRadius: 'var(--r-md)',
-        flexShrink: 0,
-        background: `${accent}14`, color: accent,
-        display: 'flex', alignItems: 'center', justifyContent: 'center'
-      }} className="stat-icon-hover">
-        <Icon size={20} strokeWidth={2.2} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>
-          {title}
-        </div>
-        <div style={{ fontSize: 'clamp(1.4rem, 4vw, 1.9rem)', fontWeight: 900, color: 'var(--text-primary)', lineHeight: 1, letterSpacing: '-0.03em' }}>
-          {value}
-        </div>
-        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500, marginTop: 4 }}>
-          {subtext}
-        </div>
-      </div>
+        position: 'absolute', top: -15, right: -15, width: 80, height: 80,
+        borderRadius: '50%', background: accent, filter: 'blur(30px)', opacity: 0.08, zIndex: 1, pointerEvents: 'none'
+      }} />
     </div>
-    <div style={{
-      position: 'absolute', top: -15, right: -15, width: 80, height: 80,
-      borderRadius: '50%', background: accent, filter: 'blur(30px)', opacity: 0.08, zIndex: 1, pointerEvents: 'none'
-    }} />
-  </div>
-);
+  );
+};
 
 /* ─────────────────────────────────────────
    SECTION DIVIDER
@@ -228,19 +245,22 @@ const Dashboard = () => {
     }
   };
 
-  const primaryCards = stats ? [
+  const overviewCards = stats ? [
     { title: 'Total Contacts', value: stats.total || 0, subtext: 'In system', icon: Users, accent: '#6366f1' },
     { title: 'Pending Queue', value: stats.pending || 0, subtext: 'Awaiting disposition', icon: Clock, accent: '#f59e0b' },
     { title: 'Calls Today', value: stats.todayCalls || 0, subtext: 'Real-time calls today', icon: PhoneCall, accent: '#06b6d4' },
-    { title: 'Total Leads', value: stats.allLead || 0, subtext: 'All acquired leads', icon: Star, accent: '#3b82f6' },
-    { title: 'Total Revenue', value: `₹${(stats.allLeadAmount || 0).toLocaleString()}`, subtext: 'Expected lead value', icon: TrendingUp, accent: '#0ea5e9' },
-    { title: 'Total Converted Leads', value: stats.lead || 0, subtext: 'Successfully closed', icon: Star, accent: '#10b981' },
-    { title: 'Total Converted Revenue', value: `₹${(stats.totalLeadValue || 0).toLocaleString()}`, subtext: 'Converted lead value', icon: TrendingUp, accent: '#8b5cf6' },
   ] : [];
 
   if (user?.role === 'superadmin' && stats) {
-    primaryCards.push({ title: 'Total Admins', value: stats.totalAdmins || 0, subtext: 'Active admin accounts', icon: Users, accent: '#ec4899' });
+    overviewCards.push({ title: 'Total Admins', value: stats.totalAdmins || 0, subtext: 'Active admin accounts', icon: Users, accent: '#ec4899' });
   }
+
+  const revenueCards = stats ? [
+    { title: 'Total Leads', value: stats.allLead || 0, subtext: 'All acquired leads', icon: Star, accent: '#3b82f6' },
+    { title: 'Total Revenue', value: `₹${(stats.allLeadAmount || 0).toLocaleString()}`, subtext: 'Expected lead value', icon: TrendingUp, accent: '#0ea5e9' },
+    { title: 'Converted Leads', value: stats.lead || 0, subtext: 'Successfully closed', icon: Star, accent: '#10b981' },
+    { title: 'Converted Revenue', value: `₹${(stats.totalLeadValue || 0).toLocaleString()}`, subtext: 'Aggregate lead value', icon: TrendingUp, accent: '#8b5cf6' },
+  ] : [];
 
   const activityCards = stats ? [
     { title: 'Appointments', value: stats.appointment || 0, subtext: 'Scheduled', icon: Calendar, accent: '#a855f7' },
@@ -501,9 +521,14 @@ const Dashboard = () => {
         </div>
       ) : (
         <>
-          <SectionLabel icon={Zap} label="Key Metrics" accent="var(--primary)" />
+          <SectionLabel icon={Zap} label="Overview & Operations" accent="var(--primary)" />
           <div className="grid-stats" style={{ marginBottom: 24 }}>
-            {primaryCards.map((c, i) => <StatCard key={c.title} {...c} delay={i * 60} />)}
+            {overviewCards.map((c, i) => <StatCard key={c.title} {...c} delay={i * 60} />)}
+          </div>
+
+          <SectionLabel icon={TrendingUp} label="Leads & Revenue" accent="#0ea5e9" />
+          <div className="grid-stats" style={{ marginBottom: 24 }}>
+            {revenueCards.map((c, i) => <StatCard key={c.title} {...c} delay={180 + i * 60} />)}
           </div>
 
           <SectionLabel icon={Calendar} label="Active Follow-Ups" accent="var(--violet)" />

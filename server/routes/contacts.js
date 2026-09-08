@@ -321,6 +321,9 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
       update.queueOrder = 999999;
       if (status) update.status = status;
       if (transactionId) update.transactionId = transactionId;
+      if (req.body.utrCharity !== undefined) update.utrCharity = req.body.utrCharity;
+      if (req.body.charityAmount !== undefined) update.charityAmount = parseFloat(req.body.charityAmount) || 0;
+      if (req.body.isCharityConfirmed !== undefined) update.isCharityConfirmed = Boolean(req.body.isCharityConfirmed);
       if (callBackDt) { update.callBackDt = new Date(callBackDt); update.cbReminderSent = false; update.lateNotified = false; }
       if (appointmentDt) { update.appointmentDt = new Date(appointmentDt); update.reminderSent = false; update.lateNotified = false; }
     } else if (disposition === 'Appointment') {
@@ -369,7 +372,11 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
           leadAmount: parseFloat(leadAmount) || 0, status: status || 'Pending',
           remarks: remarks || '',
           adminId: contact.adminId,
-          transactionId: transactionId
+          transactionId: transactionId,
+          utrCharity: req.body.utrCharity || null,
+          charityAmount: req.body.charityAmount ? parseFloat(req.body.charityAmount) : null,
+          isCharityConfirmed: Boolean(req.body.isCharityConfirmed),
+          conversionDate: status === 'Converted' ? new Date() : null
         }
       });
       if (status === 'Converted') {
@@ -413,6 +420,62 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.put('/:id/confirm-charity', verify, authorize(['superadmin', 'admin', 'tl', 'agent']), async (req, res) => {
+  try {
+    const contactId = req.params.id;
+    const { utrCharity, charityAmount } = req.body;
+
+    if (!utrCharity || charityAmount === undefined || charityAmount === null || charityAmount === '') {
+      return res.status(400).json({ error: 'Both UTR-Charity and Charity Amount are required' });
+    }
+
+    const numAmount = parseFloat(charityAmount);
+    if (isNaN(numAmount) || numAmount < 0) {
+      return res.status(400).json({ error: 'Please provide a valid Charity Amount' });
+    }
+
+    const now = new Date();
+    const confirmedBy = req.user.name || req.user.username || 'Agent';
+
+    const charityData = {
+      utrCharity: String(utrCharity).trim(),
+      charityAmount: numAmount,
+      isCharityConfirmed: true,
+      charityConfirmedAt: now,
+      charityConfirmedBy: confirmedBy
+    };
+
+    // Update Contact
+    await prisma.contact.update({
+      where: { id: contactId },
+      data: charityData
+    }).catch(e => console.warn('Charity confirm contact update note:', e.message));
+
+    // Update Lead(s)
+    await prisma.lead.updateMany({
+      where: {
+        OR: [
+          { id: contactId },
+          { contactId }
+        ]
+      },
+      data: charityData
+    }).catch(e => console.warn('Charity confirm lead update note:', e.message));
+
+    broadcast('dashboard_update');
+    broadcast('contacts_updated');
+
+    res.json({
+      success: true,
+      message: 'Lead confirmed by charity successfully',
+      data: charityData
+    });
+  } catch (err) {
+    console.error('Confirm charity error:', err);
+    res.status(500).json({ error: 'Failed to confirm lead by charity' });
   }
 });
 
@@ -618,9 +681,9 @@ router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), 
         COUNT(CASE WHEN disposition = 'DoNotCall' THEN 1 END)::int as donotcall,
         COUNT(CASE WHEN disposition = 'NotInterested' THEN 1 END)::int as notinterested,
         COUNT(CASE WHEN disposition = 'LanguageBarrier' THEN 1 END)::int as languagebarrier,
-        COALESCE(SUM(CASE WHEN disposition = 'Lead' AND status = 'Converted' THEN lead_amount END), 0)::float as totalleadamount,
+        COALESCE(SUM(CASE WHEN disposition = 'Lead' AND status = 'Converted' THEN COALESCE(charity_amount, lead_amount) END), 0)::float as totalleadamount,
         COUNT(CASE WHEN disposition = 'Lead' THEN 1 END)::int as alllead,
-        COALESCE(SUM(CASE WHEN disposition = 'Lead' THEN lead_amount END), 0)::float as allleadamount
+        COALESCE(SUM(CASE WHEN disposition = 'Lead' THEN COALESCE(charity_amount, lead_amount) END), 0)::float as allleadamount
       FROM contacts
       WHERE ${conditions.join(' AND ')}
     `;
@@ -769,7 +832,7 @@ router.get('/agent-queues', verify, authorize(['superadmin', 'admin', 'tl']), as
         COUNT(CASE WHEN disposition IS NULL OR disposition = '' THEN 1 END)::int as pending,
         COUNT(CASE WHEN disposition = 'Lead' AND status = 'Converted' THEN 1 END)::int as lead,
         COUNT(CASE WHEN disposition = 'Appointment' THEN 1 END)::int as appointment,
-        COALESCE(SUM(CASE WHEN disposition = 'Lead' AND status = 'Converted' THEN lead_amount END), 0)::float as "totalLeadAmount"
+        COALESCE(SUM(CASE WHEN disposition = 'Lead' AND status = 'Converted' THEN COALESCE(charity_amount, lead_amount) END), 0)::float as "totalLeadAmount"
       FROM contacts
       WHERE is_deleted = false AND assigned_to IN (${queuePlaceholders})
       GROUP BY assigned_to

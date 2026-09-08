@@ -56,7 +56,7 @@ function buildSqlWhere(whereQuery, params = []) {
 
 router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
-    const { search, source, status, page, limit } = req.query;
+    const { search, source, status, page, limit, convertedFrom, convertedTo } = req.query;
     let whereQuery = {};
     if (req.user.role === 'agent') {
       whereQuery.assignedTo = req.user._id || req.user.id;
@@ -71,6 +71,23 @@ router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']
     else if (source === 'uploaded') whereQuery.batchId = { not: null };
 
     if (status && status !== 'all') whereQuery.status = status;
+
+    if (convertedFrom && convertedTo) {
+      const cStart = new Date(convertedFrom);
+      const cEnd = new Date(new Date(convertedTo).setHours(23, 59, 59, 999));
+      whereQuery.conversionDate = {
+        gte: cStart,
+        lte: cEnd
+      };
+    } else if (convertedFrom) {
+      whereQuery.conversionDate = {
+        gte: new Date(convertedFrom)
+      };
+    } else if (convertedTo) {
+      whereQuery.conversionDate = {
+        lte: new Date(new Date(convertedTo).setHours(23, 59, 59, 999))
+      };
+    }
 
     let leads = [];
     let contactLeads = [];
@@ -142,6 +159,13 @@ router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']
         tlName: tl ? tl.name : 'N/A',
         adminName: admin ? admin.name : 'N/A',
         leadAmount: c.leadAmount || 0,
+        transactionId: c.transactionId,
+        utrCharity: c.utrCharity,
+        charityAmount: c.charityAmount,
+        isCharityConfirmed: !!c.isCharityConfirmed,
+        charityConfirmedAt: c.charityConfirmedAt,
+        charityConfirmedBy: c.charityConfirmedBy,
+        conversionDate: c.conversionDate,
         status: c.status || 'Converted',
         remarks: c.remarks || 'Imported Lead',
         createdAt: c.createdAt,
@@ -161,7 +185,8 @@ router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']
         agentName: agent ? agent.name : 'Unassigned',
         tlName: tl ? tl.name : 'N/A',
         adminName: admin ? admin.name : 'N/A',
-        callBackDt: l.contactId ? contactMap[l.contactId] : null
+        callBackDt: l.contactId ? contactMap[l.contactId] : null,
+        isCharityConfirmed: !!l.isCharityConfirmed,
       };
     }), ...mappedContactLeads];
     const groupedMap = new Map();
@@ -180,7 +205,10 @@ router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']
         groupedMap.set(normPhone, { totalAmount: 0, leadsCount: 0, historyStatuses: [] });
       }
       const group = groupedMap.get(normPhone);
-      group.totalAmount += (parseFloat(lead.leadAmount) || 0);
+      const leadEffAmount = (lead.isCharityConfirmed && lead.charityAmount !== null && lead.charityAmount !== undefined)
+        ? (parseFloat(lead.charityAmount) || 0)
+        : (parseFloat(lead.leadAmount) || 0);
+      group.totalAmount += leadEffAmount;
       group.leadsCount += 1;
       group.historyStatuses.push(lead.status || 'Converted');
 
@@ -243,34 +271,40 @@ router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), 
       whereQuery.adminId = req.user._id || req.user.id;
     }
 
-    const [convertedLeadAgg, convertedContactAgg, allLeadAgg, allContactLeadAgg] = await Promise.all([
-      prisma.lead.aggregate({
+    const [convertedLeads, convertedContacts, allLeadsArr, allContactsArr] = await Promise.all([
+      prisma.lead.findMany({
         where: { ...whereQuery, status: 'Converted' },
-        _count: { id: true },
-        _sum: { leadAmount: true }
+        select: { leadAmount: true, charityAmount: true, isCharityConfirmed: true },
+        take: 10000
       }),
-      prisma.contact.aggregate({
+      prisma.contact.findMany({
         where: { ...whereQuery, disposition: 'Lead', status: 'Converted', isDeleted: false },
-        _count: { id: true },
-        _sum: { leadAmount: true }
+        select: { leadAmount: true, charityAmount: true, isCharityConfirmed: true },
+        take: 10000
       }),
-      prisma.lead.aggregate({
+      prisma.lead.findMany({
         where: whereQuery,
-        _count: { id: true },
-        _sum: { leadAmount: true }
+        select: { leadAmount: true, charityAmount: true, isCharityConfirmed: true },
+        take: 10000
       }),
-      prisma.contact.aggregate({
+      prisma.contact.findMany({
         where: { ...whereQuery, disposition: 'Lead', isDeleted: false },
-        _count: { id: true },
-        _sum: { leadAmount: true }
+        select: { leadAmount: true, charityAmount: true, isCharityConfirmed: true },
+        take: 10000
       })
     ]);
-    
-    const totalLeads = (convertedLeadAgg._count.id || 0) + (convertedContactAgg._count.id || 0);
-    const totalAmount = (convertedLeadAgg._sum.leadAmount || 0) + (convertedContactAgg._sum.leadAmount || 0);
-    const allLeadsCount = (allLeadAgg._count.id || 0) + (allContactLeadAgg._count.id || 0);
-    const allLeadsAmount = (allLeadAgg._sum.leadAmount || 0) + (allContactLeadAgg._sum.leadAmount || 0);
-    
+
+    const getEffAmount = item => (item.isCharityConfirmed && item.charityAmount !== null && item.charityAmount !== undefined)
+      ? (parseFloat(item.charityAmount) || 0)
+      : (parseFloat(item.leadAmount) || 0);
+
+    const totalLeads = convertedLeads.length + convertedContacts.length;
+    const totalAmount = convertedLeads.reduce((sum, l) => sum + getEffAmount(l), 0) +
+                        convertedContacts.reduce((sum, c) => sum + getEffAmount(c), 0);
+    const allLeadsCount = allLeadsArr.length + allContactsArr.length;
+    const allLeadsAmount = allLeadsArr.reduce((sum, l) => sum + getEffAmount(l), 0) +
+                           allContactsArr.reduce((sum, c) => sum + getEffAmount(c), 0);
+
     res.json({ totalLeads, totalAmount, allLeads: allLeadsCount, allLeadsAmount });
   } catch (err) {
     console.error('Leads stats failed:', err);
@@ -593,6 +627,10 @@ router.put('/:id', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), as
     if (req.body.agentName !== undefined) updateData.agentName = req.body.agentName;
     if (req.body.fields !== undefined) updateData.fields = req.body.fields;
     if (req.body.transactionId !== undefined) updateData.transactionId = req.body.transactionId;
+    if (req.body.utrCharity !== undefined) updateData.utrCharity = req.body.utrCharity;
+    if (req.body.charityAmount !== undefined) updateData.charityAmount = parseFloat(req.body.charityAmount) || 0;
+    if (req.body.isCharityConfirmed !== undefined) updateData.isCharityConfirmed = Boolean(req.body.isCharityConfirmed);
+    if (req.body.status === 'Converted') updateData.conversionDate = new Date();
     
     const lead = await prisma.lead.findUnique({ where: { id: leadId } });
     
@@ -648,6 +686,9 @@ router.put('/:id', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), as
       if (req.body.callBackDt) contactUpdate.callBackDt = new Date(req.body.callBackDt);
       if (req.body.appointmentDt) contactUpdate.appointmentDt = new Date(req.body.appointmentDt);
       if (req.body.transactionId !== undefined) contactUpdate.transactionId = req.body.transactionId;
+      if (req.body.utrCharity !== undefined) contactUpdate.utrCharity = req.body.utrCharity;
+      if (req.body.charityAmount !== undefined) contactUpdate.charityAmount = parseFloat(req.body.charityAmount) || 0;
+      if (req.body.isCharityConfirmed !== undefined) contactUpdate.isCharityConfirmed = Boolean(req.body.isCharityConfirmed);
       if (req.body.status === 'Converted') contactUpdate.conversionDate = new Date();
 
       await Promise.all([
@@ -684,6 +725,9 @@ router.put('/:id', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), as
       if (req.body.callBackDt) contactUpdate.callBackDt = new Date(req.body.callBackDt);
       if (req.body.appointmentDt) contactUpdate.appointmentDt = new Date(req.body.appointmentDt);
       if (req.body.transactionId !== undefined) contactUpdate.transactionId = req.body.transactionId;
+      if (req.body.utrCharity !== undefined) contactUpdate.utrCharity = req.body.utrCharity;
+      if (req.body.charityAmount !== undefined) contactUpdate.charityAmount = parseFloat(req.body.charityAmount) || 0;
+      if (req.body.isCharityConfirmed !== undefined) contactUpdate.isCharityConfirmed = Boolean(req.body.isCharityConfirmed);
       if (req.body.status === 'Converted') contactUpdate.conversionDate = new Date();
 
       await prisma.contact.update({ where: { id: leadId }, data: contactUpdate });
@@ -709,6 +753,64 @@ router.put('/:id', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), as
   } catch (err) {
     console.error('Update lead error:', err);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.put('/:id/confirm-charity', verify, authorize(['superadmin', 'admin', 'tl', 'agent']), async (req, res) => {
+  try {
+    const leadId = req.params.id;
+    const { utrCharity, charityAmount } = req.body;
+
+    if (!utrCharity || charityAmount === undefined || charityAmount === null || charityAmount === '') {
+      return res.status(400).json({ error: 'Both UTR-Charity and Charity Amount are required' });
+    }
+
+    const numAmount = parseFloat(charityAmount);
+    if (isNaN(numAmount) || numAmount < 0) {
+      return res.status(400).json({ error: 'Please provide a valid Charity Amount' });
+    }
+
+    const lead = await prisma.lead.findUnique({ where: { id: leadId } });
+    const contactId = lead ? (lead.contactId || leadId) : leadId;
+    const now = new Date();
+    const confirmedBy = req.user.name || req.user.username || 'Agent';
+
+    const charityData = {
+      utrCharity: String(utrCharity).trim(),
+      charityAmount: numAmount,
+      isCharityConfirmed: true,
+      charityConfirmedAt: now,
+      charityConfirmedBy: confirmedBy
+    };
+
+    // Update Contact
+    await prisma.contact.update({
+      where: { id: contactId },
+      data: charityData
+    }).catch(e => console.warn('Charity confirm contact update note:', e.message));
+
+    // Update Lead(s)
+    await prisma.lead.updateMany({
+      where: {
+        OR: [
+          { id: leadId },
+          { contactId }
+        ]
+      },
+      data: charityData
+    }).catch(e => console.warn('Charity confirm lead update note:', e.message));
+
+    broadcast('dashboard_update');
+    broadcast('contacts_updated');
+
+    res.json({
+      success: true,
+      message: 'Lead confirmed by charity successfully',
+      data: charityData
+    });
+  } catch (err) {
+    console.error('Confirm charity error:', err);
+    res.status(500).json({ error: 'Failed to confirm lead by charity' });
   }
 });
 

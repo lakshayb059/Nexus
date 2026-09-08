@@ -31,21 +31,30 @@ const SuperSkeleton = () => (
 /* ─────────────────────────────────────────
    MODERN STAT CARD
 ───────────────────────────────────────── */
-const SuperStatCard = ({ title, value, subtext, icon: Icon, accent, delay = 0, glow = false }) => (
-  <div className={`sa-glass-card sa-slide-up ${glow ? 'sa-glow' : ''}`} style={{ animationDelay: `${delay}ms`, '--card-accent': accent }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 2 }}>
-      <div>
-        <div className="sa-card-title">{title}</div>
-        <div className="sa-card-value">{value}</div>
-        <div className="sa-card-subtext">{subtext}</div>
+const SuperStatCard = ({ title, value, subtext, icon: Icon, accent, delay = 0, glow = false }) => {
+  const valStr = String(value || '');
+  const fontSize = valStr.length > 12 
+    ? 'clamp(1.05rem, 2.2vw, 1.25rem)' 
+    : valStr.length > 8 
+      ? 'clamp(1.15rem, 2.5vw, 1.45rem)' 
+      : undefined;
+
+  return (
+    <div className={`sa-glass-card sa-slide-up ${glow ? 'sa-glow' : ''}`} style={{ animationDelay: `${delay}ms`, '--card-accent': accent, minWidth: 0 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 2, gap: 12 }}>
+        <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
+          <div className="sa-card-title">{title}</div>
+          <div className="sa-card-value" style={fontSize ? { fontSize } : undefined}>{value}</div>
+          <div className="sa-card-subtext">{subtext}</div>
+        </div>
+        <div className="sa-card-icon-wrapper" style={{ background: `${accent}15`, color: accent, flexShrink: 0 }}>
+          <Icon size={20} strokeWidth={2.2} />
+        </div>
       </div>
-      <div className="sa-card-icon-wrapper" style={{ background: `${accent}15`, color: accent }}>
-        <Icon size={20} strokeWidth={2.2} />
-      </div>
+      <div className="sa-card-bg-blob" style={{ background: accent }} />
     </div>
-    <div className="sa-card-bg-blob" style={{ background: accent }} />
-  </div>
-);
+  );
+};
 
 /* ─────────────────────────────────────────
    SUPERADMIN DASHBOARD
