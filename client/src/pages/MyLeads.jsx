@@ -884,25 +884,23 @@ const MyLeads = () => {
                               <span className="badge badge-success" style={{ fontSize: '0.7rem', padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 800 }}>
                                 ✓ UTR-Charity: {lead.utrCharity}
                               </span>
-                              {!isLocked && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); openCharityModal(lead); }}
-                                  style={{ background: 'none', border: 'none', fontSize: '0.68rem', color: 'var(--primary)', cursor: 'pointer', fontWeight: 800, padding: '2px 4px' }}
-                                  title="Edit confirmed charity details"
-                                >
-                                  ✏️ Edit Charity
-                                </button>
-                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); openCharityModal(lead); }}
+                                style={{ background: 'none', border: 'none', fontSize: '0.68rem', color: 'var(--primary)', cursor: 'pointer', fontWeight: 800, padding: '2px 4px' }}
+                                title="Edit confirmed charity details"
+                              >
+                                ✏️ Edit Charity
+                              </button>
                             </div>
                           ) : (
                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                              {lead.transactionId && (
-                                <span className="badge badge-success" style={{ fontSize: '0.7rem', padding: '4px 8px', fontWeight: 700 }}>
-                                  UTR: {lead.transactionId}
+                              {(lead.transactionId || lead.status === 'Converted') && (
+                                <span className="badge" style={{ fontSize: '0.7rem', padding: '4px 8px', background: 'var(--bg-surface-2)', border: '1px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 700 }}>
+                                  UTR-Internal: {lead.transactionId || 'Pending'}
                                 </span>
                               )}
-                              {(lead.status === 'Converted' || lead.transactionId) && !isLocked && (
+                              {(lead.status === 'Converted' || lead.transactionId) && (
                                 <button
                                   type="button"
                                   onClick={(e) => { e.stopPropagation(); openCharityModal(lead); }}

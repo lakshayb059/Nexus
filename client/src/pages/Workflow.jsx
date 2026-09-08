@@ -471,11 +471,22 @@ const Workflow = () => {
                       {customer360.convertedLeads.map((lead, idx) => (
                         <div key={idx} style={{ background: 'var(--bg-surface-1)', border: '1px solid var(--border)', padding: '10px 12px', borderRadius: 'var(--r-md)' }}>
                           <span style={{ display: 'block', fontSize: '0.62rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.05em', marginBottom: 3 }}>
-                            Amt: ₹{(lead.leadAmount || 0).toLocaleString()}
+                            Amt: ₹{((lead.isCharityConfirmed && lead.charityAmount !== null && lead.charityAmount !== undefined ? lead.charityAmount : lead.leadAmount) || 0).toLocaleString()}
                           </span>
-                          <span style={{ display: 'block', fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary)', wordBreak: 'break-all' }}>
-                            UTR: {lead.transactionId || 'N/A'}
-                          </span>
+                          {lead.isCharityConfirmed && lead.utrCharity ? (
+                            <>
+                              <span style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
+                                UTR-Internal: {lead.transactionId || 'N/A'}
+                              </span>
+                              <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: 800, color: 'var(--success)', wordBreak: 'break-all' }}>
+                                ✓ UTR-Charity: {lead.utrCharity}
+                              </span>
+                            </>
+                          ) : (
+                            <span style={{ display: 'block', fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary)', wordBreak: 'break-all' }}>
+                              UTR-Internal: {lead.transactionId || 'N/A'}
+                            </span>
+                          )}
                           <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 4 }}>
                             By {lead.agentName}
                           </span>
