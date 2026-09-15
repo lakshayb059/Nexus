@@ -830,8 +830,10 @@ router.get('/agent-queues', verify, authorize(['superadmin', 'admin', 'tl']), as
         assigned_to as "agentId",
         COUNT(*)::int as total,
         COUNT(CASE WHEN disposition IS NULL OR disposition = '' THEN 1 END)::int as pending,
+        COUNT(CASE WHEN disposition = 'Lead' THEN 1 END)::int as "allLead",
         COUNT(CASE WHEN disposition = 'Lead' AND status = 'Converted' THEN 1 END)::int as lead,
         COUNT(CASE WHEN disposition = 'Appointment' THEN 1 END)::int as appointment,
+        COALESCE(SUM(CASE WHEN disposition = 'Lead' THEN COALESCE(charity_amount, lead_amount) END), 0)::float as "allLeadAmount",
         COALESCE(SUM(CASE WHEN disposition = 'Lead' AND status = 'Converted' THEN COALESCE(charity_amount, lead_amount) END), 0)::float as "totalLeadAmount"
       FROM contacts
       WHERE is_deleted = false AND assigned_to IN (${queuePlaceholders})
@@ -848,7 +850,7 @@ router.get('/agent-queues', verify, authorize(['superadmin', 'admin', 'tl']), as
     tls.forEach(t => tlMap[t.id] = t);
 
     const result = agents.map(a => {
-      const q = queueMap[a.id] || { total: 0, pending: 0, lead: 0, appointment: 0, totalLeadAmount: 0 };
+      const q = queueMap[a.id] || { total: 0, pending: 0, allLead: 0, lead: 0, appointment: 0, allLeadAmount: 0, totalLeadAmount: 0 };
       const tl = a.tlId ? tlMap[a.tlId] : null;
       return {
         agent: { _id: a.id, name: a.name },
@@ -856,10 +858,12 @@ router.get('/agent-queues', verify, authorize(['superadmin', 'admin', 'tl']), as
         active: a.active,
         total: q.total,
         pending: q.pending,
-        lead: q.lead,
+        allLead: q.allLead || 0,
+        lead: q.lead || 0,
         appointment: q.appointment,
         disposed: q.total - q.pending,
-        totalLeadAmount: q.totalLeadAmount
+        allLeadAmount: q.allLeadAmount || 0,
+        totalLeadAmount: q.totalLeadAmount || 0
       };
     });
 

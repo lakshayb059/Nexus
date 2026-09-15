@@ -566,7 +566,7 @@ const Dashboard = () => {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: 'rgba(248,251,255,0.4)' }}>
-                  {['Agent', (user?.role === 'admin' || user?.role === 'superadmin') && 'Team Lead', 'Total', 'Pending', 'Disposed', 'Leads', 'Revenue', 'Appts', 'Progress'].filter(Boolean).map(h => (
+                  {['Agent', (user?.role === 'admin' || user?.role === 'superadmin') && 'Team Lead', 'Total', 'Pending', 'Disposed', 'Total Leads', 'Converted', 'Revenue', 'Appts', 'Progress'].filter(Boolean).map(h => (
                     <th key={h} style={{ padding: '13px 20px', textAlign: 'left', fontSize: '0.7rem', fontWeight: 900, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap', borderBottom: '1px solid rgba(37,99,235,0.06)' }}>
                       {h}
                     </th>
@@ -615,6 +615,11 @@ const Dashboard = () => {
                         </span>
                       </td>
                       <td style={{ padding: '14px 20px', color: '#475569', fontWeight: 600, fontSize: '0.875rem' }}>{q.disposed || 0}</td>
+                      <td style={{ padding: '14px 20px' }}>
+                        <span style={{ padding: '3px 10px', borderRadius: 999, background: 'rgba(99,102,241,0.1)', color: '#6366f1', fontWeight: 800, fontSize: '0.82rem' }}>
+                          {q.allLead || 0}
+                        </span>
+                      </td>
                       <td style={{ padding: '14px 20px' }}>
                         <span style={{ padding: '3px 10px', borderRadius: 999, background: 'rgba(16,185,129,0.1)', color: '#10b981', fontWeight: 800, fontSize: '0.82rem' }}>
                           {q.lead || 0}
