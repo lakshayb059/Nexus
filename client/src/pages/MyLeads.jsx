@@ -594,7 +594,7 @@ const MyLeads = () => {
               <Plus size={16} /> Create Lead
             </button>
             <span className="badge badge-primary" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
-              {rawLeads.length} Leads
+              {stats?.allLeads ?? stats?.allLeadsCount ?? rawLeads.length} Leads
             </span>
           </div>
         </div>
@@ -620,7 +620,7 @@ const MyLeads = () => {
       <div className="leads-stats-row" style={{ marginBottom: 24 }}>
         <StatCard
           title="TOTAL LEADS"
-          value={stats?.allLeadsCount ?? stats?.totalLeads ?? 0}
+          value={stats?.allLeads ?? stats?.allLeadsCount ?? 0}
           subtext="All acquired leads"
           icon={Star}
           accent="#6366f1"
@@ -628,7 +628,7 @@ const MyLeads = () => {
         />
         <StatCard
           title="TOTAL REVENUE"
-          value={`₹${((stats?.allLeadsAmount ?? stats?.totalAmount ?? 0) || 0).toLocaleString()}`}
+          value={`₹${((stats?.allLeadsAmount ?? 0) || 0).toLocaleString()}`}
           subtext="Expected lead value"
           icon={TrendingUp}
           accent="#06b6d4"
@@ -1078,19 +1078,38 @@ const MyLeads = () => {
 
       {/* ── PAGINATION ── */}
       {totalPages > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, marginTop: 24, paddingBottom: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 24, paddingBottom: 24, flexWrap: 'wrap' }}>
           <button 
             className="btn btn-outline" 
             disabled={page === 1} 
             onClick={() => setPage(p => Math.max(1, p - 1))}
+            style={{ fontSize: '0.8rem', padding: '6px 14px' }}
           >
             Previous
           </button>
-          <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Page {page} of {totalPages}</span>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.88rem', color: 'var(--text-muted)' }}>
+            <span>Page</span>
+            <select
+              value={page}
+              onChange={(e) => setPage(Number(e.target.value))}
+              className="input-field"
+              style={{ marginBottom: 0, padding: '4px 8px', fontSize: '0.82rem', height: 32, width: 'auto', fontWeight: 800 }}
+            >
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+            <span>of {totalPages}</span>
+          </div>
+
           <button 
             className="btn btn-outline" 
             disabled={page === totalPages} 
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            style={{ fontSize: '0.8rem', padding: '6px 14px' }}
           >
             Next
           </button>

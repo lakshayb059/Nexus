@@ -124,8 +124,8 @@ router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']
       ]);
     } else {
       [leads, contactLeads] = await Promise.all([
-        prisma.lead.findMany({ where: whereQuery, take: 500 }),
-        prisma.contact.findMany({ where: { ...whereQuery, disposition: 'Lead', isDeleted: false }, take: 500 })
+        prisma.lead.findMany({ where: whereQuery }),
+        prisma.contact.findMany({ where: { ...whereQuery, disposition: 'Lead', isDeleted: false } })
       ]);
     }
 
@@ -274,23 +274,19 @@ router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), 
     const [convertedLeads, convertedContacts, allLeadsArr, allContactsArr] = await Promise.all([
       prisma.lead.findMany({
         where: { ...whereQuery, status: 'Converted' },
-        select: { leadAmount: true, charityAmount: true, isCharityConfirmed: true },
-        take: 10000
+        select: { leadAmount: true, charityAmount: true, isCharityConfirmed: true }
       }),
       prisma.contact.findMany({
         where: { ...whereQuery, disposition: 'Lead', status: 'Converted', isDeleted: false },
-        select: { leadAmount: true, charityAmount: true, isCharityConfirmed: true },
-        take: 10000
+        select: { leadAmount: true, charityAmount: true, isCharityConfirmed: true }
       }),
       prisma.lead.findMany({
         where: whereQuery,
-        select: { leadAmount: true, charityAmount: true, isCharityConfirmed: true },
-        take: 10000
+        select: { leadAmount: true, charityAmount: true, isCharityConfirmed: true }
       }),
       prisma.contact.findMany({
         where: { ...whereQuery, disposition: 'Lead', isDeleted: false },
-        select: { leadAmount: true, charityAmount: true, isCharityConfirmed: true },
-        take: 10000
+        select: { leadAmount: true, charityAmount: true, isCharityConfirmed: true }
       })
     ]);
 
@@ -305,7 +301,7 @@ router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), 
     const allLeadsAmount = allLeadsArr.reduce((sum, l) => sum + getEffAmount(l), 0) +
                            allContactsArr.reduce((sum, c) => sum + getEffAmount(c), 0);
 
-    res.json({ totalLeads, totalAmount, allLeads: allLeadsCount, allLeadsAmount });
+    res.json({ totalLeads, totalAmount, allLeads: allLeadsCount, allLeadsAmount, allLeadsCount });
   } catch (err) {
     console.error('Leads stats failed:', err);
     res.status(500).json({ error: 'Server error' });
