@@ -271,37 +271,70 @@ router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), 
       whereQuery.adminId = req.user._id || req.user.id;
     }
 
-    const [convertedLeads, convertedContacts, allLeadsArr, allContactsArr] = await Promise.all([
-      prisma.lead.findMany({
-        where: { ...whereQuery, status: 'Converted' },
-        select: { leadAmount: true, charityAmount: true, isCharityConfirmed: true }
-      }),
-      prisma.contact.findMany({
-        where: { ...whereQuery, disposition: 'Lead', status: 'Converted', isDeleted: false },
-        select: { leadAmount: true, charityAmount: true, isCharityConfirmed: true }
-      }),
+    const [allLeadsArr, allContactsArr] = await Promise.all([
       prisma.lead.findMany({
         where: whereQuery,
-        select: { leadAmount: true, charityAmount: true, isCharityConfirmed: true }
+        select: { id: true, contactId: true, fields: true, status: true, leadAmount: true, charityAmount: true, isCharityConfirmed: true }
       }),
       prisma.contact.findMany({
         where: { ...whereQuery, disposition: 'Lead', isDeleted: false },
-        select: { leadAmount: true, charityAmount: true, isCharityConfirmed: true }
+        select: { id: true, fields: true, status: true, leadAmount: true, charityAmount: true, isCharityConfirmed: true }
       })
     ]);
+
+    const leadContactIdsSet = new Set(allLeadsArr.map(l => l.contactId).filter(Boolean));
+    const uniqueContactLeads = allContactsArr.filter(c => !leadContactIdsSet.has(c.id));
+
+    const normalize = (phone) => {
+      if (!phone) return 'N/A';
+      const clean = String(phone).replace(/\D/g, '');
+      return clean.length >= 10 ? clean.slice(-10) : clean || 'N/A';
+    };
 
     const getEffAmount = item => (item.isCharityConfirmed && item.charityAmount !== null && item.charityAmount !== undefined)
       ? (parseFloat(item.charityAmount) || 0)
       : (parseFloat(item.leadAmount) || 0);
 
-    const totalLeads = convertedLeads.length + convertedContacts.length;
-    const totalAmount = convertedLeads.reduce((sum, l) => sum + getEffAmount(l), 0) +
-                        convertedContacts.reduce((sum, c) => sum + getEffAmount(c), 0);
-    const allLeadsCount = allLeadsArr.length + allContactsArr.length;
-    const allLeadsAmount = allLeadsArr.reduce((sum, l) => sum + getEffAmount(l), 0) +
-                           allContactsArr.reduce((sum, c) => sum + getEffAmount(c), 0);
+    const groupedMap = new Map();
+    [...allLeadsArr, ...uniqueContactLeads].forEach(lead => {
+      const fields = lead.fields || {};
+      const rawPhone = fields.Phone || fields.phone || fields.Mobile || 'N/A';
+      const normPhone = normalize(rawPhone);
+      const leadEffAmount = getEffAmount(lead);
+      const isConverted = lead.status === 'Converted';
 
-    res.json({ totalLeads, totalAmount, allLeads: allLeadsCount, allLeadsAmount, allLeadsCount });
+      if (!groupedMap.has(normPhone)) {
+        groupedMap.set(normPhone, {
+          isConverted: isConverted,
+          effAmount: leadEffAmount
+        });
+      } else {
+        const item = groupedMap.get(normPhone);
+        if (isConverted) item.isConverted = true;
+        item.effAmount = Math.max(item.effAmount, leadEffAmount);
+      }
+    });
+
+    let allLeadsCount = groupedMap.size;
+    let allLeadsAmount = 0;
+    let totalLeadsCount = 0;
+    let totalAmount = 0;
+
+    groupedMap.forEach(item => {
+      allLeadsAmount += item.effAmount;
+      if (item.isConverted) {
+        totalLeadsCount += 1;
+        totalAmount += item.effAmount;
+      }
+    });
+
+    res.json({
+      totalLeads: totalLeadsCount,
+      totalAmount: totalAmount,
+      allLeads: allLeadsCount,
+      allLeadsAmount: allLeadsAmount,
+      allLeadsCount: allLeadsCount
+    });
   } catch (err) {
     console.error('Leads stats failed:', err);
     res.status(500).json({ error: 'Server error' });
