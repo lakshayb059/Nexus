@@ -141,7 +141,7 @@ router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']
     }, {});
 
     const userMap = await resolveUserNamesForRecords([...leads, ...contactLeads]);
-    const leadContactIdsSet = new Set(leads.map(l => l.contactId));
+    const leadContactIdsSet = new Set(leads.map(l => l.contactId).filter(Boolean));
     const uniqueContactLeads = contactLeads.filter(c => !leadContactIdsSet.has(c.id));
 
     const mappedContactLeads = uniqueContactLeads.map(c => {
@@ -166,7 +166,7 @@ router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']
         charityConfirmedAt: c.charityConfirmedAt,
         charityConfirmedBy: c.charityConfirmedBy,
         conversionDate: c.conversionDate,
-        status: c.status || 'Converted',
+        status: c.status || 'Pending',
         remarks: c.remarks || 'Imported Lead',
         createdAt: c.createdAt,
         lastModified: c.lastModified,
@@ -189,7 +189,6 @@ router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']
         isCharityConfirmed: !!l.isCharityConfirmed,
       };
     }), ...mappedContactLeads];
-    const groupedMap = new Map();
 
     const normalize = (phone) => {
       if (!phone) return 'N/A';
@@ -197,42 +196,28 @@ router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']
       return clean.length >= 10 ? clean.slice(-10) : clean || 'N/A';
     };
 
+    // Calculate phone frequency for leadsCount without dropping records
+    const phoneCountMap = new Map();
     combinedLeads.forEach(lead => {
       const fields = lead.fields || {};
-      const rawPhone = fields.Phone || fields.phone || fields.Mobile || 'N/A';
-      const normPhone = normalize(rawPhone);
-      if (!groupedMap.has(normPhone)) {
-        groupedMap.set(normPhone, { totalAmount: 0, leadsCount: 0, historyStatuses: [] });
-      }
-      const group = groupedMap.get(normPhone);
-      const leadEffAmount = (lead.isCharityConfirmed && lead.charityAmount !== null && lead.charityAmount !== undefined)
-        ? (parseFloat(lead.charityAmount) || 0)
-        : (parseFloat(lead.leadAmount) || 0);
-      group.totalAmount += leadEffAmount;
-      group.leadsCount += 1;
-      group.historyStatuses.push(lead.status || 'Converted');
-
-      // Prioritize non-converted leads as the representative (they need attention)
-      const groupIsConverted = group.status === 'Converted';
-      const leadIsConverted = lead.status === 'Converted';
-      const shouldReplace = 
-        !group.id ||
-        (groupIsConverted && !leadIsConverted) || // non-converted takes priority over converted
-        (groupIsConverted === leadIsConverted && new Date(lead.createdAt) > new Date(group.createdAt)); // same category: use newest
-
-      if (shouldReplace) {
-        const currentAmount = group.totalAmount;
-        const currentCount = group.leadsCount;
-        const currentHistory = group.historyStatuses;
-        Object.assign(group, lead);
-        group.totalAmount = currentAmount;
-        group.leadsCount = currentCount;
-        group.historyStatuses = currentHistory;
+      const rawPhone = fields.Phone || fields.phone || fields.Mobile;
+      if (rawPhone) {
+        const normPhone = normalize(rawPhone);
+        if (normPhone !== 'N/A') {
+          phoneCountMap.set(normPhone, (phoneCountMap.get(normPhone) || 0) + 1);
+        }
       }
     });
 
-    let result = Array.from(groupedMap.values()).sort((a, b) => 
-      new Date(b.lastModified || b.createdAt) - new Date(a.lastModified || a.createdAt)
+    combinedLeads.forEach(lead => {
+      const fields = lead.fields || {};
+      const rawPhone = fields.Phone || fields.phone || fields.Mobile;
+      const normPhone = normalize(rawPhone);
+      lead.leadsCount = (normPhone !== 'N/A' && phoneCountMap.has(normPhone)) ? phoneCountMap.get(normPhone) : 1;
+    });
+
+    let result = combinedLeads.sort((a, b) => 
+      new Date(b.lastModified || b.createdAt || 0) - new Date(a.lastModified || a.createdAt || 0)
     );
 
     if (search) {
@@ -261,14 +246,23 @@ router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']
 
 router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
+    const { agentId } = req.query;
     let whereQuery = {};
     if (req.user.role === 'agent') {
       whereQuery.assignedTo = req.user._id || req.user.id;
     } else if (req.user.role === 'tl') {
-      const agents = await prisma.user.findMany({ where: { tlId: req.user._id || req.user.id } });
-      whereQuery.assignedTo = { in: agents.map(a => a.id) };
+      const agents = await prisma.user.findMany({ where: { tlId: req.user._id || req.user.id }, select: { id: true } });
+      const agentIds = agents.map(a => a.id);
+      if (agentId && agentIds.includes(agentId)) {
+        whereQuery.assignedTo = agentId;
+      } else {
+        whereQuery.assignedTo = { in: agentIds };
+      }
     } else if (req.user.role === 'admin') {
       whereQuery.adminId = req.user._id || req.user.id;
+      if (agentId) whereQuery.assignedTo = agentId;
+    } else if (req.user.role === 'superadmin') {
+      if (agentId) whereQuery.assignedTo = agentId;
     }
 
     const [allLeadsArr, allContactsArr] = await Promise.all([
@@ -284,47 +278,23 @@ router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), 
 
     const leadContactIdsSet = new Set(allLeadsArr.map(l => l.contactId).filter(Boolean));
     const uniqueContactLeads = allContactsArr.filter(c => !leadContactIdsSet.has(c.id));
-
-    const normalize = (phone) => {
-      if (!phone) return 'N/A';
-      const clean = String(phone).replace(/\D/g, '');
-      return clean.length >= 10 ? clean.slice(-10) : clean || 'N/A';
-    };
+    const allCombinedLeads = [...allLeadsArr, ...uniqueContactLeads];
 
     const getEffAmount = item => (item.isCharityConfirmed && item.charityAmount !== null && item.charityAmount !== undefined)
       ? (parseFloat(item.charityAmount) || 0)
       : (parseFloat(item.leadAmount) || 0);
 
-    const groupedMap = new Map();
-    [...allLeadsArr, ...uniqueContactLeads].forEach(lead => {
-      const fields = lead.fields || {};
-      const rawPhone = fields.Phone || fields.phone || fields.Mobile || 'N/A';
-      const normPhone = normalize(rawPhone);
-      const leadEffAmount = getEffAmount(lead);
-      const isConverted = lead.status === 'Converted';
-
-      if (!groupedMap.has(normPhone)) {
-        groupedMap.set(normPhone, {
-          isConverted: isConverted,
-          effAmount: leadEffAmount
-        });
-      } else {
-        const item = groupedMap.get(normPhone);
-        if (isConverted) item.isConverted = true;
-        item.effAmount = Math.max(item.effAmount, leadEffAmount);
-      }
-    });
-
-    let allLeadsCount = groupedMap.size;
+    let allLeadsCount = allCombinedLeads.length;
     let allLeadsAmount = 0;
     let totalLeadsCount = 0;
     let totalAmount = 0;
 
-    groupedMap.forEach(item => {
-      allLeadsAmount += item.effAmount;
-      if (item.isConverted) {
+    allCombinedLeads.forEach(lead => {
+      const effAmount = getEffAmount(lead);
+      allLeadsAmount += effAmount;
+      if (lead.status === 'Converted') {
         totalLeadsCount += 1;
-        totalAmount += item.effAmount;
+        totalAmount += effAmount;
       }
     });
 
@@ -333,7 +303,11 @@ router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), 
       totalAmount: totalAmount,
       allLeads: allLeadsCount,
       allLeadsAmount: allLeadsAmount,
-      allLeadsCount: allLeadsCount
+      allLeadsCount: allLeadsCount,
+      lead: totalLeadsCount,
+      allLead: allLeadsCount,
+      allLeadAmount: allLeadsAmount,
+      totalLeadValue: totalAmount
     });
   } catch (err) {
     console.error('Leads stats failed:', err);
@@ -883,8 +857,8 @@ router.get('/history/:phone', verify, authorize(['superadmin', 'agent', 'tl', 'a
     }
 
     const [leads, contactLeads] = await Promise.all([
-      prisma.lead.findMany({ where: { ...whereQuery, isDeleted: undefined }, take: 200 }),
-      prisma.contact.findMany({ where: { ...whereQuery, disposition: 'Lead' }, take: 200 })
+      prisma.lead.findMany({ where: { ...whereQuery, isDeleted: undefined } }),
+      prisma.contact.findMany({ where: { ...whereQuery, disposition: 'Lead' } })
     ]);
 
     const userMapRaw = await resolveUserNamesForRecords([...leads, ...contactLeads]);
@@ -892,13 +866,13 @@ router.get('/history/:phone', verify, authorize(['superadmin', 'agent', 'tl', 'a
     Object.keys(userMapRaw).forEach(k => {
       userMap[k] = userMapRaw[k].name;
     });
-    const leadContactIds = new Set(leads.map(l => l.contactId));
+    const leadContactIds = new Set(leads.map(l => l.contactId).filter(Boolean));
     const uniqueContactLeads = contactLeads.filter(c => !leadContactIds.has(c.id));
 
     const mappedContactLeads = uniqueContactLeads.map(c => ({
       _id: c.id, contactId: c.id, fields: c.fields, batchId: c.batchId,
       assignedTo: c.assignedTo, agentName: c.assignedTo ? userMap[c.assignedTo] || 'Unassigned' : 'Unassigned',
-      leadAmount: c.leadAmount || 0, status: c.status || 'Converted',
+      leadAmount: c.leadAmount || 0, status: c.status || 'Pending',
       remarks: c.remarks || 'Imported Lead',
       createdAt: c.createdAt || c.disposedAt || new Date(),
       lastModified: c.lastModified || new Date()
