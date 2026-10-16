@@ -310,6 +310,148 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
     const newRemarkEntry = `[${dispositionLabel} by ${agentName} on ${dateStr}]: ${remarks || ''}`;
     const updatedRemarks = contact.remarks ? `${contact.remarks} | ${newRemarkEntry}` : newRemarkEntry;
 
+    // Check if this contact is an Appointment or Callback child
+    const [existingAppt, existingCb] = await Promise.all([
+      prisma.appointment.findFirst({ where: { contactId: req.params.id } }),
+      prisma.callback.findFirst({ where: { contactId: req.params.id } })
+    ]);
+    const isApptChild = !!existingAppt || contact.disposition === 'Appointment' || !!contact.appointmentDt;
+    const isCbChild = !isApptChild && (!!existingCb || contact.disposition === 'CallBack' || !!contact.callBackDt);
+
+    // Terminal dispositions: only these remove contact from Appointment or Callback
+    const TERMINAL_DISPOSITIONS = ['Lead', 'DoNotCall', 'DND', 'DNC', 'NotInterested', 'Not Interested'];
+    const isTerminal = TERMINAL_DISPOSITIONS.includes(disposition);
+
+    // Non-terminal disposal on an Appointment child: keep in appointments, update remarks, push to end of appointment list
+    if (isApptChild && !isTerminal) {
+      const maxAppt = await prisma.appointment.findFirst({
+        where: { assignedTo: contact.assignedTo },
+        orderBy: { appointmentDt: 'desc' }
+      });
+      const maxContactAppt = await prisma.contact.findFirst({
+        where: { assignedTo: contact.assignedTo, disposition: 'Appointment', isDeleted: false },
+        orderBy: { appointmentDt: 'desc' }
+      });
+      const latestDt = Math.max(
+        Date.now() + 24 * 60 * 60 * 1000,
+        maxAppt?.appointmentDt ? new Date(maxAppt.appointmentDt).getTime() + 10 * 60 * 1000 : 0,
+        maxContactAppt?.appointmentDt ? new Date(maxContactAppt.appointmentDt).getTime() + 10 * 60 * 1000 : 0
+      );
+      const lastPlaceDt = new Date(latestDt);
+
+      if (existingAppt) {
+        await prisma.appointment.update({
+          where: { id: existingAppt.id },
+          data: {
+            remarks: updatedRemarks,
+            appointmentDt: lastPlaceDt,
+            lastModified: new Date()
+          }
+        });
+      } else {
+        await prisma.appointment.create({
+          data: {
+            contactId: contact.id,
+            fields: contact.fields || {},
+            batchId: contact.batchId,
+            assignedTo: contact.assignedTo || req.user._id || req.user.id,
+            agentName: req.user.name,
+            appointmentDt: lastPlaceDt,
+            remarks: updatedRemarks,
+            adminId: contact.adminId
+          }
+        });
+      }
+
+      await prisma.contact.update({
+        where: { id: req.params.id },
+        data: {
+          disposition: 'Appointment',
+          subDisposition: disposition,
+          remarks: updatedRemarks,
+          appointmentDt: lastPlaceDt,
+          lastCallAttempt: new Date(),
+          callAttempts: (contact.callAttempts || 0) + 1,
+          rechurnCount: (contact.rechurnCount || 0) + 1,
+          disposedBy: req.user._id || req.user.id,
+          disposedAt: new Date(),
+          queueOrder: 999999
+        }
+      });
+
+      broadcast('contact_disposed', { contactId: req.params.id, disposition, agentName: req.user.name });
+      broadcast('dashboard_update');
+      broadcast('contacts_updated');
+      return res.json({ success: true, isChildRetained: true, retainedType: 'appointment' });
+    }
+
+    // Non-terminal disposal on a Callback child: keep in callbacks, update remarks, push to end of callback list
+    if (isCbChild && !isTerminal) {
+      const maxCb = await prisma.callback.findFirst({
+        where: { assignedTo: contact.assignedTo },
+        orderBy: { callBackDt: 'desc' }
+      });
+      const maxContactCb = await prisma.contact.findFirst({
+        where: { assignedTo: contact.assignedTo, disposition: 'CallBack', isDeleted: false },
+        orderBy: { callBackDt: 'desc' }
+      });
+      const latestCbDt = Math.max(
+        Date.now() + 4 * 60 * 60 * 1000,
+        maxCb?.callBackDt ? new Date(maxCb.callBackDt).getTime() + 10 * 60 * 1000 : 0,
+        maxContactCb?.callBackDt ? new Date(maxContactCb.callBackDt).getTime() + 10 * 60 * 1000 : 0
+      );
+      const lastPlaceCbDt = new Date(latestCbDt);
+
+      if (existingCb) {
+        await prisma.callback.update({
+          where: { id: existingCb.id },
+          data: {
+            remarks: updatedRemarks,
+            callBackDt: lastPlaceCbDt,
+            status: 'Call Back',
+            lastModified: new Date()
+          }
+        });
+      } else {
+        await prisma.callback.create({
+          data: {
+            contactId: contact.id,
+            fields: contact.fields || {},
+            batchId: contact.batchId,
+            assignedTo: contact.assignedTo || req.user._id || req.user.id,
+            agentName: req.user.name,
+            callBackDt: lastPlaceCbDt,
+            remarks: updatedRemarks,
+            adminId: contact.adminId,
+            status: 'Call Back',
+            source: 'workflow'
+          }
+        });
+      }
+
+      await prisma.contact.update({
+        where: { id: req.params.id },
+        data: {
+          disposition: 'CallBack',
+          status: 'Call Back',
+          subDisposition: disposition,
+          remarks: updatedRemarks,
+          callBackDt: lastPlaceCbDt,
+          lastCallAttempt: new Date(),
+          callAttempts: (contact.callAttempts || 0) + 1,
+          rechurnCount: (contact.rechurnCount || 0) + 1,
+          disposedBy: req.user._id || req.user.id,
+          disposedAt: new Date(),
+          queueOrder: 999999
+        }
+      });
+
+      broadcast('contact_disposed', { contactId: req.params.id, disposition, agentName: req.user.name });
+      broadcast('dashboard_update');
+      broadcast('contacts_updated');
+      return res.json({ success: true, isChildRetained: true, retainedType: 'callback' });
+    }
+
     const update = {
       disposition, remarks: updatedRemarks,
       disposedBy: req.user._id || req.user.id, disposedAt: new Date()
@@ -354,14 +496,16 @@ router.post('/:id/dispose', verify, authorize(['agent']), async (req, res) => {
 
     await prisma.contact.update({ where: { id: req.params.id }, data: update });
 
-    await Promise.all([
-      prisma.appointment.deleteMany({ where: { contactId: req.params.id } }),
-      prisma.callback.deleteMany({ where: { contactId: req.params.id } })
-    ]);
+    if (isTerminal) {
+      await Promise.all([
+        prisma.appointment.deleteMany({ where: { contactId: req.params.id } }),
+        prisma.callback.deleteMany({ where: { contactId: req.params.id } })
+      ]);
+    }
 
     const fields = contact.fields || {};
     const phoneNum = fields.Phone || fields.phone || fields.Mobile;
-    if (disposition !== 'CallBack' && phoneNum) await cleanupAllCallbacks(phoneNum);
+    if (disposition !== 'CallBack' && isTerminal && phoneNum) await cleanupAllCallbacks(phoneNum);
 
     let emailResult = null;
     if (disposition === 'Lead') {
@@ -1249,18 +1393,35 @@ router.post('/:id/requeue', verify, authorize(['superadmin', 'agent', 'tl', 'adm
     const contact = await prisma.contact.findUnique({ where: { id: req.params.id } });
     if (!contact) return res.status(404).json({ error: 'Contact not found' });
 
-    const update = {
-      disposition: null, status: null, leadAmount: null, appointmentDt: null, callBackDt: null,
-      remarks: contact.remarks ? `${contact.remarks} | [Requeued at ${new Date().toLocaleString()}]` : `[Requeued at ${new Date().toLocaleString()}]`,
-      queueOrder: -10
-    };
-
-    await Promise.all([
-      prisma.contact.update({ where: { id: contact.id }, data: update }),
-      prisma.lead.deleteMany({ where: { contactId: contact.id } }),
-      prisma.appointment.deleteMany({ where: { contactId: contact.id } }),
-      prisma.callback.deleteMany({ where: { contactId: contact.id } })
+    const [hasAppt, hasCb] = await Promise.all([
+      prisma.appointment.findFirst({ where: { contactId: contact.id } }),
+      prisma.callback.findFirst({ where: { contactId: contact.id } })
     ]);
+    const isApptOrCb = hasAppt || hasCb || contact.disposition === 'Appointment' || contact.disposition === 'CallBack';
+
+    if (isApptOrCb) {
+      // PRESERVE appointment/callback child state! Only set queueOrder to -10 so it appears first in calling workflow
+      await prisma.contact.update({
+        where: { id: contact.id },
+        data: {
+          queueOrder: -10,
+          remarks: contact.remarks ? `${contact.remarks} | [Opened in Workflow at ${new Date().toLocaleString()}]` : `[Opened in Workflow at ${new Date().toLocaleString()}]`
+        }
+      });
+    } else {
+      const update = {
+        disposition: null, status: null, leadAmount: null, appointmentDt: null, callBackDt: null,
+        remarks: contact.remarks ? `${contact.remarks} | [Requeued at ${new Date().toLocaleString()}]` : `[Requeued at ${new Date().toLocaleString()}]`,
+        queueOrder: -10
+      };
+
+      await Promise.all([
+        prisma.contact.update({ where: { id: contact.id }, data: update }),
+        prisma.lead.deleteMany({ where: { contactId: contact.id } }),
+        prisma.appointment.deleteMany({ where: { contactId: contact.id } }),
+        prisma.callback.deleteMany({ where: { contactId: contact.id } })
+      ]);
+    }
 
     broadcast('dashboard_update');
     broadcast('contacts_updated');
@@ -1282,29 +1443,55 @@ router.post('/bulk-requeue', verify, authorize(['superadmin', 'agent', 'tl', 'ad
     const nowStr = new Date().toLocaleString();
     const remarkToAppend = ` | [Requeued at ${nowStr}]`;
 
-    // Perform bulk update directly in PostgreSQL to concatenate remarks safely
-    const placeholders = ids.map((_, i) => `$${i + 1}`).join(', ');
-    
-    await prisma.$executeRawUnsafe(
-      `UPDATE contacts 
-       SET disposition = NULL, 
-           status = NULL, 
-           lead_amount = NULL, 
-           appointment_dt = NULL, 
-           call_back_dt = NULL, 
-           queue_order = -10,
-           remarks = COALESCE(remarks, '') || $${ids.length + 1}
-       WHERE _id IN (${placeholders})`,
-      ...ids,
-      remarkToAppend
-    );
+    // Only set queue_order = -10 for appointment/callback contacts, without wiping their disposition or child records!
+    const apptCbContacts = await prisma.contact.findMany({
+      where: {
+        id: { in: ids },
+        OR: [
+          { disposition: 'Appointment' },
+          { disposition: 'CallBack' }
+        ]
+      },
+      select: { id: true }
+    });
+    const apptCbIds = new Set(apptCbContacts.map(c => c.id));
+    const nonApptCbIds = ids.filter(id => !apptCbIds.has(id));
 
-    // Clean up child tables
-    await Promise.all([
-      prisma.lead.deleteMany({ where: { contactId: { in: ids } } }),
-      prisma.appointment.deleteMany({ where: { contactId: { in: ids } } }),
-      prisma.callback.deleteMany({ where: { contactId: { in: ids } } })
-    ]);
+    if (apptCbIds.size > 0) {
+      const arr = Array.from(apptCbIds);
+      const placeholders = arr.map((_, i) => `$${i + 1}`).join(', ');
+      await prisma.$executeRawUnsafe(
+        `UPDATE contacts 
+         SET queue_order = -10,
+             remarks = COALESCE(remarks, '') || $${arr.length + 1}
+         WHERE _id IN (${placeholders})`,
+        ...arr,
+        remarkToAppend
+      );
+    }
+
+    if (nonApptCbIds.length > 0) {
+      const placeholders = nonApptCbIds.map((_, i) => `$${i + 1}`).join(', ');
+      await prisma.$executeRawUnsafe(
+        `UPDATE contacts 
+         SET disposition = NULL, 
+             status = NULL, 
+             lead_amount = NULL, 
+             appointment_dt = NULL, 
+             call_back_dt = NULL, 
+             queue_order = -10,
+             remarks = COALESCE(remarks, '') || $${nonApptCbIds.length + 1}
+         WHERE _id IN (${placeholders})`,
+        ...nonApptCbIds,
+        remarkToAppend
+      );
+
+      await Promise.all([
+        prisma.lead.deleteMany({ where: { contactId: { in: nonApptCbIds } } }),
+        prisma.appointment.deleteMany({ where: { contactId: { in: nonApptCbIds } } }),
+        prisma.callback.deleteMany({ where: { contactId: { in: nonApptCbIds } } })
+      ]);
+    }
 
     broadcast('dashboard_update');
     broadcast('contacts_updated');

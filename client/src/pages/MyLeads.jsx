@@ -1112,7 +1112,7 @@ const MyLeads = () => {
 
     let matchesConvertedDate = true;
     if (convertedStartDate || convertedEndDate) {
-      const effDateVal = lead.conversionDate || (fields && (fields.Date || fields.date || fields['Lead Date'] || fields['Created Date'] || fields.created_at)) || lead.createdAt;
+      const effDateVal = lead.lastModified || lead.disposedAt || lead.conversionDate || (fields && (fields.Date || fields.date || fields['Lead Date'] || fields['Created Date'] || fields.created_at)) || lead.createdAt;
       const convDate = effDateVal ? new Date(effDateVal) : null;
       if (convDate && !isNaN(convDate.getTime())) {
         if (convertedStartDate) {
@@ -1620,7 +1620,7 @@ const MyLeads = () => {
                     ? lead.charityAmount 
                     : lead.leadAmount;
 
-                  const effectiveLeadDate = lead.conversionDate || (fields && (fields.Date || fields.date || fields['Lead Date'] || fields['Created Date'] || fields.created_at)) || lead.createdAt;
+                  const effectiveLeadDate = lead.lastModified || lead.disposedAt || lead.conversionDate || (fields && (fields.Date || fields.date || fields['Lead Date'] || fields['Created Date'] || fields.created_at)) || lead.createdAt;
 
                   const statusColor = isConverted ? '#10b981' : isNegative ? '#ef4444' : lead.status === 'Call Back' ? '#06b6d4' : 'var(--border)';
 
@@ -1778,7 +1778,7 @@ const MyLeads = () => {
                       <td className="excel-date-cell">
                         <div 
                           className="excel-date-wrapper"
-                          title={effectiveLeadDate ? `Lead Captured Date: ${new Date(effectiveLeadDate).toLocaleString()}` : 'N/A'}
+                          title={effectiveLeadDate ? `Lead Last Action Date: ${new Date(effectiveLeadDate).toLocaleString()}` : 'N/A'}
                         >
                           <span className="excel-date-day">
                             {effectiveLeadDate ? formatLeadDate(effectiveLeadDate).date : 'N/A'}

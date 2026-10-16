@@ -119,8 +119,7 @@ const MyCallbacks = () => {
     try {
       await api.post(`/contacts/${targetId}/requeue`);
       setShowModal(false);
-      // Removed from list because backend deletes the record
-      setCallbacks(prev => prev.filter(c => c._id !== selectedCb._id));
+      // Retained in list until converted to Lead, DND, or Not Interested
       setSelectedIds(prev => prev.filter(i => i !== selectedCb._id));
       navigate(`/workflow?contactId=${targetId}`);
     } catch (err) {
@@ -137,9 +136,9 @@ const MyCallbacks = () => {
         .map(c => c.contactId || c._id);
 
       await api.post('/contacts/bulk-requeue', { ids: targetContactIds });
-      // Remove from list
-      setCallbacks(prev => prev.filter(c => !selectedIds.includes(c._id)));
+      // Retain in list until converted to Lead, DND, or Not Interested
       setSelectedIds([]);
+      fetchCallbacks();
       alert('Successfully added to workflow');
     } catch (err) {
       alert('Bulk re-queue failed');

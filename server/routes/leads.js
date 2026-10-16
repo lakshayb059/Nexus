@@ -7,24 +7,18 @@ const { triggerConversionEmail } = require('../shared/triggerConversionEmail');
 const { resolveUserNamesForRecords } = require('../shared/userResolver');
 const axios = require('axios');
 
-// In-memory caching for ultra-fast response
-const statsCache = new Map();
-const STATS_CACHE_TTL = 30 * 1000; // 30 seconds
+const { getCache, setCache, delCache } = require('../shared/redis');
 
-function getCachedStats(key) {
-  const item = statsCache.get(key);
-  if (item && (Date.now() - item.timestamp < STATS_CACHE_TTL)) {
-    return item.data;
-  }
-  return null;
+async function getCachedStats(key) {
+  return await getCache(`crm:stats:${key}`);
 }
 
-function setCachedStats(key, data) {
-  statsCache.set(key, { timestamp: Date.now(), data });
+async function setCachedStats(key, data) {
+  return await setCache(`crm:stats:${key}`, data, 30);
 }
 
-function invalidateStatsCache() {
-  statsCache.clear();
+async function invalidateStatsCache() {
+  return await delCache('crm:stats:*');
 }
 
 function buildSqlWhere(whereQuery, params = []) {
@@ -286,7 +280,11 @@ router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']
       const normPhone = normalize(rawPhone);
       const leadsCount = (normPhone !== 'N/A' && phoneCountMap.has(normPhone)) ? phoneCountMap.get(normPhone) : 1;
 
-      const effectiveDate = override?.conversionDate 
+      const effectiveDate = override?.lastModified
+        || c.lastModified
+        || override?.disposedAt
+        || c.disposedAt
+        || override?.conversionDate 
         || c.conversionDate 
         || (f && (f.Date || f.date || f['Lead Date'] || f['Created Date'] || f.created_at)) 
         || override?.createdAt 
@@ -340,7 +338,7 @@ router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), 
   try {
     const { agentId, convertedFrom, convertedTo, minAmount, maxAmount, status, source } = req.query;
     const cacheKey = `stats_${req.user.id}_${req.user.role}_${agentId || 'all'}_${convertedFrom || ''}_${convertedTo || ''}_${minAmount || ''}_${maxAmount || ''}_${status || ''}_${source || ''}`;
-    const cached = getCachedStats(cacheKey);
+    const cached = await getCachedStats(cacheKey);
     if (cached) {
       return res.json(cached);
     }
@@ -442,7 +440,7 @@ router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), 
       totalLeadValue: totalAmount
     };
 
-    setCachedStats(cacheKey, result);
+    await setCachedStats(cacheKey, result);
     res.json(result);
   } catch (err) {
     console.error('Leads stats failed:', err);

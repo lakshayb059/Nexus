@@ -44,6 +44,124 @@ router.post('/workflow/dispose', verify, authorize(['agent']), async (req, res) 
     
     if (!contact) return res.status(404).json({ error: 'Contact not found' });
 
+    // Check if this contact is an Appointment or Callback child
+    const [existingAppt, existingCb] = await Promise.all([
+      prisma.appointment.findFirst({ where: { contactId } }),
+      prisma.callback.findFirst({ where: { contactId } })
+    ]);
+    const isApptChild = !!existingAppt || contact.disposition === 'Appointment' || !!contact.appointmentDt;
+    const isCbChild = !isApptChild && (!!existingCb || contact.disposition === 'CallBack' || !!contact.callBackDt);
+
+    const TERMINAL_DISPOSITIONS = ['Lead', 'DoNotCall', 'DND', 'DNC', 'NotInterested', 'Not Interested'];
+    const isTerminal = TERMINAL_DISPOSITIONS.includes(disposition);
+
+    if (isApptChild && !isTerminal) {
+      const maxAppt = await prisma.appointment.findFirst({
+        where: { assignedTo: contact.assignedTo },
+        orderBy: { appointmentDt: 'desc' }
+      });
+      const maxContactAppt = await prisma.contact.findFirst({
+        where: { assignedTo: contact.assignedTo, disposition: 'Appointment', isDeleted: false },
+        orderBy: { appointmentDt: 'desc' }
+      });
+      const latestDt = Math.max(
+        Date.now() + 24 * 60 * 60 * 1000,
+        maxAppt?.appointmentDt ? new Date(maxAppt.appointmentDt).getTime() + 10 * 60 * 1000 : 0,
+        maxContactAppt?.appointmentDt ? new Date(maxContactAppt.appointmentDt).getTime() + 10 * 60 * 1000 : 0
+      );
+      const lastPlaceDt = new Date(latestDt);
+
+      if (existingAppt) {
+        await prisma.appointment.update({
+          where: { id: existingAppt.id },
+          data: { remarks: remarks ? `${contact.remarks || ''} | ${remarks}` : contact.remarks, appointmentDt: lastPlaceDt, lastModified: new Date() }
+        });
+      } else {
+        await prisma.appointment.create({
+          data: {
+            contactId, fields: contact.fields, batchId: contact.batchId,
+            assignedTo: contact.assignedTo || req.user._id || req.user.id, agentName: req.user.name,
+            appointmentDt: lastPlaceDt, remarks: remarks || '', adminId: contact.adminId
+          }
+        });
+      }
+
+      await prisma.contact.update({
+        where: { id: contactId },
+        data: {
+          disposition: 'Appointment',
+          subDisposition: disposition,
+          remarks: remarks ? `${contact.remarks || ''} | ${remarks}` : contact.remarks,
+          appointmentDt: lastPlaceDt,
+          lastCallAttempt: new Date(),
+          callAttempts: (contact.callAttempts || 0) + 1,
+          rechurnCount: (contact.rechurnCount || 0) + 1,
+          disposedBy: req.user._id || req.user.id,
+          disposedAt: new Date(),
+          queueOrder: 999999
+        }
+      });
+
+      broadcast('lead_disposed', { contactId, disposition, agentId: req.user._id || req.user.id, agentName: req.user.name, timestamp: new Date() });
+      broadcast('dashboard_update');
+      broadcast('contacts_updated');
+      return res.json({ success: true, isChildRetained: true, retainedType: 'appointment' });
+    }
+
+    if (isCbChild && !isTerminal) {
+      const maxCb = await prisma.callback.findFirst({
+        where: { assignedTo: contact.assignedTo },
+        orderBy: { callBackDt: 'desc' }
+      });
+      const maxContactCb = await prisma.contact.findFirst({
+        where: { assignedTo: contact.assignedTo, disposition: 'CallBack', isDeleted: false },
+        orderBy: { callBackDt: 'desc' }
+      });
+      const latestCbDt = Math.max(
+        Date.now() + 4 * 60 * 60 * 1000,
+        maxCb?.callBackDt ? new Date(maxCb.callBackDt).getTime() + 10 * 60 * 1000 : 0,
+        maxContactCb?.callBackDt ? new Date(maxContactCb.callBackDt).getTime() + 10 * 60 * 1000 : 0
+      );
+      const lastPlaceCbDt = new Date(latestCbDt);
+
+      if (existingCb) {
+        await prisma.callback.update({
+          where: { id: existingCb.id },
+          data: { remarks: remarks ? `${contact.remarks || ''} | ${remarks}` : contact.remarks, callBackDt: lastPlaceCbDt, status: 'Call Back', lastModified: new Date() }
+        });
+      } else {
+        await prisma.callback.create({
+          data: {
+            contactId, fields: contact.fields, batchId: contact.batchId,
+            assignedTo: contact.assignedTo || req.user._id || req.user.id, agentName: req.user.name,
+            callBackDt: lastPlaceCbDt, remarks: remarks || '', adminId: contact.adminId, status: 'Call Back', source: 'workflow'
+          }
+        });
+      }
+
+      await prisma.contact.update({
+        where: { id: contactId },
+        data: {
+          disposition: 'CallBack',
+          status: 'Call Back',
+          subDisposition: disposition,
+          remarks: remarks ? `${contact.remarks || ''} | ${remarks}` : contact.remarks,
+          callBackDt: lastPlaceCbDt,
+          lastCallAttempt: new Date(),
+          callAttempts: (contact.callAttempts || 0) + 1,
+          rechurnCount: (contact.rechurnCount || 0) + 1,
+          disposedBy: req.user._id || req.user.id,
+          disposedAt: new Date(),
+          queueOrder: 999999
+        }
+      });
+
+      broadcast('lead_disposed', { contactId, disposition, agentId: req.user._id || req.user.id, agentName: req.user.name, timestamp: new Date() });
+      broadcast('dashboard_update');
+      broadcast('contacts_updated');
+      return res.json({ success: true, isChildRetained: true, retainedType: 'callback' });
+    }
+
     const update = {
       disposition,
       remarks: remarks || '',
@@ -116,7 +234,7 @@ router.post('/workflow/dispose', verify, authorize(['agent']), async (req, res) 
     const fields = contact.fields || {};
     const phoneNum = fields.Phone || fields.phone || fields.Mobile;
     if (disposition === 'CallBack') await consolidateCallbacks(phoneNum);
-    else await cleanupAllCallbacks(phoneNum);
+    else if (isTerminal && phoneNum) await cleanupAllCallbacks(phoneNum);
 
     broadcast('lead_disposed', { contactId, disposition, agentId: req.user._id || req.user.id, agentName: req.user.name, timestamp: new Date() });
     broadcast('dashboard_update');

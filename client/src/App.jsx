@@ -28,7 +28,7 @@ const ProtectedRoute = ({ children }) => {
 function App() {
   React.useEffect(() => {
     // Proactively warm up the API Gateway and downstream microservices to avoid Render Free tier 502/cold starts
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
     const serverUrl = import.meta.env.VITE_SERVER_URL || apiUrl.replace('/api', '');
 
     console.log("📡 Triggering proactive warmup for Gateway and backend microservices...");

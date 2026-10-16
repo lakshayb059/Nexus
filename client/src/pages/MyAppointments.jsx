@@ -110,8 +110,7 @@ const MyAppointments = () => {
     try {
       await api.post(`/contacts/${targetId}/requeue`);
       setShowModal(false);
-      // Removed from list because backend deletes the record
-      setAppointments(prev => prev.filter(a => a._id !== selectedApp._id));
+      // Retained in list until converted to Lead, DND, or Not Interested
       setSelectedIds(prev => prev.filter(i => i !== selectedApp._id));
       navigate(`/workflow?contactId=${targetId}`);
     } catch (err) {
@@ -128,9 +127,9 @@ const MyAppointments = () => {
         .map(a => a.contactId || a._id);
 
       await api.post('/contacts/bulk-requeue', { ids: targetContactIds });
-      // Remove from list
-      setAppointments(prev => prev.filter(a => !selectedIds.includes(a._id)));
+      // Retain in list until converted to Lead, DND, or Not Interested
       setSelectedIds([]);
+      fetchAppointments();
       alert('Successfully added to workflow');
     } catch (err) {
       alert('Bulk re-queue failed');

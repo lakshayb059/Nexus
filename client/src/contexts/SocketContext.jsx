@@ -15,7 +15,7 @@ export const SocketProvider = ({ children }) => {
   useEffect(() => {
     if (isAuthenticated && userId) {
       // Connect to socket when authenticated
-      const newSocket = io(import.meta.env.VITE_SERVER_URL || 'http://localhost:3000', {
+      const newSocket = io(import.meta.env.VITE_SERVER_URL || 'http://localhost:4000', {
         auth: {
           token: localStorage.getItem('crm_token')
         }

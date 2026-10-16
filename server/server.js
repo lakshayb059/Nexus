@@ -24,12 +24,16 @@ const path = require('path');
 const { connect, prisma } = require('./shared/db');
 const { sign, verify, authorize } = require('./shared/authMiddleware');
 const { startEmailReplyWorker } = require('./shared/emailReplyWorker');
+const { initRedisSocketAdapter, isRedisConnected } = require('./shared/redis');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] }
 });
+
+// Initialize Redis adapter for multi-worker Socket.io real-time cluster scale
+initRedisSocketAdapter(io);
 
 const PORT = process.env.PORT || 3000;
 
@@ -747,7 +751,11 @@ apiRouter.use('/upload', require('./routes/upload'));
 apiRouter.use('/mail', mailRouter);
 
 // --- Health Check Endpoints ---
-app.get('/health', (req, res) => res.json({ status: 'Monolith is up', timestamp: new Date() }));
+app.get('/health', (req, res) => res.json({ 
+  status: 'Monolith is up', 
+  redis: isRedisConnected() ? 'connected' : 'fallback-memory',
+  timestamp: new Date() 
+}));
 app.get('/', (req, res) => res.json({ status: 'Monolith is active', timestamp: new Date() }));
 
 // API mapping
