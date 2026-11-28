@@ -26,6 +26,7 @@ const { sendMail } = require('./shared/mailService');
 const { cloudflareSecurityHeaders } = require('./shared/cloudflareService');
 const { startEmailReplyWorker } = require('./shared/emailReplyWorker');
 const { initRedisSocketAdapter, isRedisConnected } = require('./shared/redis');
+const { setSocketServer } = require('./shared/notificationClient');
 const { createAuthRouter } = require('./routes/auth');
 const { createUsersRouter } = require('./routes/users');
 
@@ -70,11 +71,17 @@ function createApp(options = {}) {
       credentials: true,
       methods: ['GET', 'POST'],
     },
+    transports: ['polling', 'websocket'],
+    allowUpgrades: true,
+    pingTimeout: 60000,
+    pingInterval: 25000,
+    connectTimeout: 45000,
   });
 
   if (enableRedisAdapter) {
     initRedisSocketAdapter(io);
   }
+  setSocketServer(io);
 
   // Enforce authentication on all Socket.io connections
   io.use(authenticateSocket);
@@ -110,7 +117,10 @@ function createApp(options = {}) {
     }
 
     const frontendUrl = process.env.FRONTEND_URL || 'https://crm-eight-sage.vercel.app';
-    const vercelEmailUrl = `${frontendUrl.replace(/\/$/, '')}/api/send-email`;
+    const isLocalFrontend = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(frontendUrl);
+    const vercelEmailUrl = isLocalFrontend
+      ? 'https://crm-eight-sage.vercel.app/api/send-email'
+      : `${frontendUrl.replace(/\/$/, '')}/api/send-email`;
 
     try {
       const axiosResponse = await axios.post(vercelEmailUrl, {
@@ -238,11 +248,24 @@ function createApp(options = {}) {
   apiRouter.use('/mail', mailRouter);
 
   // --- Health Check Endpoints ---
-  app.get('/health', (req, res) => res.json({
-    status: 'Monolith is up',
-    redis: isRedisConnected() ? 'connected' : 'fallback-memory',
-    timestamp: new Date(),
-  }));
+  const handleHealth = async (req, res) => {
+    let dbStatus = 'disconnected';
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      dbStatus = 'connected';
+    } catch {
+      dbStatus = 'disconnected';
+    }
+    res.json({
+      status: 'Monolith is up',
+      database: dbStatus,
+      redis: isRedisConnected() ? 'connected' : 'fallback-memory',
+      socketClients: io?.engine?.clientsCount ?? 0,
+      timestamp: new Date(),
+    });
+  };
+  app.get('/health', handleHealth);
+  apiRouter.get('/health', handleHealth);
   app.get('/', (req, res) => res.json({ status: 'Monolith is active', timestamp: new Date() }));
 
   app.use('/api', apiRouter);
@@ -258,6 +281,10 @@ function createApp(options = {}) {
 
 // --- Database Sync (Prisma Migrations & Schema) ---
 function syncDatabase() {
+  if (process.env.NODE_ENV !== 'production' && process.env.RUN_DB_SYNC !== 'true') {
+    console.log('ℹ️ Skipping Prisma migrate/push in local dev (set RUN_DB_SYNC=true to run).');
+    return;
+  }
   if (!process.env.DATABASE_URL) {
     console.warn('⚠️ DATABASE_URL is not set. Skipping Prisma schema synchronization.');
     return;
@@ -284,7 +311,12 @@ function syncDatabase() {
       });
       console.log('✅ Prisma migrations deployed successfully.');
     } catch (migErr) {
-      console.warn('⚠️ Migration deploy warning, ensuring schema sync via prisma db push:', migErr.message);
+      const msg = String(migErr?.message || '');
+      if (msg.includes('P1001') || msg.includes('ECONN') || msg.includes('ETIMEDOUT')) {
+        console.warn('⚠️ Skipping prisma db push because database host is temporarily unreachable for CLI sync.');
+        return;
+      }
+      console.warn('⚠️ Migration deploy warning, ensuring schema sync via prisma db push:', msg);
       execSync('npx prisma db push', {
         cwd: __dirname,
         stdio: 'inherit',

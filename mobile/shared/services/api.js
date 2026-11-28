@@ -64,7 +64,11 @@ export async function loadStoredSession() {
     SecureStore.getItemAsync(STORAGE_KEYS.USER),
   ]);
 
-  if (savedUrl) {
+  const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
+  if (isDev) {
+    currentServerUrl = DEFAULT_SERVER_URL.replace(/\/$/, '');
+    api.defaults.baseURL = `${currentServerUrl}/api`;
+  } else if (savedUrl) {
     currentServerUrl = savedUrl.replace(/\/$/, '');
     api.defaults.baseURL = `${currentServerUrl}/api`;
   }
@@ -161,7 +165,7 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-async function rotateMobileTokens() {
+export async function rotateMobileTokens() {
   if (!inMemoryRefreshToken) {
     throw new Error('No refresh token available');
   }

@@ -161,12 +161,13 @@ export const AuthProvider = ({
 
   const login = async (identifier, password, turnstileToken = null) => {
     try {
-      const response = await api.post('/auth/login', {
+      const payload = {
         identifier,
         password,
-        turnstileToken,
         clientType: 'mobile',
-      });
+      };
+      if (turnstileToken) payload.turnstileToken = turnstileToken;
+      const response = await api.post('/auth/login', payload);
 
       const { accessToken, refreshToken, user: loggedInUser } = response.data || {};
       if (!loggedInUser || !accessToken) {
@@ -203,13 +204,14 @@ export const AuthProvider = ({
 
   const register = async ({ name, email, password, turnstileToken = null }) => {
     try {
-      const res = await api.post('/auth/register', {
+      const payload = {
         name,
         email,
         password,
-        turnstileToken,
         clientType: 'mobile',
-      });
+      };
+      if (turnstileToken) payload.turnstileToken = turnstileToken;
+      const res = await api.post('/auth/register', payload);
       return { success: true, message: res.data?.message || 'Account registered successfully.' };
     } catch (error) {
       return {
@@ -221,7 +223,9 @@ export const AuthProvider = ({
 
   const forgotPassword = async (email, turnstileToken = null) => {
     try {
-      const res = await api.post('/auth/forgot-password', { email, turnstileToken });
+      const payload = { email, clientType: 'mobile' };
+      if (turnstileToken) payload.turnstileToken = turnstileToken;
+      const res = await api.post('/auth/forgot-password', payload);
       return {
         success: true,
         message: res.data?.message || 'If an account matching that email exists, a password reset link has been sent.',
@@ -298,7 +302,7 @@ export const AuthProvider = ({
         recordActivity,
       }}
     >
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };

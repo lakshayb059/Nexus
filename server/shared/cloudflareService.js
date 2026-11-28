@@ -136,10 +136,26 @@ async function verifyTurnstileToken({ token, remoteIp, expectedAction }) {
 
 /**
  * Express middleware enforcing Cloudflare Turnstile verification on protected public auth endpoints.
+ * Native mobile clients (identified via X-Client-Platform: mobile or clientType: 'mobile') are exempted
+ * when no Turnstile token is sent, while web requests always require Turnstile verification.
  */
 function requireTurnstile(expectedAction = null) {
   return async (req, res, next) => {
     const token = req.body?.turnstileToken || req.body?.['cf-turnstile-response'];
+    const isMobileClient =
+      req.headers?.['x-client-platform'] === 'mobile' ||
+      req.body?.clientType === 'mobile';
+
+    if (isMobileClient && (!token || typeof token !== 'string' || !token.trim())) {
+      req.cloudflare = {
+        turnstileVerified: false,
+        mobileExempt: true,
+        cfRay: req.headers['cf-ray'] || null,
+        cfCountry: req.headers['cf-ipcountry'] || null,
+      };
+      return next();
+    }
+
     const result = await verifyTurnstileToken({
       token,
       remoteIp: getCloudflareClientIp(req),

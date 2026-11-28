@@ -80,28 +80,52 @@ async function sendMail({ to, subject, html, companyName, attachments = [], admi
 
   if (isGmailAuth) {
     const frontendUrl = process.env.FRONTEND_URL || 'https://crm-eight-sage.vercel.app';
-    const vercelEmailUrl = `${frontendUrl.replace(/\/$/, '')}/api/send-email`;
+    const isLocalFrontend = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(frontendUrl);
+    const vercelEmailUrl = isLocalFrontend
+      ? 'https://crm-eight-sage.vercel.app/api/send-email'
+      : `${frontendUrl.replace(/\/$/, '')}/api/send-email`;
+
     try {
-      const axiosResponse = await axios.post(vercelEmailUrl, {
-        smtpGmail: senderEmail,
-        smtpPassword: smtpPasswordVal,
+      const directTransport = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: senderEmail,
+          pass: smtpPasswordVal,
+        },
+        tls: { rejectUnauthorized: false },
+      });
+      const info = await directTransport.sendMail({
+        from: `"${companyName || 'NEXUS'}" <${senderEmail}>`,
         to: toField,
         cc: ccField,
         subject: subject || 'Nexus CRM Notification',
         html: html || '<p>Notification from Nexus CRM.</p>',
         attachments,
       });
-      if (axiosResponse.data && axiosResponse.data.success) {
-        return { success: true, messageId: axiosResponse.data.messageId };
+      return { success: true, messageId: info.messageId };
+    } catch (directErr) {
+      try {
+        const axiosResponse = await axios.post(vercelEmailUrl, {
+          smtpGmail: senderEmail,
+          smtpPassword: smtpPasswordVal,
+          to: toField,
+          cc: ccField,
+          subject: subject || 'Nexus CRM Notification',
+          html: html || '<p>Notification from Nexus CRM.</p>',
+          attachments,
+        });
+        if (axiosResponse.data && axiosResponse.data.success) {
+          return { success: true, messageId: axiosResponse.data.messageId };
+        }
+        throw new Error(axiosResponse.data?.error || 'Vercel proxy failed to send email');
+      } catch (proxyErr) {
+        console.error('Gmail SMTP fallback failed:', directErr.message, '| Proxy:', proxyErr.message);
+        return {
+          success: true,
+          messageId: `mock-msg-${Date.now()}`,
+          warning: `SMTP failed (${proxyErr.message})`,
+        };
       }
-      throw new Error(axiosResponse.data?.error || 'Vercel proxy failed to send email');
-    } catch (proxyErr) {
-      console.error('Gmail SMTP via Vercel proxy failed:', proxyErr.message);
-      return {
-        success: true,
-        messageId: `mock-msg-${Date.now()}`,
-        warning: `SMTP proxy failed (${proxyErr.message})`,
-      };
     }
   }
 

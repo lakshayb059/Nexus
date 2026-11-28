@@ -1,15 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { NavigationContainer } from '@react-navigation/native';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { AuthProvider, useAuth } from '../shared/contexts/AuthContext';
 import { SocketProvider, useSocket } from '../shared/contexts/SocketContext';
 import api from '../shared/services/api';
+import {
+  requestPhoneNotificationPermission,
+  getPhoneNotificationPermission,
+  sendLocalPhoneNotification,
+  addNotificationResponseListener,
+} from '../shared/services/notifications';
 import { COLORS } from '../shared/theme';
 import { AppTopBar } from '../shared/components/UI';
-import ChangePasswordModal from '../shared/components/ChangePasswordModal';
+import AnimatedSplash from '../shared/components/AnimatedSplash';
+import SideDrawer from '../shared/components/SideDrawer';
 import NotificationsModal from '../shared/components/NotificationsModal';
 import LoginScreen from '../shared/screens/LoginScreen';
 import DashboardScreen from '../shared/screens/DashboardScreen';
@@ -20,6 +27,7 @@ import ScheduleScreen from '../shared/screens/ScheduleScreen';
 import AgentLogsScreen from '../shared/screens/AgentLogsScreen';
 import UploadScreen from '../shared/screens/UploadScreen';
 import ReportsScreen from '../shared/screens/ReportsScreen';
+import ProfileScreen from '../shared/screens/ProfileScreen';
 import {
   LayoutDashboard,
   Users,
@@ -29,13 +37,19 @@ import {
   Activity,
   UploadCloud,
   BarChart2,
+  UserCircle,
 } from 'lucide-react-native';
 
 const Tab = createBottomTabNavigator();
+const navigationRef = createNavigationContainerRef();
 const ADMIN_LOGO = require('./assets/nexus-logo.png');
 
-const AdminPipelineHub = () => {
-  const [subTab, setSubTab] = useState('leads');
+const AdminPipelineHub = ({ activeSubTab }) => {
+  const [subTab, setSubTab] = useState(activeSubTab || 'leads');
+  useEffect(() => {
+    if (activeSubTab) setSubTab(activeSubTab);
+  }, [activeSubTab]);
+
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bgBase }}>
       <View style={styles.subTabBar}>
@@ -68,8 +82,12 @@ const AdminPipelineHub = () => {
   );
 };
 
-const AdminOpsHub = () => {
-  const [subTab, setSubTab] = useState('logs');
+const AdminOpsHub = ({ activeSubTab }) => {
+  const [subTab, setSubTab] = useState(activeSubTab || 'logs');
+  useEffect(() => {
+    if (activeSubTab) setSubTab(activeSubTab);
+  }, [activeSubTab]);
+
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bgBase }}>
       <View style={styles.subTabBar}>
@@ -94,14 +112,42 @@ const AdminOpsHub = () => {
 };
 
 const AdminShell = () => {
-  const { user } = useAuth();
-  const { socket, connected } = useSocket();
-  const [activeTitle, setActiveTitle] = useState(
-    user?.role === 'superadmin' ? 'Command Center' : 'Admin Dashboard'
-  );
-  const [securityOpen, setSecurityOpen] = useState(false);
+  const { user, logout } = useAuth();
+  const { socket } = useSocket();
+  const insets = useSafeAreaInsets();
+
+  const [activeRoute, setActiveRoute] = useState('Dashboard');
+  const [activeTitle, setActiveTitle] = useState('Dashboard');
+  const [pipelineSubTab, setPipelineSubTab] = useState('leads');
+  const [opsSubTab, setOpsSubTab] = useState('logs');
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [notifPerm, setNotifPerm] = useState({ granted: true, canAskAgain: true });
+  const [avatarRefreshKey, setAvatarRefreshKey] = useState(0);
+
+  const navigateTo = (routeName, subTab) => {
+    if (routeName === 'Pipeline' && subTab) setPipelineSubTab(subTab);
+    if (routeName === 'Ops' && subTab) setOpsSubTab(subTab);
+    if (navigationRef.isReady()) {
+      navigationRef.navigate(routeName);
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    requestPhoneNotificationPermission().then((res) => setNotifPerm(res));
+    const sub = addNotificationResponseListener((data) => {
+      if (data?.route) navigateTo(data.route);
+    });
+    return () => sub?.remove?.();
+  }, [user]);
+
+  useEffect(() => {
+    if (notifOpen) {
+      getPhoneNotificationPermission().then((res) => setNotifPerm(res));
+    }
+  }, [notifOpen]);
 
   useEffect(() => {
     if (!user) return;
@@ -113,7 +159,7 @@ const AdminShell = () => {
           title: a.title,
           message: a.message,
           time: new Date(),
-          path: a.path,
+          path: 'Pipeline',
         }));
         setNotifications(past.slice(0, 25));
       })
@@ -123,28 +169,36 @@ const AdminShell = () => {
   useEffect(() => {
     if (!socket) return;
     const onBatch = (data) => {
+      const title = 'Batch Uploaded';
+      const message = data?.batchName ? `Imported ${data.batchName}` : 'New contact batch imported';
       setNotifications((prev) => [
         {
           id: `batch_${Date.now()}`,
           type: 'workflow',
-          title: 'Batch Uploaded',
-          message: data?.batchName ? `Imported ${data.batchName}` : 'New contact batch imported',
+          title,
+          message,
           time: new Date(),
+          path: 'Ops',
         },
         ...prev,
       ].slice(0, 25));
+      sendLocalPhoneNotification({ title, body: message, data: { route: 'Ops' } });
     };
     const onLead = () => {
+      const title = 'Lead Activity';
+      const message = 'A new lead or conversion was updated.';
       setNotifications((prev) => [
         {
           id: `lead_${Date.now()}`,
           type: 'lead',
-          title: 'Lead Activity',
-          message: 'A new lead or conversion was updated.',
+          title,
+          message,
           time: new Date(),
+          path: 'Pipeline',
         },
         ...prev,
       ].slice(0, 25));
+      sendLocalPhoneNotification({ title, body: message, data: { route: 'Pipeline' } });
     };
     socket.on('batch_uploaded', onBatch);
     socket.on('lead_disposed', onLead);
@@ -154,30 +208,45 @@ const AdminShell = () => {
     };
   }, [socket]);
 
+  const drawerItems = [
+    { key: 'Dashboard', route: 'Dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { key: 'Users', route: 'Users', label: 'User Management', icon: Users },
+    { key: 'Leads', route: 'Pipeline', subTab: 'leads', label: 'Leads', icon: Star },
+    { key: 'Contacts', route: 'Pipeline', subTab: 'contacts', label: 'Contacts', icon: Database },
+    { key: 'Schedule', route: 'Pipeline', subTab: 'schedule', label: 'Schedule', icon: Calendar },
+    { key: 'Logs', route: 'Ops', subTab: 'logs', label: 'Agent Logs', icon: Activity },
+    { key: 'Upload', route: 'Ops', subTab: 'upload', label: 'Data Import', icon: UploadCloud },
+    { key: 'Reports', route: 'Reports', label: 'Reports & Export', icon: BarChart2 },
+    { key: 'Profile', route: 'Profile', label: 'My Profile & Stats', icon: UserCircle },
+  ];
+
+  const bottomPadding = Math.max(insets.bottom, 10);
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#ffffff' }} edges={['top']}>
       <StatusBar style="dark" />
       <AppTopBar
         title={activeTitle}
-        role={user?.role}
-        connected={connected}
         unreadCount={notifications.length}
+        onPressMenu={() => setDrawerOpen(true)}
         onPressBell={() => setNotifOpen(true)}
-        onPressSecurity={() => setSecurityOpen(true)}
       />
 
-      <NavigationContainer>
+      <NavigationContainer ref={navigationRef}>
         <Tab.Navigator
           screenOptions={{
             headerShown: false,
             tabBarActiveTintColor: COLORS.primary,
             tabBarInactiveTintColor: COLORS.textMuted,
+            tabBarHideOnKeyboard: true,
             tabBarStyle: {
               borderTopColor: COLORS.border,
+              borderTopWidth: 1,
               backgroundColor: '#ffffff',
-              height: 60,
-              paddingBottom: 6,
-              paddingTop: 4,
+              height: 58 + bottomPadding,
+              paddingBottom: bottomPadding,
+              paddingTop: 6,
+              elevation: 14,
             },
             tabBarLabelStyle: { fontSize: 11, fontWeight: '700' },
           }}
@@ -185,7 +254,10 @@ const AdminShell = () => {
           <Tab.Screen
             name="Dashboard"
             listeners={{
-              focus: () => setActiveTitle(user?.role === 'superadmin' ? 'Command Center' : 'Admin Dashboard'),
+              focus: () => {
+                setActiveRoute('Dashboard');
+                setActiveTitle('Dashboard');
+              },
             }}
             options={{
               tabBarLabel: 'Home',
@@ -196,7 +268,12 @@ const AdminShell = () => {
 
           <Tab.Screen
             name="Users"
-            listeners={{ focus: () => setActiveTitle('User Management') }}
+            listeners={{
+              focus: () => {
+                setActiveRoute('Users');
+                setActiveTitle('Users');
+              },
+            }}
             options={{
               tabBarLabel: 'Users',
               tabBarIcon: ({ color, size }) => <Users size={size} color={color} />,
@@ -206,42 +283,93 @@ const AdminShell = () => {
 
           <Tab.Screen
             name="Pipeline"
-            listeners={{ focus: () => setActiveTitle('Leads, Contacts & Schedule') }}
+            listeners={{
+              focus: () => {
+                setActiveRoute('Pipeline');
+                setActiveTitle('Leads');
+              },
+            }}
             options={{
               tabBarLabel: 'Pipeline',
               tabBarIcon: ({ color, size }) => <Star size={size} color={color} />,
             }}
-            component={AdminPipelineHub}
-          />
+          >
+            {() => <AdminPipelineHub activeSubTab={pipelineSubTab} />}
+          </Tab.Screen>
 
           <Tab.Screen
             name="Ops"
-            listeners={{ focus: () => setActiveTitle('Agent Logs & Import') }}
+            listeners={{
+              focus: () => {
+                setActiveRoute('Ops');
+                setActiveTitle('Logs');
+              },
+            }}
             options={{
               tabBarLabel: 'Logs & Data',
               tabBarIcon: ({ color, size }) => <Activity size={size} color={color} />,
             }}
-            component={AdminOpsHub}
-          />
+          >
+            {() => <AdminOpsHub activeSubTab={opsSubTab} />}
+          </Tab.Screen>
 
           <Tab.Screen
             name="Reports"
-            listeners={{ focus: () => setActiveTitle('Reports & Export') }}
+            listeners={{
+              focus: () => {
+                setActiveRoute('Reports');
+                setActiveTitle('Reports');
+              },
+            }}
             options={{
               tabBarLabel: 'Reports',
               tabBarIcon: ({ color, size }) => <BarChart2 size={size} color={color} />,
             }}
             component={ReportsScreen}
           />
+
+          <Tab.Screen
+            name="Profile"
+            listeners={{
+              focus: () => {
+                setActiveRoute('Profile');
+                setActiveTitle('Profile');
+              },
+            }}
+            options={{
+              tabBarButton: () => null,
+              tabBarItemStyle: { display: 'none' },
+            }}
+          >
+            {() => <ProfileScreen onAvatarChanged={() => setAvatarRefreshKey((k) => k + 1)} />}
+          </Tab.Screen>
         </Tab.Navigator>
       </NavigationContainer>
 
-      <ChangePasswordModal visible={securityOpen} onClose={() => setSecurityOpen(false)} />
+      <SideDrawer
+        visible={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        user={user}
+        items={drawerItems}
+        activeRoute={activeRoute}
+        onNavigate={navigateTo}
+        onOpenProfile={() => navigateTo('Profile')}
+        onLogout={logout}
+        avatarRefreshKey={avatarRefreshKey}
+      />
+
       <NotificationsModal
         visible={notifOpen}
         onClose={() => setNotifOpen(false)}
         notifications={notifications}
         onClear={() => setNotifications([])}
+        onNavigate={(path) => navigateTo(path)}
+        permissionGranted={notifPerm.granted}
+        canAskPermission={notifPerm.canAskAgain}
+        onRequestPermission={async () => {
+          const res = await requestPhoneNotificationPermission();
+          setNotifPerm(res);
+        }}
       />
     </SafeAreaView>
   );
@@ -249,20 +377,33 @@ const AdminShell = () => {
 
 const RootGate = () => {
   const { isAuthenticated, loading } = useAuth();
-  if (loading) {
-    return (
-      <View style={styles.splash}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-      </View>
-    );
-  }
-  return isAuthenticated ? (
-    <AdminShell />
-  ) : (
-    <>
-      <StatusBar style="light" />
-      <LoginScreen appTitle="Nexus CRM." appBadge="ADMIN CONSOLE • ADMIN & SUPERADMIN" logoSource={ADMIN_LOGO} />
-    </>
+  const [splashDone, setSplashDone] = useState(false);
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#070d1f' }}>
+      {!loading && (
+        isAuthenticated ? (
+          <AdminShell />
+        ) : (
+          <>
+            <StatusBar style="light" />
+            <LoginScreen appTitle="Nexus CRM." appBadge="ADMIN CONSOLE • ADMIN & SUPERADMIN" logoSource={ADMIN_LOGO} />
+          </>
+        )
+      )}
+
+      {!splashDone && (
+        <>
+          <StatusBar style="light" />
+          <AnimatedSplash
+            logoSource={ADMIN_LOGO}
+            subtitle="ADMIN CONSOLE"
+            ready={!loading}
+            onFinish={() => setSplashDone(true)}
+          />
+        </>
+      )}
+    </View>
   );
 };
 
@@ -283,7 +424,6 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  splash: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#070d1f' },
   subTabBar: { flexDirection: 'row', gap: 8, padding: 14, paddingBottom: 4 },
   subTabBtn: {
     flex: 1,

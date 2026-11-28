@@ -158,6 +158,14 @@ function isRedisConnected() {
   return isConnected;
 }
 
+async function invalidateCrmCaches() {
+  await Promise.allSettled([
+    delCache('crm:stats:*'),
+    delCache('crm:contacts_stats:*'),
+    delCache('crm:profile:*'),
+  ]);
+}
+
 // Auto-initialize on module import
 initRedis();
 
@@ -167,5 +175,6 @@ module.exports = {
   getCache,
   setCache,
   delCache,
-  isRedisConnected
+  isRedisConnected,
+  invalidateCrmCaches
 };

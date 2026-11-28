@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { prisma } = require('../shared/db');
 const { verify, authorize } = require('../shared/authMiddleware');
+const { broadcast } = require('../shared/notificationClient');
 
 // Initialize or resume session
 router.post('/session-init', verify, async (req, res) => {
@@ -101,6 +102,7 @@ router.post('/start-break', verify, async (req, res) => {
     });
 
     console.log(`☕ Agent ${userId} started ${breakType} break.`);
+    broadcast('agent_status_changed', { userId, action: 'start-break', activeBreakType: breakType });
     res.json(updated);
   } catch (err) {
     console.error('❌ [Start Break Error]:', err);
@@ -147,6 +149,7 @@ router.post('/end-break', verify, async (req, res) => {
     });
 
     console.log(`✅ Agent ${userId} ended break. Duration: ${durationSeconds}s`);
+    broadcast('agent_status_changed', { userId, action: 'end-break', durationSeconds });
     res.json(updated);
   } catch (err) {
     console.error('❌ [End Break Error]:', err);
@@ -201,6 +204,7 @@ router.post('/logout', verify, async (req, res) => {
       console.log(`🔒 Closed work session for user: ${userId}. Work time: ${totalWorkTime}s`);
     }
 
+    broadcast('agent_status_changed', { userId, action: 'logout' });
     res.json({ success: true });
   } catch (err) {
     console.error('❌ [Logout Log Error]:', err);

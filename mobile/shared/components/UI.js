@@ -10,7 +10,17 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, GRADIENTS, SHADOWS } from '../theme';
-import { Bell, KeyRound } from 'lucide-react-native';
+import { Bell, Menu } from 'lucide-react-native';
+
+export function getNameInitials(name) {
+  const clean = String(name || 'User').trim();
+  if (!clean) return 'U';
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  }
+  return clean.slice(0, 2).toUpperCase();
+}
 
 export function formatCurrency(amount) {
   const num = Number(amount) || 0;
@@ -162,54 +172,32 @@ export const EmptyState = ({ icon: Icon, title, subtitle, action }) => (
 );
 
 export const AppTopBar = ({
-  title,
-  role,
-  connected,
+  title = 'Dashboard',
   unreadCount = 0,
   onPressBell,
-  onPressSecurity,
+  onPressMenu,
 }) => {
-  const roleLabel =
-    role === 'superadmin'
-      ? 'Super Admin'
-      : role === 'admin'
-      ? 'Admin'
-      : role === 'tl'
-      ? 'Team Lead'
-      : 'Agent';
-
-  const roleColor =
-    role === 'admin' || role === 'superadmin'
-      ? '#d97706'
-      : role === 'tl'
-      ? COLORS.primary
-      : COLORS.success;
-
-  const roleBg =
-    role === 'admin' || role === 'superadmin'
-      ? 'rgba(245,158,11,0.14)'
-      : role === 'tl'
-      ? COLORS.primaryLight
-      : COLORS.successLight;
-
   return (
     <View style={styles.topBar}>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={styles.topBarTitle} numberOfLines={1}>{title}</Text>
+      <View style={styles.topBarLeft}>
+        {onPressMenu && (
+          <TouchableOpacity
+            onPress={onPressMenu}
+            style={styles.menuBtn}
+            accessibilityLabel="Open navigation menu"
+          >
+            <Menu size={20} color={COLORS.textPrimary} strokeWidth={2.3} />
+          </TouchableOpacity>
+        )}
+        <View style={styles.breadcrumbWrap}>
+          <Text style={styles.topBarPrefix}>Nexus/</Text>
+          <Text style={styles.topBarTitle} numberOfLines={1}>
+            {title}
+          </Text>
+        </View>
       </View>
 
       <View style={styles.topBarActions}>
-        <View style={[styles.livePill, !connected && { backgroundColor: 'rgba(100,116,139,0.1)', borderColor: 'rgba(100,116,139,0.2)' }]}>
-          <View style={[styles.liveDot, { backgroundColor: connected ? COLORS.success : COLORS.textMuted }]} />
-          <Text style={[styles.liveText, { color: connected ? COLORS.success : COLORS.textMuted }]}>
-            {connected ? 'Live' : 'Sync'}
-          </Text>
-        </View>
-
-        <View style={[styles.roleChip, { backgroundColor: roleBg }]}>
-          <Text style={[styles.roleChipText, { color: roleColor }]}>{roleLabel}</Text>
-        </View>
-
         {onPressBell && (
           <TouchableOpacity onPress={onPressBell} style={styles.iconBtn} accessibilityLabel="Notifications">
             <Bell size={19} color={COLORS.textSecondary} />
@@ -218,12 +206,6 @@ export const AppTopBar = ({
                 <Text style={styles.bellBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
               </View>
             )}
-          </TouchableOpacity>
-        )}
-
-        {onPressSecurity && (
-          <TouchableOpacity onPress={onPressSecurity} style={styles.iconBtn} accessibilityLabel="Account & Security">
-            <KeyRound size={18} color={COLORS.textSecondary} />
           </TouchableOpacity>
         )}
       </View>
@@ -329,19 +311,48 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   topBar: {
-    backgroundColor: 'rgba(255,255,255,0.96)',
+    backgroundColor: 'rgba(255,255,255,0.97)',
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
-    paddingHorizontal: 16,
-    paddingVertical: 11,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 10,
   },
-  topBarTitle: {
-    fontSize: 17,
+  topBarLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minWidth: 0,
+  },
+  menuBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    backgroundColor: COLORS.surfaceMuted,
+    borderWidth: 1,
+    borderColor: COLORS.borderSlate,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  breadcrumbWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    minWidth: 0,
+  },
+  topBarPrefix: {
+    fontSize: 16,
     fontWeight: '800',
+    color: COLORS.primary,
+  },
+  topBarTitle: {
+    flexShrink: 1,
+    fontSize: 16.5,
+    fontWeight: '900',
     color: COLORS.textPrimary,
   },
   topBarActions: {
@@ -349,39 +360,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  livePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: 'rgba(5,150,105,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(5,150,105,0.2)',
-  },
-  liveDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  liveText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  roleChip: {
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  roleChipText: {
-    fontSize: 11,
-    fontWeight: '800',
-  },
   iconBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 11,
     backgroundColor: COLORS.surfaceMuted,
     borderWidth: 1,
     borderColor: COLORS.borderSlate,

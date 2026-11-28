@@ -5,6 +5,7 @@ const { resolveUserNamesForRecords } = require('../shared/userResolver');
 const { consolidateCallbacks, cleanupAllCallbacks, normalizePhone } = require('../shared/callbackUtils');
 const { broadcast } = require('../shared/notificationClient');
 const { triggerConversionEmail } = require('../shared/triggerConversionEmail');
+const { getCache, setCache, invalidateCrmCaches } = require('../shared/redis');
 
 async function getAccessibleContactsQuery(user, filters = {}, includeDeleted = false) {
   let where = { ...filters };
@@ -768,7 +769,14 @@ router.get('/admin-stats', verify, authorize(['superadmin']), async (req, res) =
 router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
-    const { agentId, fromDate, toDate, adminId } = req.query;
+    const { agentId, fromDate, toDate, adminId, refresh } = req.query;
+    const statsCacheKey = `crm:contacts_stats:${userId}_${req.user.role}_${agentId || ''}_${fromDate || ''}_${toDate || ''}_${adminId || 'all'}`;
+    if (refresh !== 'true') {
+      const cachedStats = await getCache(statsCacheKey);
+      if (cachedStats) {
+        return res.json(cachedStats);
+      }
+    }
 
     let conditions = ["is_deleted = false"];
     let params = [];
@@ -891,7 +899,7 @@ router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), 
       where: todayWhere
     });
 
-    res.json({
+    const result = {
       total: s.total || 0,
       pending: s.pending || 0,
       lead: s.lead || 0,
@@ -908,7 +916,9 @@ router.get('/stats', verify, authorize(['superadmin', 'agent', 'tl', 'admin']), 
       allLead: s.alllead || 0,
       allLeadAmount: s.allleadamount || 0,
       todayCalls: todayCallsCount || 0
-    });
+    };
+    await setCache(statsCacheKey, result, 25);
+    res.json(result);
   } catch (err) {
     console.error('Stats error:', err);
     res.status(500).json({ error: 'Failed to fetch stats' });
@@ -1211,6 +1221,9 @@ router.post('/export-delete-pending', verify, authorize(['superadmin', 'admin'])
 router.delete('/batch/:batchId', verify, authorize(['superadmin', 'admin']), async (req, res) => {
   try {
     await prisma.contact.deleteMany({ where: { batchId: req.params.batchId } });
+    await invalidateCrmCaches();
+    broadcast('contacts_updated');
+    broadcast('dashboard_update');
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
@@ -1220,6 +1233,9 @@ router.post('/bulk-delete', verify, authorize(['superadmin', 'admin']), async (r
     const { ids } = req.body;
     if (!ids || !ids.length) return res.status(400).json({ error: 'No IDs provided' });
     await prisma.contact.deleteMany({ where: { id: { in: ids } } });
+    await invalidateCrmCaches();
+    broadcast('contacts_updated');
+    broadcast('dashboard_update');
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
@@ -1228,6 +1244,9 @@ router.delete('/wipe', verify, authorize(['superadmin']), async (req, res) => {
   try {
     await prisma.contact.deleteMany({});
     await prisma.batch.deleteMany({});
+    await invalidateCrmCaches();
+    broadcast('contacts_updated');
+    broadcast('dashboard_update');
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
@@ -1235,6 +1254,9 @@ router.delete('/wipe', verify, authorize(['superadmin']), async (req, res) => {
 router.delete('/wipe/hungup', verify, authorize(['superadmin']), async (req, res) => {
   try {
     await prisma.contact.deleteMany({ where: { disposition: 'HungUp' } });
+    await invalidateCrmCaches();
+    broadcast('contacts_updated');
+    broadcast('dashboard_update');
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
@@ -1242,6 +1264,9 @@ router.delete('/wipe/hungup', verify, authorize(['superadmin']), async (req, res
 router.delete('/:id', verify, authorize(['superadmin', 'admin']), async (req, res) => {
   try {
     await prisma.contact.delete({ where: { id: req.params.id } });
+    await invalidateCrmCaches();
+    broadcast('contacts_updated');
+    broadcast('dashboard_update');
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });
@@ -1254,6 +1279,9 @@ router.post('/bulk-delete-batches', verify, authorize(['superadmin', 'admin']), 
       prisma.contact.deleteMany({ where: { batchId: { in: batchIds } } }),
       prisma.batch.deleteMany({ where: { id: { in: batchIds } } })
     ]);
+    await invalidateCrmCaches();
+    broadcast('contacts_updated');
+    broadcast('dashboard_update');
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Server error' }); }
 });

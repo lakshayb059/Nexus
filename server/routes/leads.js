@@ -7,7 +7,7 @@ const { triggerConversionEmail } = require('../shared/triggerConversionEmail');
 const { resolveUserNamesForRecords } = require('../shared/userResolver');
 const axios = require('axios');
 
-const { getCache, setCache, delCache } = require('../shared/redis');
+const { getCache, setCache, invalidateCrmCaches } = require('../shared/redis');
 
 async function getCachedStats(key) {
   return await getCache(`crm:stats:${key}`);
@@ -18,7 +18,7 @@ async function setCachedStats(key, data) {
 }
 
 async function invalidateStatsCache() {
-  return await delCache('crm:stats:*');
+  return await invalidateCrmCaches();
 }
 
 function buildSqlWhere(whereQuery, params = []) {
@@ -170,6 +170,11 @@ router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']
       ];
     }
 
+    const isDesc = req.query.sort === 'desc';
+    const orderSql = isDesc
+      ? 'COALESCE(last_modified, conversion_date, disposed_at, created_at) DESC, created_at DESC, _id DESC'
+      : 'created_at ASC, _id ASC';
+
     let total = 0;
     let contacts = [];
 
@@ -186,7 +191,7 @@ router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']
 
       if (pageNum && limitNum) {
         const pagedParams = [...contactParams, limitNum, skip];
-        const selectSql = `SELECT _id as id FROM contacts WHERE ${contactBaseClause} AND (remarks ILIKE $${searchParamIdx} OR agent_name ILIKE $${searchParamIdx} OR fields::text ILIKE $${searchParamIdx}) ORDER BY created_at ASC, _id ASC LIMIT $${contactParams.length + 1} OFFSET $${contactParams.length + 2}`;
+        const selectSql = `SELECT _id as id FROM contacts WHERE ${contactBaseClause} AND (remarks ILIKE $${searchParamIdx} OR agent_name ILIKE $${searchParamIdx} OR fields::text ILIKE $${searchParamIdx}) ORDER BY ${orderSql} LIMIT $${contactParams.length + 1} OFFSET $${contactParams.length + 2}`;
         const rows = await prisma.$queryRawUnsafe(selectSql, ...pagedParams);
         const pagedIds = rows.map(r => r.id);
         if (pagedIds.length > 0) {
@@ -196,8 +201,60 @@ router.get('/my-leads', verify, authorize(['superadmin', 'agent', 'tl', 'admin']
         }
       } else {
         const rows = await prisma.$queryRawUnsafe(
-          `SELECT _id as id FROM contacts WHERE ${contactBaseClause} AND (remarks ILIKE $${searchParamIdx} OR agent_name ILIKE $${searchParamIdx} OR fields::text ILIKE $${searchParamIdx}) ORDER BY created_at ASC, _id ASC LIMIT 200`,
+          `SELECT _id as id FROM contacts WHERE ${contactBaseClause} AND (remarks ILIKE $${searchParamIdx} OR agent_name ILIKE $${searchParamIdx} OR fields::text ILIKE $${searchParamIdx}) ORDER BY ${orderSql} LIMIT 200`,
           ...contactParams
+        );
+        const pagedIds = rows.map(r => r.id);
+        if (pagedIds.length > 0) {
+          const fetched = await prisma.contact.findMany({ where: { id: { in: pagedIds } } });
+          const map = new Map(fetched.map(c => [c.id, c]));
+          contacts = pagedIds.map(id => map.get(id)).filter(Boolean);
+        }
+        total = contacts.length;
+      }
+    } else if (isDesc) {
+      const contactSqlParams = [];
+      const dateOr = contactWhere.OR;
+      const baseWhere = { ...contactWhere };
+      delete baseWhere.OR;
+      const { clause: baseClause, params: sqlParams } = buildSqlWhere(baseWhere, contactSqlParams);
+      let fullClause = baseClause;
+      if (dateOr && dateRange) {
+        const dateParts = [];
+        if (dateRange.gte && dateRange.lte) {
+          sqlParams.push(dateRange.gte, dateRange.lte);
+          const p1 = `$${sqlParams.length - 1}`;
+          const p2 = `$${sqlParams.length}`;
+          dateParts.push(`((conversion_date >= ${p1} AND conversion_date <= ${p2}) OR (conversion_date IS NULL AND created_at >= ${p1} AND created_at <= ${p2}))`);
+        } else if (dateRange.gte) {
+          sqlParams.push(dateRange.gte);
+          const p1 = `$${sqlParams.length}`;
+          dateParts.push(`(conversion_date >= ${p1} OR (conversion_date IS NULL AND created_at >= ${p1}))`);
+        } else if (dateRange.lte) {
+          sqlParams.push(dateRange.lte);
+          const p1 = `$${sqlParams.length}`;
+          dateParts.push(`(conversion_date <= ${p1} OR (conversion_date IS NULL AND created_at <= ${p1}))`);
+        }
+        if (dateParts.length > 0) fullClause = `${baseClause} AND ${dateParts.join(' AND ')}`;
+      }
+
+      if (pageNum && limitNum) {
+        const pagedParams = [...sqlParams, limitNum, skip];
+        const [countResult, rows] = await Promise.all([
+          prisma.$queryRawUnsafe(`SELECT count(*)::int as total FROM contacts WHERE ${fullClause}`, ...sqlParams),
+          prisma.$queryRawUnsafe(`SELECT _id as id FROM contacts WHERE ${fullClause} ORDER BY ${orderSql} LIMIT $${sqlParams.length + 1} OFFSET $${sqlParams.length + 2}`, ...pagedParams)
+        ]);
+        total = countResult[0]?.total || 0;
+        const pagedIds = rows.map(r => r.id);
+        if (pagedIds.length > 0) {
+          const fetched = await prisma.contact.findMany({ where: { id: { in: pagedIds } } });
+          const map = new Map(fetched.map(c => [c.id, c]));
+          contacts = pagedIds.map(id => map.get(id)).filter(Boolean);
+        }
+      } else {
+        const rows = await prisma.$queryRawUnsafe(
+          `SELECT _id as id FROM contacts WHERE ${fullClause} ORDER BY ${orderSql} LIMIT 200`,
+          ...sqlParams
         );
         const pagedIds = rows.map(r => r.id);
         if (pagedIds.length > 0) {
@@ -1566,8 +1623,9 @@ router.post('/create', verify, authorize(['superadmin', 'admin', 'tl', 'agent'])
       });
     }
 
+    await invalidateStatsCache();
     broadcast('lead_created', {
-      lead,
+      lead: newLead,
       contact,
       agentId: assignedTo,
       adminId,

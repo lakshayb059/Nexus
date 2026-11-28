@@ -13,11 +13,231 @@ const {
   SAFE_USER_SELECT,
   sanitizeUser,
 } = require('../shared/validation');
+const { getCache, setCache, isRedisConnected, invalidateCrmCaches } = require('../shared/redis');
 
 const ADMIN_ALLOWED_CREATE_ROLES = new Set(['agent', 'tl']);
 
 function createUsersRouter(io) {
   const router = express.Router();
+
+  // GET /api/users/profile - live staff profile, org info, recent work logs & daily trend (Redis-cached)
+  router.get('/profile', verify, async (req, res) => {
+    try {
+      const userId = req.user._id || req.user.id;
+      const requestedDays = parseInt(req.query.trendDays, 10);
+      const trendDays = Number.isFinite(requestedDays) ? Math.min(30, Math.max(7, requestedDays)) : 7;
+      const forceRefresh = req.query.refresh === 'true';
+      const profileCacheKey = `crm:profile:${userId}:${trendDays}`;
+
+      if (!forceRefresh) {
+        const cached = await getCache(profileCacheKey);
+        if (cached) {
+          return res.json({
+            ...cached,
+            connectivity: {
+              database: 'connected',
+              redis: isRedisConnected() ? 'connected' : 'fallback-memory',
+              cacheHit: true,
+              syncedAt: new Date().toISOString(),
+            },
+          });
+        }
+      }
+
+      const currentUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: SAFE_USER_SELECT,
+      });
+      if (!currentUser || currentUser.isDeleted) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      const [tlUser, adminUser, workLogs] = await Promise.all([
+        currentUser.tlId
+          ? prisma.user.findUnique({ where: { id: currentUser.tlId }, select: { id: true, name: true, username: true, email: true } })
+          : null,
+        currentUser.adminId
+          ? prisma.user.findUnique({ where: { id: currentUser.adminId }, select: { id: true, name: true, username: true } })
+          : null,
+        prisma.agentWorkLog.findMany({
+          where: { userId },
+          orderBy: { loginAt: 'desc' },
+          take: 7,
+        }),
+      ]);
+
+      // Build daily trend scoped by role
+      const windowStart = new Date();
+      windowStart.setHours(0, 0, 0, 0);
+      windowStart.setDate(windowStart.getDate() - (trendDays - 1));
+
+      let scopeClause = 'is_deleted = false AND disposed_at >= $1';
+      const scopeParams = [windowStart];
+      if (currentUser.role === 'agent') {
+        scopeClause += ' AND assigned_to = $2';
+        scopeParams.push(userId);
+      } else if (currentUser.role === 'tl') {
+        const tlAgents = await prisma.user.findMany({ where: { tlId: userId }, select: { id: true } });
+        const ids = tlAgents.map((a) => a.id);
+        if (ids.length > 0) {
+          const ph = ids.map((_, idx) => `$${idx + 2}`).join(',');
+          scopeClause += ` AND assigned_to IN (${ph})`;
+          scopeParams.push(...ids);
+        } else {
+          scopeClause += ' AND 1 = 0';
+        }
+      } else if (currentUser.role === 'admin') {
+        scopeClause += ' AND admin_id = $2';
+        scopeParams.push(userId);
+      }
+
+      const trendRows = await prisma.$queryRawUnsafe(
+        `SELECT
+          TO_CHAR(DATE(disposed_at AT TIME ZONE 'Asia/Kolkata'), 'YYYY-MM-DD') as day,
+          COUNT(*)::int as calls,
+          COUNT(CASE WHEN disposition = 'Lead' THEN 1 END)::int as leads,
+          COUNT(CASE WHEN disposition = 'Lead' AND status = 'Converted' THEN 1 END)::int as converted,
+          COALESCE(SUM(CASE WHEN disposition = 'Lead' AND status = 'Converted' THEN COALESCE(charity_amount, lead_amount) END), 0)::float as revenue
+        FROM contacts
+        WHERE ${scopeClause}
+        GROUP BY 1
+        ORDER BY 1 ASC`,
+        ...scopeParams
+      ).catch(() => []);
+
+      const trendMap = new Map(trendRows.map((r) => [r.day, r]));
+      const dailyTrend = [];
+      let totalCalls = 0;
+      let totalLeads = 0;
+      let totalConverted = 0;
+      let totalRevenue = 0;
+
+      for (let i = trendDays - 1; i >= 0; i -= 1) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const key = `${yyyy}-${mm}-${dd}`;
+        const row = trendMap.get(key) || {};
+        const calls = Number(row.calls || 0);
+        const leads = Number(row.leads || 0);
+        const converted = Number(row.converted || 0);
+        const revenue = Number(row.revenue || 0);
+
+        totalCalls += calls;
+        totalLeads += leads;
+        totalConverted += converted;
+        totalRevenue += revenue;
+
+        dailyTrend.push({
+          day: key,
+          label: d.toLocaleDateString('en-US', { weekday: 'short' }),
+          shortDate: `${dd}/${mm}`,
+          calls,
+          leads,
+          converted,
+          revenue,
+        });
+      }
+
+      const payload = {
+        user: sanitizeUser(currentUser),
+        organization: {
+          tlName: tlUser ? (tlUser.name || tlUser.username) : null,
+          tlEmail: tlUser?.email || null,
+          adminName: adminUser ? (adminUser.name || adminUser.username) : null,
+        },
+        workLogs,
+        dailyTrend,
+        trendSummary: {
+          days: trendDays,
+          totalCalls,
+          totalLeads,
+          totalConverted,
+          totalRevenue,
+        },
+      };
+
+      await setCache(profileCacheKey, payload, 25);
+
+      return res.json({
+        ...payload,
+        connectivity: {
+          database: 'connected',
+          redis: isRedisConnected() ? 'connected' : 'fallback-memory',
+          cacheHit: false,
+          syncedAt: new Date().toISOString(),
+        },
+      });
+    } catch (err) {
+      console.error('Fetch profile error:', err.message);
+      return res.status(500).json({ error: 'Failed to load profile' });
+    }
+  });
+
+  // PUT /api/users/profile - allow logged-in user to update own safe profile fields (name, email)
+  router.put('/profile', verify, async (req, res) => {
+    try {
+      const userId = req.user._id || req.user.id;
+      const { name, email } = req.body || {};
+      const updateData = {};
+
+      if (name !== undefined) {
+        const normalizedName = normalizeName(name);
+        if (!normalizedName) {
+          return res.status(400).json({ error: 'Full name must be between 2 and 100 characters.' });
+        }
+        const existingName = await prisma.user.findFirst({
+          where: {
+            name: { equals: normalizedName, mode: 'insensitive' },
+            isDeleted: false,
+            id: { not: userId },
+          },
+          select: { id: true },
+        });
+        if (existingName) {
+          return res.status(409).json({ error: 'Name already exists. Please choose another name.' });
+        }
+        updateData.name = normalizedName;
+      }
+
+      if (email !== undefined && String(email).trim() !== '') {
+        const normalizedEmail = normalizeEmail(email);
+        if (!normalizedEmail) {
+          return res.status(400).json({ error: 'Please provide a valid email address.' });
+        }
+        const existingEmail = await prisma.user.findFirst({
+          where: {
+            email: { equals: normalizedEmail, mode: 'insensitive' },
+            id: { not: userId },
+          },
+          select: { id: true },
+        });
+        if (existingEmail) {
+          return res.status(409).json({ error: 'Email is already in use by another account.' });
+        }
+        updateData.email = normalizedEmail;
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ error: 'No profile fields provided to update.' });
+      }
+
+      const updated = await prisma.user.update({
+        where: { id: userId },
+        data: updateData,
+        select: SAFE_USER_SELECT,
+      });
+
+      await invalidateCrmCaches();
+      if (io) io.emit('users_updated', { userId });
+      return res.json({ success: true, user: sanitizeUser(updated) });
+    } catch (err) {
+      console.error('Update profile error:', err.message);
+      return res.status(500).json({ error: 'Failed to update profile' });
+    }
+  });
 
   // GET /api/users - scoped strictly by role and tenant
   router.get('/', verify, authorize(['superadmin', 'admin']), async (req, res) => {

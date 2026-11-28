@@ -695,6 +695,14 @@ test('3-13. End-to-end auth security workflows: registration, login, bcrypt upgr
       });
       assert.equal(missingTurnstile.status, 400);
 
+      const mobileNoTurnstile = await requestJson(baseUrl, '/api/auth/login', {
+        method: 'POST',
+        headers: { 'CF-Connecting-IP': '198.51.100.42', 'X-Client-Platform': 'mobile' },
+        body: { email: 'legacy@example.com', password: 'Legacy!User77', clientType: 'mobile' },
+      });
+      assert.equal(mobileNoTurnstile.status, 200, 'Native mobile clients should be exempted from Turnstile');
+      assert.ok(mobileNoTurnstile.data.accessToken);
+
       axios.post = async (url, payload) => {
         if (url.includes('challenges.cloudflare.com/turnstile/v0/siteverify')) {
           const params = new URLSearchParams(payload);

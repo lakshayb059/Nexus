@@ -1,16 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { NavigationContainer } from '@react-navigation/native';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { AuthProvider, useAuth } from '../shared/contexts/AuthContext';
 import { SocketProvider, useSocket } from '../shared/contexts/SocketContext';
 import api from '../shared/services/api';
+import {
+  requestPhoneNotificationPermission,
+  getPhoneNotificationPermission,
+  sendLocalPhoneNotification,
+  addNotificationResponseListener,
+} from '../shared/services/notifications';
 import { COLORS } from '../shared/theme';
 import { AppTopBar } from '../shared/components/UI';
+import AnimatedSplash from '../shared/components/AnimatedSplash';
+import SideDrawer from '../shared/components/SideDrawer';
 import BreakTimerOverlay from '../shared/components/BreakTimerOverlay';
-import ChangePasswordModal from '../shared/components/ChangePasswordModal';
 import NotificationsModal from '../shared/components/NotificationsModal';
 import DueTaskModal from '../shared/components/DueTaskModal';
 import LoginScreen from '../shared/screens/LoginScreen';
@@ -21,6 +28,7 @@ import ContactsScreen from '../shared/screens/ContactsScreen';
 import ScheduleScreen from '../shared/screens/ScheduleScreen';
 import UploadScreen from '../shared/screens/UploadScreen';
 import ReportsScreen from '../shared/screens/ReportsScreen';
+import ProfileScreen from '../shared/screens/ProfileScreen';
 import {
   LayoutDashboard,
   PhoneCall,
@@ -29,13 +37,20 @@ import {
   Database,
   UploadCloud,
   BarChart2,
+  UserCircle,
 } from 'lucide-react-native';
 
 const Tab = createBottomTabNavigator();
+const navigationRef = createNavigationContainerRef();
 const STAFF_LOGO = require('./assets/nexus-logo.png');
 
-const TLToolsScreen = () => {
-  const [subTab, setSubTab] = useState('upload');
+const TLToolsScreen = ({ activeSubTab }) => {
+  const [subTab, setSubTab] = useState(activeSubTab || 'upload');
+
+  useEffect(() => {
+    if (activeSubTab) setSubTab(activeSubTab);
+  }, [activeSubTab]);
+
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bgBase }}>
       <View style={styles.subTabBar}>
@@ -60,16 +75,52 @@ const TLToolsScreen = () => {
 };
 
 const StaffShell = () => {
-  const { user, activeBreak, setActiveBreak } = useAuth();
-  const { socket, connected } = useSocket();
+  const { user, logout, activeBreak, setActiveBreak } = useAuth();
+  const { socket } = useSocket();
+  const insets = useSafeAreaInsets();
 
+  const [activeRoute, setActiveRoute] = useState('Dashboard');
   const [activeTitle, setActiveTitle] = useState('Dashboard');
   const [targetContactId, setTargetContactId] = useState(null);
-  const [securityOpen, setSecurityOpen] = useState(false);
+  const [tlSubTab, setTlSubTab] = useState('upload');
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [notifPerm, setNotifPerm] = useState({ granted: true, canAskAgain: true });
+  const [avatarRefreshKey, setAvatarRefreshKey] = useState(0);
+  const initialNotifSentRef = useRef(false);
   const isTl = user?.role === 'tl';
 
+  const navigateTo = (routeName, subTab) => {
+    if (subTab) setTlSubTab(subTab);
+    if (navigationRef.isReady()) {
+      navigationRef.navigate(routeName);
+    }
+  };
+
+  // Request phone notification permission on staff login
+  useEffect(() => {
+    if (!user) return;
+    requestPhoneNotificationPermission().then((res) => setNotifPerm(res));
+
+    const sub = addNotificationResponseListener((data) => {
+      if (data?.route) navigateTo(data.route);
+    });
+    return () => sub?.remove?.();
+  }, [user]);
+
+  const handleRequestPermission = async () => {
+    const res = await requestPhoneNotificationPermission();
+    setNotifPerm(res);
+  };
+
+  useEffect(() => {
+    if (notifOpen) {
+      getPhoneNotificationPermission().then((res) => setNotifPerm(res));
+    }
+  }, [notifOpen]);
+
+  // Load initial notifications
   useEffect(() => {
     if (!user) return;
     api.get('/contacts/notifications')
@@ -80,56 +131,95 @@ const StaffShell = () => {
           title: a.title,
           message: a.message,
           time: new Date(),
-          path: a.path,
+          path: a.path === '/appointments' || a.path === '/callbacks' ? 'Schedule' : 'Dashboard',
         }));
         setNotifications((prev) => [...past, ...prev].slice(0, 25));
+
+        if (past.length > 0 && !initialNotifSentRef.current) {
+          initialNotifSentRef.current = true;
+          sendLocalPhoneNotification({
+            title: past.length === 1 ? past[0].title : `${past.length} Pending CRM Alerts`,
+            body: past.length === 1 ? past[0].message : `You have ${past.length} due callbacks or appointments.`,
+            data: { route: 'Schedule' },
+          });
+        }
       })
       .catch(() => {});
   }, [user]);
 
+  // Listen to real-time socket notifications and fire phone notifications
   useEffect(() => {
     if (!socket || !user) return;
     const uid = user._id || user.id;
 
     const onAppt = (data) => {
       if (data.agentId !== uid) return;
+      const title = 'Appointment Reminder';
+      const message = `${data.contactName} — ${data.minutesUntil} min`;
       setNotifications((prev) => [
         {
           id: `appt_${Date.now()}`,
           type: 'appointment',
-          title: 'Appointment Reminder',
-          message: `${data.contactName} — ${data.minutesUntil} min`,
+          title,
+          message,
           time: new Date(),
           path: 'Schedule',
         },
         ...prev,
       ].slice(0, 25));
+      sendLocalPhoneNotification({ title, body: message, data: { route: 'Schedule' } });
     };
 
     const onCb = (data) => {
       if (data.agentId !== uid) return;
+      const title = 'Callback Reminder';
+      const message = `${data.contactName} — scheduled follow-up`;
       setNotifications((prev) => [
         {
           id: `cb_${Date.now()}`,
           type: 'callback',
-          title: 'Callback Reminder',
-          message: `${data.contactName} — scheduled follow-up`,
+          title,
+          message,
           time: new Date(),
           path: 'Schedule',
         },
         ...prev,
       ].slice(0, 25));
+      sendLocalPhoneNotification({ title, body: message, data: { route: 'Schedule' } });
+    };
+
+    const onBatch = (data) => {
+      const title = 'New Calling Batch Assigned';
+      const message = data?.batchName ? `Batch "${data.batchName}" is ready` : 'New contacts added to your queue';
+      setNotifications((prev) => [
+        {
+          id: `batch_${Date.now()}`,
+          type: 'workflow',
+          title,
+          message,
+          time: new Date(),
+          path: isTl ? 'Dashboard' : 'Workflow',
+        },
+        ...prev,
+      ].slice(0, 25));
+      sendLocalPhoneNotification({
+        title,
+        body: message,
+        data: { route: isTl ? 'Dashboard' : 'Workflow' },
+      });
     };
 
     socket.on('appointment_reminder', onAppt);
     socket.on('callback_reminder', onCb);
     socket.on('callback_due', onCb);
+    socket.on('batch_uploaded', onBatch);
     return () => {
       socket.off('appointment_reminder', onAppt);
       socket.off('callback_reminder', onCb);
       socket.off('callback_due', onCb);
+      socket.off('batch_uploaded', onBatch);
     };
-  }, [socket, user]);
+  }, [socket, user, isTl]);
 
   const handleEndBreak = async () => {
     try {
@@ -140,37 +230,68 @@ const StaffShell = () => {
     }
   };
 
+  const drawerItems = isTl
+    ? [
+        { key: 'Dashboard', route: 'Dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { key: 'Contacts', route: 'Contacts', label: 'All Contacts', icon: Database },
+        { key: 'Leads', route: 'Leads', label: 'Leads', icon: Star },
+        { key: 'Schedule', route: 'Schedule', label: 'Schedule & Hung Up', icon: Calendar },
+        { key: 'Upload', route: 'Tools', subTab: 'upload', label: 'Data Import', icon: UploadCloud },
+        { key: 'Reports', route: 'Tools', subTab: 'reports', label: 'Reports', icon: BarChart2 },
+        { key: 'Profile', route: 'Profile', label: 'My Profile & Stats', icon: UserCircle },
+      ]
+    : [
+        { key: 'Dashboard', route: 'Dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { key: 'Workflow', route: 'Workflow', label: 'Workflow Queue', icon: PhoneCall },
+        { key: 'Leads', route: 'Leads', label: 'My Leads', icon: Star },
+        { key: 'Schedule', route: 'Schedule', label: 'Schedule', icon: Calendar },
+        { key: 'Contacts', route: 'Contacts', label: 'Search Contacts', icon: Database },
+        { key: 'Profile', route: 'Profile', label: 'My Profile & Stats', icon: UserCircle },
+      ];
+
+  const bottomPadding = Math.max(insets.bottom, 10);
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#ffffff' }} edges={['top']}>
       <StatusBar style="dark" />
       <AppTopBar
         title={activeTitle}
-        role={user?.role}
-        connected={connected}
         unreadCount={notifications.length}
+        onPressMenu={() => setDrawerOpen(true)}
         onPressBell={() => setNotifOpen(true)}
-        onPressSecurity={() => setSecurityOpen(true)}
       />
 
-      <NavigationContainer>
+      <NavigationContainer ref={navigationRef}>
         <Tab.Navigator
           screenOptions={{
             headerShown: false,
             tabBarActiveTintColor: COLORS.primary,
             tabBarInactiveTintColor: COLORS.textMuted,
+            tabBarHideOnKeyboard: true,
             tabBarStyle: {
               borderTopColor: COLORS.border,
+              borderTopWidth: 1,
               backgroundColor: '#ffffff',
-              height: 60,
-              paddingBottom: 6,
-              paddingTop: 4,
+              height: 58 + bottomPadding,
+              paddingBottom: bottomPadding,
+              paddingTop: 6,
+              elevation: 14,
+              shadowColor: '#0f172a',
+              shadowOffset: { width: 0, height: -4 },
+              shadowOpacity: 0.06,
+              shadowRadius: 10,
             },
             tabBarLabelStyle: { fontSize: 11, fontWeight: '700' },
           }}
         >
           <Tab.Screen
             name="Dashboard"
-            listeners={{ focus: () => setActiveTitle('Dashboard') }}
+            listeners={{
+              focus: () => {
+                setActiveRoute('Dashboard');
+                setActiveTitle('Dashboard');
+              },
+            }}
             options={{
               tabBarLabel: 'Home',
               tabBarIcon: ({ color, size }) => <LayoutDashboard size={size} color={color} />,
@@ -184,7 +305,12 @@ const StaffShell = () => {
           {!isTl ? (
             <Tab.Screen
               name="Workflow"
-              listeners={{ focus: () => setActiveTitle('Agent Workflow') }}
+              listeners={{
+                focus: () => {
+                  setActiveRoute('Workflow');
+                  setActiveTitle('Workflow');
+                },
+              }}
               options={{
                 tabBarLabel: 'Workflow',
                 tabBarIcon: ({ color, size }) => <PhoneCall size={size} color={color} />,
@@ -200,7 +326,12 @@ const StaffShell = () => {
           ) : (
             <Tab.Screen
               name="Contacts"
-              listeners={{ focus: () => setActiveTitle('All Contacts') }}
+              listeners={{
+                focus: () => {
+                  setActiveRoute('Contacts');
+                  setActiveTitle('Contacts');
+                },
+              }}
               options={{
                 tabBarLabel: 'Contacts',
                 tabBarIcon: ({ color, size }) => <Database size={size} color={color} />,
@@ -211,7 +342,12 @@ const StaffShell = () => {
 
           <Tab.Screen
             name="Leads"
-            listeners={{ focus: () => setActiveTitle('Lead Tracking') }}
+            listeners={{
+              focus: () => {
+                setActiveRoute('Leads');
+                setActiveTitle('Leads');
+              },
+            }}
             options={{
               tabBarLabel: 'Leads',
               tabBarIcon: ({ color, size }) => <Star size={size} color={color} />,
@@ -221,7 +357,12 @@ const StaffShell = () => {
 
           <Tab.Screen
             name="Schedule"
-            listeners={{ focus: () => setActiveTitle(isTl ? 'Schedule & Hung Up' : 'Appointments & Callbacks') }}
+            listeners={{
+              focus: () => {
+                setActiveRoute('Schedule');
+                setActiveTitle('Schedule');
+              },
+            }}
             options={{
               tabBarLabel: 'Schedule',
               tabBarIcon: ({ color, size }) => <Calendar size={size} color={color} />,
@@ -241,7 +382,12 @@ const StaffShell = () => {
           {!isTl ? (
             <Tab.Screen
               name="Contacts"
-              listeners={{ focus: () => setActiveTitle('Search Contacts') }}
+              listeners={{
+                focus: () => {
+                  setActiveRoute('Contacts');
+                  setActiveTitle('Contacts');
+                },
+              }}
               options={{
                 tabBarLabel: 'Search',
                 tabBarIcon: ({ color, size }) => <Database size={size} color={color} />,
@@ -259,25 +405,65 @@ const StaffShell = () => {
           ) : (
             <Tab.Screen
               name="Tools"
-              listeners={{ focus: () => setActiveTitle('Import & Reports') }}
+              listeners={{
+                focus: () => {
+                  setActiveRoute('Tools');
+                  setActiveTitle('Tools');
+                },
+              }}
               options={{
                 tabBarLabel: 'Tools',
                 tabBarIcon: ({ color, size }) => <BarChart2 size={size} color={color} />,
               }}
-              component={TLToolsScreen}
-            />
+            >
+              {() => <TLToolsScreen activeSubTab={tlSubTab} />}
+            </Tab.Screen>
           )}
+
+          {/* Hidden tab for Profile screen navigated via 3-bar drawer user avatar */}
+          <Tab.Screen
+            name="Profile"
+            listeners={{
+              focus: () => {
+                setActiveRoute('Profile');
+                setActiveTitle('Profile');
+              },
+            }}
+            options={{
+              tabBarButton: () => null,
+              tabBarItemStyle: { display: 'none' },
+            }}
+          >
+            {() => <ProfileScreen onAvatarChanged={() => setAvatarRefreshKey((k) => k + 1)} />}
+          </Tab.Screen>
         </Tab.Navigator>
       </NavigationContainer>
 
+      <SideDrawer
+        visible={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        user={user}
+        items={drawerItems}
+        activeRoute={activeRoute}
+        onNavigate={navigateTo}
+        onOpenProfile={() => navigateTo('Profile')}
+        onLogout={logout}
+        avatarRefreshKey={avatarRefreshKey}
+      />
+
       <BreakTimerOverlay activeBreak={activeBreak} onEndBreak={handleEndBreak} />
-      <ChangePasswordModal visible={securityOpen} onClose={() => setSecurityOpen(false)} />
+
       <NotificationsModal
         visible={notifOpen}
         onClose={() => setNotifOpen(false)}
         notifications={notifications}
         onClear={() => setNotifications([])}
+        onNavigate={(path) => navigateTo(path)}
+        permissionGranted={notifPerm.granted}
+        canAskPermission={notifPerm.canAskAgain}
+        onRequestPermission={handleRequestPermission}
       />
+
       <DueTaskModal />
     </SafeAreaView>
   );
@@ -285,20 +471,33 @@ const StaffShell = () => {
 
 const RootGate = () => {
   const { isAuthenticated, loading } = useAuth();
-  if (loading) {
-    return (
-      <View style={styles.splash}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-      </View>
-    );
-  }
-  return isAuthenticated ? (
-    <StaffShell />
-  ) : (
-    <>
-      <StatusBar style="light" />
-      <LoginScreen appTitle="Nexus CRM." appBadge="STAFF APP • AGENT & TL" logoSource={STAFF_LOGO} />
-    </>
+  const [splashDone, setSplashDone] = useState(false);
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#070d1f' }}>
+      {!loading && (
+        isAuthenticated ? (
+          <StaffShell />
+        ) : (
+          <>
+            <StatusBar style="light" />
+            <LoginScreen appTitle="Nexus CRM." appBadge="STAFF APP • AGENT & TL" logoSource={STAFF_LOGO} />
+          </>
+        )
+      )}
+
+      {!splashDone && (
+        <>
+          <StatusBar style="light" />
+          <AnimatedSplash
+            logoSource={STAFF_LOGO}
+            subtitle="STAFF WORKSPACE"
+            ready={!loading}
+            onFinish={() => setSplashDone(true)}
+          />
+        </>
+      )}
+    </View>
   );
 };
 
@@ -319,7 +518,6 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  splash: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#070d1f' },
   subTabBar: { flexDirection: 'row', gap: 8, padding: 14, paddingBottom: 4 },
   subTabBtn: {
     flex: 1,

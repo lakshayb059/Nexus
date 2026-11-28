@@ -2,7 +2,7 @@
   "expo": {
     "name": "Nexus Staff",
     "slug": "nexus-staff",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -22,18 +22,30 @@
     },
     "android": {
       "package": "com.nexuscrm.staff",
-      "versionCode": 1,
+      "versionCode": 4,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#070d1f"
       },
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.READ_MEDIA_IMAGES"
+        "android.permission.POST_NOTIFICATIONS"
+      ],
+      "blockedPermissions": [
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO"
       ]
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-notifications",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Capture payment receipts for AI OCR verification.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "extra": {
       "serverUrl": "https://nexus-2xsa.onrender.com",
