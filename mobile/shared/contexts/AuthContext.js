@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { AppState } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 import api, {
   loadStoredSession,
   saveAuthSession,
@@ -9,6 +10,9 @@ import api, {
   getServerUrl,
   setServerUrl as persistServerUrl,
 } from '../services/api';
+
+const INACTIVITY_LIMIT_MS = 15 * 60 * 1000;
+const LAST_ACTIVITY_KEY = 'nexus_last_activity_at';
 
 const AuthContext = createContext();
 
@@ -25,26 +29,46 @@ export const AuthProvider = ({
   const [serverUrl, setServerUrlState] = useState(getServerUrl());
   const [activeBreak, setActiveBreak] = useState(null);
   const lastPingRef = useRef(0);
+  const lastActivityAtRef = useRef(Date.now());
+  const lastSavedActivityRef = useRef(0);
   const inactivityTimerRef = useRef(null);
 
+  const persistLastActivity = useCallback((ts = Date.now(), force = false) => {
+    lastActivityAtRef.current = ts;
+    if (force || ts - lastSavedActivityRef.current >= 10 * 1000) {
+      lastSavedActivityRef.current = ts;
+      SecureStore.setItemAsync(LAST_ACTIVITY_KEY, String(ts)).catch(() => {});
+    }
+  }, []);
+
   const logout = useCallback(async () => {
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
+    }
     try {
       const refreshToken = getRefreshToken();
       await api.post('/auth/logout', { refreshToken, clientType: 'mobile' });
     } catch {
       // Ignore network failure during logout
     }
+    await SecureStore.deleteItemAsync(LAST_ACTIVITY_KEY).catch(() => {});
     await clearAuthSession();
     setUser(null);
     setActiveBreak(null);
   }, []);
 
   const logoutAll = useCallback(async () => {
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
+    }
     try {
       await api.post('/auth/logout-all');
     } catch {
       // Ignore network failure
     }
+    await SecureStore.deleteItemAsync(LAST_ACTIVITY_KEY).catch(() => {});
     await clearAuthSession();
     setUser(null);
     setActiveBreak(null);
@@ -67,7 +91,7 @@ export const AuthProvider = ({
     }
   }, []);
 
-  // Restore session from encrypted SecureStore and verify against server
+  // Restore session from encrypted SecureStore and verify 15-minute inactivity + server validity
   useEffect(() => {
     setUnauthorizedHandler(() => {
       setUser(null);
@@ -83,10 +107,25 @@ export const AuthProvider = ({
         }
 
         if (stored.accessToken || stored.refreshToken) {
+          const rawLastActive = await SecureStore.getItemAsync(LAST_ACTIVITY_KEY).catch(() => null);
+          const lastActiveMs = rawLastActive ? Number(rawLastActive) : null;
+          if (lastActiveMs && Number.isFinite(lastActiveMs) && Date.now() - lastActiveMs >= INACTIVITY_LIMIT_MS) {
+            try {
+              await api.post('/auth/logout', { refreshToken: stored.refreshToken, clientType: 'mobile' });
+            } catch {
+              // Non-blocking
+            }
+            await SecureStore.deleteItemAsync(LAST_ACTIVITY_KEY).catch(() => {});
+            await clearAuthSession();
+            if (!cancelled) setUser(null);
+            return;
+          }
+
           const res = await api.get('/auth/me');
           const verifiedUser = res.data?.user;
           if (verifiedUser && allowedRoles.includes(verifiedUser.role)) {
             await saveAuthSession({ user: verifiedUser });
+            persistLastActivity(Date.now(), true);
             if (!cancelled) setUser(verifiedUser);
           } else {
             await clearAuthSession();
@@ -106,7 +145,7 @@ export const AuthProvider = ({
       cancelled = true;
       setUnauthorizedHandler(null);
     };
-  }, []);
+  }, [persistLastActivity]);
 
   useEffect(() => {
     if (user && user.role === 'agent') {
@@ -116,9 +155,12 @@ export const AuthProvider = ({
     }
   }, [user, initSession]);
 
-  // Agent activity ping and 10-minute inactivity auto-logout
+  // Global 15-minute inactivity auto-logout for ALL authenticated users (+ agent ping)
   const recordActivity = useCallback(() => {
-    if (!user || user.role !== 'agent') return;
+    if (!user) return;
+
+    const now = Date.now();
+    persistLastActivity(now, false);
 
     if (activeBreak) {
       if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
@@ -128,30 +170,40 @@ export const AuthProvider = ({
     if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
     inactivityTimerRef.current = setTimeout(() => {
       logout();
-    }, 10 * 60 * 1000);
+    }, INACTIVITY_LIMIT_MS);
 
-    const now = Date.now();
-    if (now - lastPingRef.current > 30 * 1000) {
+    if (user.role === 'agent' && now - lastPingRef.current > 30 * 1000) {
       lastPingRef.current = now;
       api.post('/agent-logs/ping').catch(() => {});
     }
-  }, [user, activeBreak, logout]);
+  }, [user, activeBreak, logout, persistLastActivity]);
 
   useEffect(() => {
-    if (!user || user.role !== 'agent') return;
+    if (!user) return;
     recordActivity();
+
+    const intervalId = setInterval(() => {
+      if (!activeBreak && Date.now() - lastActivityAtRef.current >= INACTIVITY_LIMIT_MS) {
+        logout();
+      }
+    }, 15 * 1000);
 
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') {
-        recordActivity();
+        if (!activeBreak && Date.now() - lastActivityAtRef.current >= INACTIVITY_LIMIT_MS) {
+          logout();
+        } else {
+          recordActivity();
+        }
       }
     });
 
     return () => {
+      clearInterval(intervalId);
       if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
       subscription.remove();
     };
-  }, [user, recordActivity]);
+  }, [user, activeBreak, logout, recordActivity]);
 
   const updateServerUrl = async (nextUrl) => {
     const updated = await persistServerUrl(nextUrl);
@@ -189,6 +241,7 @@ export const AuthProvider = ({
       }
 
       await saveAuthSession({ accessToken, refreshToken, user: loggedInUser });
+      persistLastActivity(Date.now(), true);
       setUser(loggedInUser);
       return { success: true };
     } catch (error) {

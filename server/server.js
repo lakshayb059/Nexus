@@ -400,7 +400,7 @@ async function checkInactiveSessions() {
   isCheckingSessions = true;
   try {
     const now = new Date();
-    const idleLimitMs = 10 * 60 * 1000;
+    const idleLimitMs = 15 * 60 * 1000;
     const thresholdTime = new Date(now.getTime() - idleLimitMs);
 
     const inactiveSessions = await prisma.agentWorkLog.findMany({
@@ -423,7 +423,7 @@ async function checkInactiveSessions() {
         where: { id: session.id },
         data: { logoutAt, totalWorkTime },
       });
-      console.log(`⏰ Background Worker Auto-Logout: Closed session ${session.id} for user ${session.userId} due to 10m inactivity.`);
+      console.log(`⏰ Background Worker Auto-Logout: Closed session ${session.id} for user ${session.userId} due to 15m inactivity.`);
     }
   } catch {
     // Silent catch during transient network hiccup

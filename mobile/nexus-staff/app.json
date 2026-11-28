@@ -2,7 +2,7 @@
   "expo": {
     "name": "Nexus Staff",
     "slug": "nexus-staff",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -22,7 +22,7 @@
     },
     "android": {
       "package": "com.nexuscrm.staff",
-      "versionCode": 4,
+      "versionCode": 6,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#070d1f"
@@ -37,6 +37,19 @@
       ]
     },
     "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#070d1f",
+          "image": "./assets/nexus-logo.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#070d1f",
+            "image": "./assets/nexus-logo.png"
+          }
+        }
+      ],
       "expo-secure-store",
       "expo-notifications",
       [

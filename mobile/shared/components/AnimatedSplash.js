@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Modal, View, Text, Image, Animated, Easing, StyleSheet } from 'react-native';
+import { View, Text, Image, Animated, Easing, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { GRADIENTS } from '../theme';
 
@@ -15,9 +15,10 @@ const GAP = 12;
  * 4. Reverses cleanly: "Nexus CRM" retracts back into the logo as the logo
  *    re-centers, then pops/shrinks back out and fades into the app.
  */
-const AnimatedSplash = ({ logoSource, ready = true, onFinish }) => {
+const AnimatedSplash = ({ logoSource, ready = true, onReadyToHide, onFinish }) => {
   const [done, setDone] = useState(false);
   const [textWidth, setTextWidth] = useState(184);
+  const notifiedNativeRef = useRef(false);
 
   const containerOpacity = useRef(new Animated.Value(1)).current;
   const logoScale = useRef(new Animated.Value(0.05)).current;
@@ -93,11 +94,6 @@ const AnimatedSplash = ({ logoSource, ready = true, onFinish }) => {
           }),
         ]),
       ]),
-      Animated.timing(containerOpacity, {
-        toValue: 0,
-        duration: 180,
-        useNativeDriver: true,
-      }),
     ]).start(() => {
       setDone(true);
       if (onFinish) onFinish();
@@ -165,58 +161,65 @@ const AnimatedSplash = ({ logoSource, ready = true, onFinish }) => {
   if (done) return null;
 
   return (
-    <Modal visible={!done} transparent statusBarTranslucent animationType="none">
-      <Animated.View style={[styles.overlay, { opacity: containerOpacity }]} pointerEvents="auto">
-        <LinearGradient
-          colors={GRADIENTS.nexusBg}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.bg}
+    <Animated.View
+      style={[styles.overlay, { opacity: containerOpacity }]}
+      pointerEvents="auto"
+      onLayout={() => {
+        if (!notifiedNativeRef.current) {
+          notifiedNativeRef.current = true;
+          if (onReadyToHide) onReadyToHide();
+        }
+      }}
+    >
+      <LinearGradient
+        colors={GRADIENTS.nexusBg}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.bg}
+      >
+        <Animated.View
+          style={[
+            styles.lockupRow,
+            { transform: [{ translateX: lockupTranslateX }] },
+          ]}
         >
+          {/* Clean Logo without any circle/halo */}
           <Animated.View
             style={[
-              styles.lockupRow,
-              { transform: [{ translateX: lockupTranslateX }] },
+              styles.logoWrap,
+              {
+                opacity: logoOpacity,
+                transform: [{ scale: logoScale }],
+              },
             ]}
           >
-            {/* Clean Logo without any circle/halo */}
-            <Animated.View
-              style={[
-                styles.logoWrap,
-                {
-                  opacity: logoOpacity,
-                  transform: [{ scale: logoScale }],
-                },
-              ]}
-            >
-              {logoSource && (
-                <Image source={logoSource} style={styles.logo} resizeMode="contain" />
-              )}
-            </Animated.View>
-
-            {/* Clipped reveal window glued to logo's right edge */}
-            <View style={styles.textClip}>
-              <Animated.View
-                onLayout={(e) => {
-                  const w = Math.round(e.nativeEvent.layout.width);
-                  if (w > 40 && Math.abs(w - textWidth) > 3) {
-                    setTextWidth(w);
-                  }
-                }}
-                style={{
-                  opacity: textOpacity,
-                  transform: [{ translateX: textTranslateX }],
-                }}
-              >
-                <Text style={styles.brandText} numberOfLines={1}>
-                  Nexus <Text style={styles.brandAccent}>CRM</Text>
-                </Text>
-              </Animated.View>
-            </View>
+            {logoSource && (
+              <Image source={logoSource} style={styles.logo} resizeMode="contain" />
+            )}
           </Animated.View>
-        </LinearGradient>
-      </Animated.View>
-    </Modal>
+
+          {/* Clipped reveal window glued to logo's right edge */}
+          <View style={styles.textClip}>
+            <Animated.View
+              onLayout={(e) => {
+                const w = Math.round(e.nativeEvent.layout.width);
+                if (w > 40 && Math.abs(w - textWidth) > 3) {
+                  setTextWidth(w);
+                }
+              }}
+              style={{
+                opacity: textOpacity,
+                transform: [{ translateX: textTranslateX }],
+              }}
+            >
+              <Text style={styles.brandText} numberOfLines={1}>
+                Nexus <Text style={styles.brandAccent}>CRM</Text>
+              </Text>
+            </Animated.View>
+          </View>
+        </Animated.View>
+      </LinearGradient>
+    </Animated.View>
   );
 };
 
@@ -225,9 +228,12 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     height: '100%',
+    backgroundColor: '#070d1f',
   },
   bg: {
     flex: 1,
+    width: '100%',
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
   },

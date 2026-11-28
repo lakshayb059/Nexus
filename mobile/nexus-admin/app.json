@@ -37,6 +37,19 @@
       ]
     },
     "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#070d1f",
+          "image": "./assets/nexus-logo.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#070d1f",
+            "image": "./assets/nexus-logo.png"
+          }
+        }
+      ],
       "expo-secure-store",
       "expo-notifications",
       [

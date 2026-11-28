@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -43,6 +44,8 @@ import {
 const Tab = createBottomTabNavigator();
 const navigationRef = createNavigationContainerRef();
 const ADMIN_LOGO = require('./assets/nexus-logo.png');
+
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const AdminPipelineHub = ({ activeSubTab }) => {
   const [subTab, setSubTab] = useState(activeSubTab || 'leads');
@@ -112,7 +115,7 @@ const AdminOpsHub = ({ activeSubTab }) => {
 };
 
 const AdminShell = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, recordActivity } = useAuth();
   const { socket } = useSocket();
   const insets = useSafeAreaInsets();
 
@@ -223,7 +226,7 @@ const AdminShell = () => {
   const bottomPadding = Math.max(insets.bottom, 10);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#ffffff' }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#ffffff' }} edges={['top']} onTouchStart={recordActivity}>
       <StatusBar style="dark" />
       <AppTopBar
         title={activeTitle}
@@ -232,7 +235,7 @@ const AdminShell = () => {
         onPressBell={() => setNotifOpen(true)}
       />
 
-      <NavigationContainer ref={navigationRef}>
+      <NavigationContainer ref={navigationRef} onStateChange={recordActivity}>
         <Tab.Navigator
           screenOptions={{
             headerShown: false,
@@ -379,29 +382,27 @@ const RootGate = () => {
   const { isAuthenticated, loading } = useAuth();
   const [splashDone, setSplashDone] = useState(false);
 
+  useEffect(() => {
+    const t = setTimeout(() => {
+      SplashScreen.hideAsync().catch(() => {});
+    }, 350);
+    return () => clearTimeout(t);
+  }, []);
+
   return (
     <View style={{ flex: 1, backgroundColor: '#070d1f' }}>
-      {!loading && (
-        isAuthenticated ? (
-          <AdminShell />
-        ) : (
-          <>
-            <StatusBar style="light" />
-            <LoginScreen appTitle="Nexus CRM." appBadge="ADMIN CONSOLE • ADMIN & SUPERADMIN" logoSource={ADMIN_LOGO} />
-          </>
-        )
-      )}
-
-      {!splashDone && (
-        <>
-          <StatusBar style="light" />
-          <AnimatedSplash
-            logoSource={ADMIN_LOGO}
-            subtitle="ADMIN CONSOLE"
-            ready={!loading}
-            onFinish={() => setSplashDone(true)}
-          />
-        </>
+      <StatusBar style="light" />
+      {!splashDone ? (
+        <AnimatedSplash
+          logoSource={ADMIN_LOGO}
+          ready={!loading}
+          onReadyToHide={() => SplashScreen.hideAsync().catch(() => {})}
+          onFinish={() => setSplashDone(true)}
+        />
+      ) : isAuthenticated ? (
+        <AdminShell />
+      ) : (
+        <LoginScreen appTitle="Nexus CRM." appBadge="ADMIN CONSOLE • ADMIN & SUPERADMIN" logoSource={ADMIN_LOGO} />
       )}
     </View>
   );
