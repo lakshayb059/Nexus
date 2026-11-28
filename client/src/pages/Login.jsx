@@ -11,16 +11,13 @@ import {
   EyeOff,
   Mail,
   Lock,
-  User,
   ArrowLeft,
 } from 'lucide-react';
 
 const Login = () => {
-  const [mode, setMode] = useState('login'); // 'login' | 'register' | 'forgot'
-  const [name, setName] = useState('');
+  const [mode, setMode] = useState('login'); // 'login' | 'forgot'
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState('');
   const [turnstileRequired, setTurnstileRequired] = useState(false);
@@ -29,14 +26,9 @@ const Login = () => {
   const [successMsg, setSuccessMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const { login, register, forgotPassword } = useAuth();
+  const { login, forgotPassword } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-
-  const displayHost =
-    typeof window !== 'undefined' && window.location.hostname && window.location.hostname !== 'localhost'
-      ? window.location.hostname
-      : 'nexus.crm';
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -55,7 +47,6 @@ const Login = () => {
     setError('');
     setSuccessMsg('');
     setPassword('');
-    setConfirmPassword('');
     setShowPass(false);
     resetTurnstile();
   };
@@ -86,44 +77,6 @@ const Login = () => {
     }
   };
 
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccessMsg('');
-
-    if (!name.trim() || !username.trim() || !password) {
-      setError('Please fill in all required registration fields.');
-      return;
-    }
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
-    if (turnstileRequired && !turnstileToken) {
-      setError('Please complete the Cloudflare Turnstile security check.');
-      return;
-    }
-
-    setIsLoading(true);
-    const result = await register({
-      name: name.trim(),
-      email: username.trim(),
-      password,
-      turnstileToken,
-    });
-    setIsLoading(false);
-    resetTurnstile();
-
-    if (result.success) {
-      setMode('login');
-      setPassword('');
-      setConfirmPassword('');
-      setSuccessMsg(result.message || 'Account registered successfully. Please sign in.');
-    } else {
-      setError(result.error);
-    }
-  };
-
   const handleForgotPassword = async (e) => {
     e.preventDefault();
     setError('');
@@ -150,35 +103,26 @@ const Login = () => {
     }
   };
 
-  const badgeLabel =
-    mode === 'login' ? 'SIGN IN' : mode === 'register' ? 'REGISTER' : 'RECOVERY';
-
   const headingTitle =
-    mode === 'login'
-      ? 'Sign In to Workspace'
-      : mode === 'register'
-      ? 'Create Workspace Account'
-      : 'Reset Workspace Password';
+    mode === 'login' ? 'Nexus CRM Login' : 'Reset Password';
 
   const headingSubtitle =
     mode === 'login'
       ? 'Enter your authorized enterprise credentials to access your session.'
-      : mode === 'register'
-      ? 'Register a new Nexus CRM account secured with Argon2id encryption.'
       : 'Enter your work email and we will send a single-use password reset link.';
 
-  const turnstileAction =
-    mode === 'login' ? 'login' : mode === 'register' ? 'register' : 'forgot_password';
+  const turnstileAction = mode === 'login' ? 'login' : 'forgot_password';
 
   return (
     <div className="nexus-auth-shell">
       <div className="nexus-auth-grid">
         {/* LEFT COLUMN: Crisp White Enterprise Auth Card */}
         <section className="nexus-auth-card" aria-label="Authentication form">
-          <div className="nexus-card-top">
-            <span className="nexus-mode-pill">{badgeLabel}</span>
-            <span className="nexus-workspace-label">Workspace Access</span>
-          </div>
+          {mode === 'forgot' && (
+            <div className="nexus-card-top">
+              <span className="nexus-mode-pill">RECOVERY</span>
+            </div>
+          )}
 
           <h1 className="nexus-card-title">{headingTitle}</h1>
           <p className="nexus-card-subtitle">{headingSubtitle}</p>
@@ -275,147 +219,8 @@ const Login = () => {
                 className="nexus-primary-cta"
                 disabled={isLoading}
               >
-                {isLoading ? <span className="nexus-spinner" /> : 'Sign In to Workspace'}
+                {isLoading ? <span className="nexus-spinner" /> : 'Enter Workspace'}
               </button>
-
-              <p className="nexus-switch-line">
-                Need a new account?{' '}
-                <button
-                  type="button"
-                  className="nexus-inline-link nexus-inline-strong"
-                  onClick={() => switchMode('register')}
-                >
-                  Register
-                </button>
-              </p>
-            </form>
-          )}
-
-          {mode === 'register' && (
-            <form onSubmit={handleRegister} className="nexus-auth-form">
-              <div className="nexus-field-block">
-                <div className="nexus-label-row">
-                  <label htmlFor="register-name">FULL NAME</label>
-                </div>
-                <div className="nexus-input-wrap">
-                  <User size={16} className="nexus-input-icon" />
-                  <input
-                    id="register-name"
-                    type="text"
-                    className="nexus-input"
-                    placeholder="Alex Morgan"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    disabled={isLoading}
-                    autoComplete="name"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="nexus-field-block">
-                <div className="nexus-label-row">
-                  <label htmlFor="register-email">WORK EMAIL</label>
-                </div>
-                <div className="nexus-input-wrap">
-                  <Mail size={16} className="nexus-input-icon" />
-                  <input
-                    id="register-email"
-                    type="email"
-                    className="nexus-input"
-                    placeholder="name@nexus.crm"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    disabled={isLoading}
-                    autoComplete="email"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="nexus-field-block">
-                <div className="nexus-label-row">
-                  <label htmlFor="register-password">PASSWORD</label>
-                  <span className="nexus-hint-text">8+ chars, Aa1!</span>
-                </div>
-                <div className="nexus-input-wrap">
-                  <Lock size={16} className="nexus-input-icon" />
-                  <input
-                    id="register-password"
-                    type={showPass ? 'text' : 'password'}
-                    className="nexus-input nexus-input-password"
-                    placeholder="Create strong password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={isLoading}
-                    autoComplete="new-password"
-                    required
-                  />
-                  <button
-                    type="button"
-                    className="nexus-eye-btn"
-                    onClick={() => setShowPass((p) => !p)}
-                    aria-label="Toggle password visibility"
-                  >
-                    {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="nexus-field-block">
-                <div className="nexus-label-row">
-                  <label htmlFor="register-confirm-password">CONFIRM PASSWORD</label>
-                </div>
-                <div className="nexus-input-wrap">
-                  <Lock size={16} className="nexus-input-icon" />
-                  <input
-                    id="register-confirm-password"
-                    type={showPass ? 'text' : 'password'}
-                    className="nexus-input"
-                    placeholder="Re-enter password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    disabled={isLoading}
-                    autoComplete="new-password"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="nexus-turnstile-box">
-                <TurnstileWidget
-                  action={turnstileAction}
-                  resetSignal={turnstileResetSignal}
-                  onVerify={(tok) => setTurnstileToken(tok)}
-                  onExpire={() => setTurnstileToken('')}
-                  onError={() => setTurnstileToken('')}
-                  onConfigLoaded={({ enabled }) => setTurnstileRequired(enabled)}
-                />
-                <div className="nexus-turnstile-caption">
-                  <ShieldCheck size={14} color="#059669" />
-                  <span>Protected by Cloudflare Turnstile Authentication</span>
-                </div>
-              </div>
-
-              <button
-                id="register-submit"
-                type="submit"
-                className="nexus-primary-cta"
-                disabled={isLoading}
-              >
-                {isLoading ? <span className="nexus-spinner" /> : 'Create Workspace Account'}
-              </button>
-
-              <p className="nexus-switch-line">
-                Already have an account?{' '}
-                <button
-                  type="button"
-                  className="nexus-inline-link nexus-inline-strong"
-                  onClick={() => switchMode('login')}
-                >
-                  Sign In
-                </button>
-              </p>
             </form>
           )}
 
@@ -472,19 +277,11 @@ const Login = () => {
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
                   onClick={() => switchMode('login')}
                 >
-                  <ArrowLeft size={14} /> Back to Sign In
+                  <ArrowLeft size={14} /> Back to Login
                 </button>
               </p>
             </form>
           )}
-
-          <div className="nexus-card-footer">
-            <span className="nexus-footer-security">
-              <span className="nexus-green-dot" />
-              Argon2id Encrypted
-            </span>
-            <span className="nexus-footer-domain">{displayHost}</span>
-          </div>
         </section>
 
         {/* RIGHT COLUMN: Centered Nexus Logo Mark & Stacked Brand Wordmark */}

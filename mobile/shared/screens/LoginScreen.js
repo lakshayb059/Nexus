@@ -18,7 +18,6 @@ import { COLORS, GRADIENTS } from '../theme';
 import {
   Mail,
   Lock,
-  User,
   Eye,
   EyeOff,
   ShieldAlert,
@@ -27,13 +26,11 @@ import {
 } from 'lucide-react-native';
 
 const LoginScreen = ({ appTitle = 'Nexus CRM.', appBadge = 'WORKSPACE', logoSource }) => {
-  const { login, register, forgotPassword } = useAuth();
+  const { login, forgotPassword } = useAuth();
 
-  const [mode, setMode] = useState('login'); // 'login' | 'register' | 'forgot'
-  const [name, setName] = useState('');
+  const [mode, setMode] = useState('login'); // 'login' | 'forgot'
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
 
   const [error, setError] = useState('');
@@ -45,7 +42,6 @@ const LoginScreen = ({ appTitle = 'Nexus CRM.', appBadge = 'WORKSPACE', logoSour
     setError('');
     setSuccessMsg('');
     setPassword('');
-    setConfirmPassword('');
     setShowPass(false);
   };
 
@@ -60,35 +56,6 @@ const LoginScreen = ({ appTitle = 'Nexus CRM.', appBadge = 'WORKSPACE', logoSour
     const res = await login(identifier.trim(), password);
     setLoading(false);
     if (!res.success) {
-      setError(res.error);
-    }
-  };
-
-  const handleRegister = async () => {
-    setError('');
-    setSuccessMsg('');
-    if (!name.trim() || !identifier.trim() || !password) {
-      setError('Please fill in all required registration fields.');
-      return;
-    }
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
-    setLoading(true);
-    const res = await register({
-      name: name.trim(),
-      email: identifier.trim(),
-      password,
-    });
-    setLoading(false);
-
-    if (res.success) {
-      setMode('login');
-      setPassword('');
-      setConfirmPassword('');
-      setSuccessMsg(res.message || 'Account registered successfully.');
-    } else {
       setError(res.error);
     }
   };
@@ -112,11 +79,7 @@ const LoginScreen = ({ appTitle = 'Nexus CRM.', appBadge = 'WORKSPACE', logoSour
   };
 
   const cardHeading =
-    mode === 'login'
-      ? 'Workspace Access'
-      : mode === 'register'
-      ? 'Create Workspace Account'
-      : 'Reset Workspace Password';
+    mode === 'login' ? 'Workspace Access' : 'Reset Workspace Password';
 
   return (
     <LinearGradient
@@ -151,9 +114,7 @@ const LoginScreen = ({ appTitle = 'Nexus CRM.', appBadge = 'WORKSPACE', logoSour
               {mode !== 'login' && (
                 <View style={styles.cardTopRow}>
                   <View style={styles.modePill}>
-                    <Text style={styles.modePillText}>
-                      {mode === 'register' ? 'REGISTER' : 'RECOVERY'}
-                    </Text>
+                    <Text style={styles.modePillText}>RECOVERY</Text>
                   </View>
                 </View>
               )}
@@ -162,8 +123,6 @@ const LoginScreen = ({ appTitle = 'Nexus CRM.', appBadge = 'WORKSPACE', logoSour
               <Text style={styles.cardSubtitle}>
                 {mode === 'login'
                   ? 'Enter your authorized enterprise credentials to access your session.'
-                  : mode === 'register'
-                  ? 'Create your new Nexus CRM workspace account.'
                   : 'Enter your work email to receive a single-use password reset link.'}
               </Text>
 
@@ -178,23 +137,6 @@ const LoginScreen = ({ appTitle = 'Nexus CRM.', appBadge = 'WORKSPACE', logoSour
                 <View style={[styles.alertBox, { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }]}>
                   <CheckCircle2 size={16} color={COLORS.success} />
                   <Text style={[styles.alertText, { color: '#047857' }]}>{successMsg}</Text>
-                </View>
-              )}
-
-              {mode === 'register' && (
-                <View style={styles.fieldBlock}>
-                  <Text style={styles.label}>FULL NAME</Text>
-                  <View style={styles.inputWrap}>
-                    <User size={16} color="#94a3b8" style={styles.leftIcon} />
-                    <TextInput
-                      value={name}
-                      onChangeText={setName}
-                      placeholder="Alex Morgan"
-                      placeholderTextColor="#94a3b8"
-                      style={styles.input}
-                      editable={!loading}
-                    />
-                  </View>
                 </View>
               )}
 
@@ -221,13 +163,9 @@ const LoginScreen = ({ appTitle = 'Nexus CRM.', appBadge = 'WORKSPACE', logoSour
                 <View style={styles.fieldBlock}>
                   <View style={styles.labelRow}>
                     <Text style={styles.label}>PASSWORD</Text>
-                    {mode === 'login' ? (
-                      <TouchableOpacity onPress={() => switchMode('forgot')}>
-                        <Text style={styles.inlineLink}>Forgot password?</Text>
-                      </TouchableOpacity>
-                    ) : (
-                      <Text style={styles.hintText}>8+ chars, Aa1!</Text>
-                    )}
+                    <TouchableOpacity onPress={() => switchMode('forgot')}>
+                      <Text style={styles.inlineLink}>Forgot password?</Text>
+                    </TouchableOpacity>
                   </View>
                   <View style={styles.inputWrap}>
                     <Lock size={16} color="#94a3b8" style={styles.leftIcon} />
@@ -250,51 +188,14 @@ const LoginScreen = ({ appTitle = 'Nexus CRM.', appBadge = 'WORKSPACE', logoSour
                 </View>
               )}
 
-              {mode === 'register' && (
-                <View style={styles.fieldBlock}>
-                  <Text style={styles.label}>CONFIRM PASSWORD</Text>
-                  <View style={styles.inputWrap}>
-                    <Lock size={16} color="#94a3b8" style={styles.leftIcon} />
-                    <TextInput
-                      value={confirmPassword}
-                      onChangeText={setConfirmPassword}
-                      placeholder="Re-enter password"
-                      placeholderTextColor="#94a3b8"
-                      secureTextEntry={!showPass}
-                      style={styles.input}
-                      editable={!loading}
-                    />
-                  </View>
-                </View>
-              )}
-
               <GradientButton
-                title={
-                  mode === 'login'
-                    ? 'Enter Workspace'
-                    : mode === 'register'
-                    ? 'Create Workspace Account'
-                    : 'Send Reset Link'
-                }
+                title={mode === 'login' ? 'Enter Workspace' : 'Send Reset Link'}
                 loading={loading}
-                onPress={
-                  mode === 'login'
-                    ? handleLogin
-                    : mode === 'register'
-                    ? handleRegister
-                    : handleForgot
-                }
+                onPress={mode === 'login' ? handleLogin : handleForgot}
                 style={{ marginTop: 8 }}
               />
 
-              {mode === 'login' ? (
-                <View style={styles.switchRow}>
-                  <Text style={styles.switchMuted}>Need a new account? </Text>
-                  <TouchableOpacity onPress={() => switchMode('register')}>
-                    <Text style={styles.switchLink}>Register</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
+              {mode === 'forgot' && (
                 <TouchableOpacity onPress={() => switchMode('login')} style={styles.backRow}>
                   <ArrowLeft size={14} color={COLORS.primary} />
                   <Text style={styles.switchLink}>Back to Login</Text>
